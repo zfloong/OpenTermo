@@ -21,8 +21,9 @@ body {
     min-height: 100vh;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
     overflow-x: hidden;
-    /* 【修改点】顶部留白减小，匹配新的 Header 高度 */
-    padding-top: 180px; 
+    
+    /* 【关键修改】减少顶部留白，因为去掉了语录横幅 */
+    padding-top: 80px; 
 }
 
 /* =========================================
@@ -36,157 +37,35 @@ body {
     z-index: 1000;
     background: rgba(10, 11, 14, 0.95);
     backdrop-filter: blur(10px);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     border-bottom: 1px solid var(--border);
+    /* 移除 box-shadow 或改小，视喜好而定 */
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
 }
+
+/* Timeline 组件样式已移除 (已在 global.js 中备份数据) 
+*/
 
 /* =========================================
-   3. 时间轴组件 (Timeline) - 【横轴展开版】
-   ========================================= */
-.timeline-wrapper {
-    position: relative;
-    width: 100%;
-    height: 120px; /*稍微给点高度，防止阴影被截断*/
-    overflow-x: auto; /* 允许横向滚动 */
-    overflow-y: hidden;
-    cursor: grab;
-    user-select: none;
-    display: flex;
-    align-items: center;
-    border-bottom: 1px solid var(--border);
-    
-    /* 隐藏滚动条 */
-    scrollbar-width: none; 
-}
-.timeline-wrapper::-webkit-scrollbar { display: none; }
-
-.timeline-wrapper.active { cursor: grabbing; }
-
-.timeline-track {
-    display: flex;
-    align-items: center; /* 垂直居中 */
-    gap: 60px; /* 节点之间的间距 */
-    padding: 0 50vw; /* 确保首尾能居中 */
-    will-change: transform;
-}
-
-/* --- 普通节点 (未选中) --- */
-.timeline-node {
-    min-width: 200px; /* 普通节点变窄一点，作为陪衬 */
-    max-width: 200px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    opacity: 0.3; /* 降低未选中的透明度，突出主角 */
-    transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1); /* 平滑过渡动画 */
-    transform: scale(0.9);
-}
-
-/* --- 高亮节点 (主角) --- */
-.timeline-node.highlight {
-    opacity: 1;
-    transform: scale(1);
-    
-    /* 核心修改：宽度极大增加，确保单行显示 */
-    min-width: 600px; 
-    max-width: 800px; 
-}
-
-/* 圆点样式 */
-.node-dot {
-    width: 6px;
-    height: 6px;
-    background: var(--bg-dark);
-    border: 2px solid var(--text-muted);
-    border-radius: 50%;
-    margin-bottom: 12px;
-    position: relative;
-    transition: all 0.3s;
-}
-
-/* 高亮时圆点变金 */
-.timeline-node.highlight .node-dot {
-    background: var(--accent);
-    border-color: var(--accent);
-    box-shadow: 0 0 15px var(--accent);
-}
-
-/* 贯穿线 */
-.node-dot::before {
-    content: '';
-    position: absolute;
-    top: 2px;
-    left: 6px;
-    width: 1000px; /* 足够长即可 */
-    height: 1px;
-    background: var(--border);
-    z-index: -1;
-    opacity: 0.5;
-}
-
-/* --- 语录文字样式 --- */
-.quote-content {
-    font-family: var(--font-serif);
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    pointer-events: none;
-    white-space: nowrap; /* 默认不换行 */
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transition: all 0.3s;
-}
-
-/* 高亮时的文字：放大、金色、完全显示 */
-.timeline-node.highlight .quote-content {
-    font-size: 1.4rem; /* 字体明显放大 */
-    color: #fff; /* 亮白色 */
-    text-shadow: 0 0 20px rgba(0,0,0,0.5);
-    font-weight: 500;
-}
-
-/* --- 底部标签样式 (Modernity -> 现代囚笼) --- */
-.quote-author {
-    margin-top: 8px;
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-family: var(--font-sans);
-    transition: all 0.3s;
-}
-
-/* 高亮时的标签：金色 */
-.timeline-node.highlight .quote-author {
-    color: var(--accent);
-    font-size: 0.85rem;
-    letter-spacing: 3px; /* 增加字间距，更有质感 */
-    font-weight: bold;
-}
-
-/* =========================================
-   4. 导航栏 (Navigation) - 【增肌版】
+   3. 导航栏 (Navigation)
    ========================================= */
 .nav-bar {
-    /* 【修改点】高度适中，留出呼吸感 */
-    height: 60px; 
+    height: 70px; /* 稍微增加高度，更有分量 */
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 50px; /* 间距加大 */
+    gap: 50px;
 }
 
 .nav-link {
     text-decoration: none;
     color: var(--text-muted);
-    /* 【修改点】字体明显放大 */
     font-size: 1.15rem; 
-    font-weight: 700; /* 加粗 */
+    font-weight: 700; 
     text-transform: uppercase;
     letter-spacing: 1px;
     transition: color 0.3s ease;
     position: relative;
-    font-family: var(--font-serif); /* 使用衬线体更有质感 */
+    font-family: var(--font-serif); 
 }
 
 .nav-link:hover, .nav-link.active {
@@ -197,7 +76,7 @@ body {
 .nav-link.active::after {
     content: '';
     position: absolute;
-    bottom: -8px; /* 稍微往下移 */
+    bottom: -8px; 
     left: 50%;
     transform: translateX(-50%);
     width: 5px;
