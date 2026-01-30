@@ -68,7 +68,7 @@ const weekData = [
     },
     { 
         day: '周六', 
-        title: '稳态 · 盛宴', // 【优化】强调“盛宴” (Feast)
+        title: '稳态 · 巡猎日 · 盛宴', // 【优化】强调“盛宴” (Feast)
         subtitle: 'The Feast',
         icon: 'ri-goblet-line',
         diet_allowed: ['你想吃的一切', '超加工食品', '零食'],
@@ -79,7 +79,7 @@ const weekData = [
     },
     { 
         day: '周日', 
-        title: '稳态 · 休息日', // 【优化】强调“合成” (Anabolic)
+        title: '稳态 · 巡猎日', // 【优化】强调“合成” (Anabolic)
         subtitle: 'Meat & Rest',
         icon: 'ri-restaurant-2-line',
         diet_allowed: ['周日烤肉 (Sunday Roast)', '脂肪', '骨髓'],
@@ -142,5 +142,6 @@ function fillList(ul, items) {
         ul.appendChild(li);
     });
 }
+
 
 document.addEventListener('DOMContentLoaded', initWildPage);
