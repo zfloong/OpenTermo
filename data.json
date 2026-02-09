@@ -77,7 +77,12 @@
             { "title": "文心一言", "url": "https://yiyan.baidu.com/", "icon": "https://www.google.com/s2/favicons?domain=yiyan.baidu.com&sz=64" },
             { "title": "Google翻译", "url": "https://translate.google.com/", "icon": "https://www.google.com/s2/favicons?domain=translate.google.com&sz=64" },
             { "title": "Z-Library", "url": "https://zh.z-library.sk/", "icon": "https://www.google.com/s2/favicons?domain=zh.z-library.sk&sz=64" },
-            { "title": "樊登读书", "url": "https://www.dushu365.com/", "icon": "https://www.google.com/s2/favicons?domain=dushu365.com&sz=64" }
+            { "title": "樊登读书", "url": "https://www.dushu365.com/", "icon": "https://www.google.com/s2/favicons?domain=dushu365.com&sz=64" },
+            { "title": "CloudConvert", "url": "https://cloudconvert.com/", "icon": "https://www.google.com/s2/favicons?domain=cloudconvert.com&sz=64" },
+            { "title": "域名监测", "url": "https://api.uouin.com/", "icon": "https://www.google.com/s2/favicons?domain=api.uouin.com&sz=64" },
+            { "title": "CF优选域名", "url": "https://cf.090227.xyz/", "icon": "https://www.google.com/s2/favicons?domain=cf.090227.xyz&sz=64" },
+            { "title": "IPLeak", "url": "https://ipleak.net/", "icon": "https://www.google.com/s2/favicons?domain=ipleak.net&sz=64" },
+            { "title": "BrowserLeaks", "url": "https://browserleaks.com/", "icon": "https://www.google.com/s2/favicons?domain=browserleaks.com&sz=64" }
           ]
         },
         {
@@ -96,10 +101,13 @@
           "isOpen": false,
           "items": [
             { "title": "Claude", "url": "https://claude.ai/", "icon": "https://www.google.com/s2/favicons?domain=claude.ai&sz=64" },
+            { "title": "通义千问", "url": "https://chat.qwen.ai/", "icon": "https://www.google.com/s2/favicons?domain=chat.qwen.ai&sz=64" },
             { "title": "Edge扩展商店", "url": "https://microsoftedge.microsoft.com/addons/Microsoft-Edge-Extensions-Home", "icon": "https://www.google.com/s2/favicons?domain=microsoftedge.microsoft.com&sz=64" },
             { "title": "Chrome商店", "url": "https://chromewebstore.google.com/", "icon": "https://www.google.com/s2/favicons?domain=chromewebstore.google.com&sz=64" },
             { "title": "Ping0-节点质量", "url": "https://ping0.cc/", "icon": "https://ping0.cc/favicon.ico" },
             { "title": "Speedtest", "url": "https://www.speedtest.net/", "icon": "https://www.google.com/s2/favicons?domain=speedtest.net&sz=64" },
+            { "title": "Speedtest-测速国内", "url": "https://www.speedtest.cn/", "icon": "https://www.google.com/s2/favicons?domain=speedtest.net&sz=64" },
+            { "title": "USTC测试", "url": "https://test.ustc.edu.cn/", "icon": "https://www.google.com/s2/favicons?domain=test.ustc.edu.cn&sz=64" },
             { "title": "GeoGebra计算器", "url": "https://www.geogebra.org/calculator", "icon": "https://www.google.com/s2/favicons?domain=geogebra.org&sz=64" },
             { "title": "键鼠在线测试", "url": "https://www.mchose.com.cn/#/test-keyboard", "icon": "https://www.mchose.com.cn/mchose.ico" },
             { "title": "SOC天梯图", "url": "https://socpk.com/", "icon": "https://www.google.com/s2/favicons?domain=socpk.com&sz=64" },
@@ -140,7 +148,8 @@
         { "title": "Vultr", "url": "https://my.vultr.com/", "icon": "https://my.vultr.com/apple-touch-icon.png?v=1" },
         { "title": "Gitee", "url": "https://gitee.com/explore", "icon": "https://gitee.com/favicon.ico" },
         { "title": "Civitai", "url": "https://civitai.com/", "icon": "https://www.google.com/s2/favicons?domain=civitai.com&sz=64" },
-        { "title": "Debian 归档镜像站", "url": "https://cdimage.debian.org/mirror/cdimage/archive/", "icon": "https://www.google.com/s2/favicons?domain=debian.org&sz=64" }
+        { "title": "Debian 归档镜像站", "url": "https://cdimage.debian.org/mirror/cdimage/archive/", "icon": "https://www.google.com/s2/favicons?domain=debian.org&sz=64" },
+        { "title": "魔塔社区", "url": "https://www.modelscope.cn/home", "icon": "https://www.modelscope.cn/favicon.ico" }
       ]
     },
     {
@@ -169,6 +178,7 @@
         { "title": "快手", "url": "https://www.kuaishou.com/new-reco", "icon": "https://www.kuaishou.com/favicon.ico" },
         { "title": "京东", "url": "https://www.jd.com/", "icon": "https://www.google.com/s2/favicons?domain=jd.com&sz=64" },
         { "title": "淘宝", "url": "https://www.taobao.com/", "icon": "https://www.google.com/s2/favicons?domain=taobao.com&sz=64" },
+        { "title": "Instagram", "url": "https://www.instagram.com/", "icon": "https://www.google.com/s2/favicons?domain=instagram.com&sz=64" },
         { "title": "BetterGI", "url": "https://bettergi.com/", "icon": "https://www.google.com/s2/favicons?domain=bettergi.com&sz=64" },
         { "title": "BetterGI-腾讯频道", "url": "https://pd.qq.com/qqweb/qunpro/share?_wv=3&_wwv=128&appChannel=share&inviteCode=2knUxQTSdCl&businessType=9", "icon": "https://www.google.com/s2/favicons?domain=pd.qq.com&sz=64" },
         { "title": "小米云服务", "url": "https://i.mi.com/", "icon": "https://www.google.com/s2/favicons?domain=i.mi.com&sz=64" },
