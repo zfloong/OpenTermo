@@ -18,8 +18,8 @@
       },
       {
         "title": "狂野生长",
-        "url": "Taleb_Universe/index.html", 
-        "icon": "https://github.com/zfloong/zfloong.github.io/raw/main/芝士.svg"
+        "url": "diet.html", 
+        "icon": "images/芝士.svg"
       }
     ]
   },
@@ -37,9 +37,9 @@
           "items": [
             { "title": "Gemini", "url": "https://gemini.google.com/", "icon": "https://www.google.com/s2/favicons?domain=gemini.google.com&sz=64" },
             { "title": "X.Grok", "url": "https://x.com/i/grok", "icon": "https://x.com/favicon.ico" },
+            { "title": "DeepSeek", "url": "https://chat.deepseek.com/", "icon": "https://www.google.com/s2/favicons?domain=chat.deepseek.com&sz=64" },
             { "title": "千问 Qwen", "url": "https://www.qianwen.com/", "icon": "https://img.alicdn.com/imgextra/i4/O1CN01Slt9qq1Q0CmLAG9MK_!!6000000001913-55-tps-32-32.svg" },
             { "title": "腾讯混元", "url": "https://yuanbao.tencent.com/", "icon": "https://www.google.com/s2/favicons?domain=yuanbao.tencent.com&sz=64" },
-            { "title": "DeepSeek", "url": "https://chat.deepseek.com/", "icon": "https://www.google.com/s2/favicons?domain=chat.deepseek.com&sz=64" },
             { "title": "Google AI Studio", "url": "https://aistudio.google.com/prompts/new_chat?model=gemini-3-pro-preview", "icon": "https://www.google.com/s2/favicons?domain=aistudio.google.com&sz=64" },
             { "title": "LM 模型竞技场", "url": "https://lmarena.ai/zh", "icon": "https://www.google.com/s2/favicons?domain=lmarena.ai&sz=64" },
             { "title": "GitHub Claude", "url": "https://github.com/copilot", "icon": "https://www.google.com/s2/favicons?domain=github.com&sz=64" },
@@ -112,7 +112,7 @@
             { "title": "CF优选域名", "url": "https://cf.090227.xyz/", "icon": "https://www.google.com/s2/favicons?domain=cf.090227.xyz&sz=64" },
             { "title": "IPLeak", "url": "https://ipleak.net/", "icon": "https://www.google.com/s2/favicons?domain=ipleak.net&sz=64" },
             { "title": "BrowserLeaks", "url": "https://browserleaks.com/", "icon": "https://www.google.com/s2/favicons?domain=browserleaks.com&sz=64" },
-          { "title": "联想应用商店", "url": "https://lestore.lenovo.com/", "icon": "https://www.google.com/s2/favicons?domain=lestore.lenovo.com&sz=64" }
+            { "title": "联想应用商店", "url": "https://lestore.lenovo.com/", "icon": "https://www.google.com/s2/favicons?domain=lestore.lenovo.com&sz=64" }
           ]
         }
       ]

@@ -6,7 +6,7 @@
 // 1. 核心配置：全站导航菜单
 const navLinks = [
     { name: '首 页', path: 'index.html' },
-    { name: '狂野生长', path: 'wild.html' },
+    { name: '狂野生长', path: '../diet.html' },
     { name: '待定 · 墨水', path: 'library.html' },
     { name: '待定 · 黄金', path: 'finance.html' }
 ];

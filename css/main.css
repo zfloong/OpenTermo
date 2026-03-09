@@ -10,7 +10,7 @@
   --bg: #f8fafc;
   --card-bg: rgba(255, 255, 255, 0.75); /*稍微提高一点不透明度，防止太乱*/
   --nav-bg: rgba(255, 255, 255, 0.85);
-  --text: #1e293b; 
+  --text: #1e293b;
   --text-sub: #64748b;
   --primary: #000000; /* 日间保留紫色，或者你也可以改成金色 */
   --border: rgba(0, 0, 0, 0.06);
@@ -24,10 +24,10 @@
 @media (prefers-color-scheme: dark) {
   :root {
     /* 背景：纯黑与深灰的交响 */
-    --bg: #000000; 
+    --bg: #000000;
     
     /* 卡片：极度通透的黑水晶 */
-    --card-bg: rgba(30, 30, 30, 0.4); 
+    --card-bg: rgba(30, 30, 30, 0.4);
     
     /* 导航：深色毛玻璃 */
     --nav-bg: rgba(0, 0, 0, 0.6);
@@ -37,7 +37,7 @@
     --text-sub: #86868b;
     
     /* 主题色：【核心】流沙金 (替代原来的紫色) */
-    --primary: #d4b483; 
+    --primary: #d4b483;
     
     /* 边框：极细微的白光 */
     --border: rgba(255, 255, 255, 0.08);
@@ -292,9 +292,11 @@ body {
    ========================================= */
 .category-section {
   display: none;
+}
+.category-section.active {
+  display: block;
   animation: fadeIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.category-section.active { display: block; }
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(15px); }
   to { opacity: 1; transform: translateY(0); }
@@ -418,4 +420,10 @@ footer {
   color: var(--text-sub);
   font-size: 0.85rem;
   letter-spacing: 1px;
+}
+
+/* 加载动画 */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
