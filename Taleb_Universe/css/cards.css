@@ -21,9 +21,15 @@
 .page-title {
     font-family: var(--font-serif);
     font-size: 2.5rem;
-    color: var(--accent);
+    background: linear-gradient(135deg, #f4e59a 0%, #e8c85a 15%, #d4af37 30%, #f9d76a 45%, #c9a227 60%, #f5e07a 75%, #d4af37 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
     margin: 0;
     letter-spacing: 2px;
+    font-weight: 600;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 
