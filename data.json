@@ -36,7 +36,7 @@
           "isOpen": true,
           "items": [
             { "title": "Gemini", "url": "https://gemini.google.com/", "icon": "https://www.google.com/s2/favicons?domain=gemini.google.com&sz=64" },
-            { "title": "X.Grok", "url": "https://x.com/i/grok", "icon": "https://x.com/favicon.ico" },
+            { "title": "Grok", "url": "https://grok.com/", "icon": "https://www.google.com/s2/favicons?domain=grok.com&sz=64" },
             { "title": "DeepSeek", "url": "https://chat.deepseek.com/", "icon": "https://www.google.com/s2/favicons?domain=chat.deepseek.com&sz=64" },
             { "title": "千问 Qwen", "url": "https://www.qianwen.com/", "icon": "https://img.alicdn.com/imgextra/i4/O1CN01Slt9qq1Q0CmLAG9MK_!!6000000001913-55-tps-32-32.svg" },
             { "title": "腾讯混元", "url": "https://yuanbao.tencent.com/", "icon": "https://www.google.com/s2/favicons?domain=yuanbao.tencent.com&sz=64" },
@@ -53,6 +53,7 @@
           "items": [
             { "title": "GitHub Home", "url": "https://github.com/dashboard", "iconSymbol": "ri-github-fill", "iconColor": "var(--text)" },
             { "title": "Bilibili", "url": "https://www.bilibili.com/", "icon": "https://www.bilibili.com/favicon.ico" },
+            { "title": "X.Grok", "url": "https://x.com/i/grok", "icon": "https://x.com/favicon.ico" },
             { "title": "YouTube", "url": "https://www.youtube.com/", "icon": "https://www.youtube.com/favicon.ico" },
             { "title": "微信读书", "url": "https://weread.qq.com/web/shelf", "icon": "https://rescdn.qqmail.com/node/wr/wrpage/style/images/independent/favicon/favicon_48h.png" }
             
