@@ -102,7 +102,7 @@
             { "title": "Edge扩展商店", "url": "https://microsoftedge.microsoft.com/addons/Microsoft-Edge-Extensions-Home", "icon": "https://www.google.com/s2/favicons?domain=microsoftedge.microsoft.com&sz=64" },
             { "title": "Chrome商店", "url": "https://chromewebstore.google.com/", "icon": "https://www.google.com/s2/favicons?domain=chromewebstore.google.com&sz=64" },
             { "title": "Ping0-节点质量", "url": "https://ping0.cc/", "icon": "https://ping0.cc/favicon.ico" },
-            { "title": "Speedtest-Net", "url": "https://www.speedtest.net/", "icon": "https://www.google.com/s2/favicons?domain=speedtest.net&sz=64" },
+            { "title": "Speedtest-Net", "url": "https://fiber.google.com/speedtest/", "icon": "https://fiber.google.com/favicon.ico" },
             { "title": "Speedtest-CN", "url": "https://www.speedtest.cn/", "icon": "https://www.google.com/s2/favicons?domain=speedtest.net&sz=64" },
             { "title": "中科大测速", "url": "https://test.ustc.edu.cn/", "icon": "https://www.google.com/s2/favicons?domain=test.ustc.edu.cn&sz=64" },
             { "title": "GeoGebra计算器", "url": "https://www.geogebra.org/calculator", "icon": "https://www.google.com/s2/favicons?domain=geogebra.org&sz=64" },
@@ -113,6 +113,7 @@
             { "title": "CF优选域名", "url": "https://cf.090227.xyz/", "icon": "https://www.google.com/s2/favicons?domain=cf.090227.xyz&sz=64" },
             { "title": "IPLeak", "url": "https://ipleak.net/", "icon": "https://www.google.com/s2/favicons?domain=ipleak.net&sz=64" },
             { "title": "BrowserLeaks", "url": "https://browserleaks.com/", "icon": "https://www.google.com/s2/favicons?domain=browserleaks.com&sz=64" },
+            { "title": "PDF24 Tools", "url": "https://tools.pdf24.org/zh/", "icon": "https://www.google.com/s2/favicons?domain=tools.pdf24.org&sz=64" },
             { "title": "联想应用商店", "url": "https://lestore.lenovo.com/", "icon": "https://www.google.com/s2/favicons?domain=lestore.lenovo.com&sz=64" }
           ]
         }
