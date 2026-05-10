@@ -53,9 +53,9 @@
           "items": [
             { "title": "GitHub Home", "url": "https://github.com/dashboard", "iconSymbol": "ri-github-fill", "iconColor": "var(--text)" },
             { "title": "Bilibili", "url": "https://www.bilibili.com/", "icon": "https://www.bilibili.com/favicon.ico" },
-            { "title": "X.Grok", "url": "https://x.com/i/grok", "icon": "https://x.com/favicon.ico" },
             { "title": "YouTube", "url": "https://www.youtube.com/", "icon": "https://www.youtube.com/favicon.ico" },
-            { "title": "微信读书", "url": "https://weread.qq.com/web/shelf", "icon": "https://rescdn.qqmail.com/node/wr/wrpage/style/images/independent/favicon/favicon_48h.png" }
+            { "title": "X.Grok", "url": "https://x.com/i/grok", "icon": "https://x.com/favicon.ico" }
+            
             
           ]
         }
@@ -79,6 +79,7 @@
             { "title": "Google翻译", "url": "https://translate.google.com/", "icon": "https://www.google.com/s2/favicons?domain=translate.google.com&sz=64" },
             { "title": "Z-Library", "url": "https://zh.z-library.sk/", "icon": "https://www.google.com/s2/favicons?domain=zh.z-library.sk&sz=64" },
             { "title": "樊登读书", "url": "https://www.dushu365.com/", "icon": "https://www.google.com/s2/favicons?domain=dushu365.com&sz=64" },
+            { "title": "微信读书", "url": "https://weread.qq.com/web/shelf", "icon": "https://rescdn.qqmail.com/node/wr/wrpage/style/images/independent/favicon/favicon_48h.png" },
             { "title": "PDF24 Tools", "url": "https://tools.pdf24.org/zh/", "icon": "https://www.google.com/s2/favicons?domain=tools.pdf24.org&sz=64" },
             { "title": "CloudConvert", "url": "https://cloudconvert.com/", "icon": "https://www.google.com/s2/favicons?domain=cloudconvert.com&sz=64" }
           ]
@@ -142,7 +143,7 @@
     },
     {
       "id": "opensource",
-      "navTitle": "开发者与资源库",
+      "navTitle": "开发与资源库",
       "icon": "ri-open-source-line",
       "sectionTitle": "资源库",
       "titleColor": "#ec4899",
