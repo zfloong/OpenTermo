@@ -27,7 +27,7 @@ const WEEKLY_PLAN = [
   { // 周三
     day: '周三',
     type: '高强度锻炼日',
-    content: '漫步 1-2 小时 + 5-15 分钟高强度运动',
+    content: '漫步 1-2 小时 + 5-15 分钟高强度运动or 400米全力冲刺',
     note: '极端压力，让身体从尾部事件中变强',
     icon: 'ri-flashlight-fill'
   },
