@@ -1,4 +1,4 @@
-name: CI (backend)
+name: CI (tauri frontend)
 
 on:
   push:
@@ -11,26 +11,66 @@ env:
 
 jobs:
   check:
-    name: cargo check (Windows)
+    name: build & check (Windows)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
+      # ---- Checkout meatshell alongside the app repo ----
+      - name: Checkout meatshell backend
+        uses: actions/checkout@v4
+        with:
+          repository: zfloong/meatshell
+          path: ../meatshell
+          ref: main
+
+      # ---- Node.js ----
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: ${{ runner.os }}-npm-
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # ---- Generate Tauri icons ----
+      - name: Generate placeholder icon
+        run: node scripts/generate-icon.mjs
+
+      - name: Generate Tauri icon set
+        run: npx tauri icon src-tauri/icons/icon.png
+
+      # ---- Frontend build ----
+      - name: TypeScript check + Vite build
+        run: npm run build
+
+      # ---- Rust backend ----
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry
+      - name: Cache cargo
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.toml', '../meatshell/Cargo.toml') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: cargo check
+      - name: cargo check (Tauri backend)
         run: cargo check
+        working-directory: src-tauri
 
-      - name: cargo build (debug)
-        run: cargo build
+      # ---- Full Tauri build (binary) ----
+      - name: Tauri build
+        run: npx tauri build
+        env:
+          TAURI_SKIP_DEVSERVER_CHECK: "true"
