@@ -1,4 +1,4 @@
-name: CI (tauri frontend)
+name: CI
 
 on:
   push:
@@ -15,23 +15,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      # ---- Checkout meatshell INSIDE workspace (GH Actions requires
-      #      checkout paths to be under the working tree) ----
-      - name: Checkout meatshell backend
-        uses: actions/checkout@v4
-        with:
-          repository: zfloong/meatshell
-          path: meatshell
-          ref: main
-
-      # ---- Patch Cargo.toml so the path dep matches CI layout ----
-      #      Local dev:  ../../meatshell  (sibling repos)
-      #      CI:         ../meatshell    (subdirectory of workspace)
-      - name: Patch meatshell path for CI
-        shell: pwsh
-        run: |
-          (Get-Content src-tauri/Cargo.toml -Raw) -replace 'path = "../../meatshell"', 'path = "../meatshell"' | Set-Content src-tauri/Cargo.toml
 
       # ---- Node.js ----
       - name: Setup Node.js
@@ -60,7 +43,7 @@ jobs:
       - name: TypeScript check + Vite build
         run: npm run build
 
-      # ---- Rust backend ----
+      # ---- Rust backend (meatshell + Tauri) ----
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -74,11 +57,11 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.toml', 'meatshell/Cargo.toml') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: cargo check (Tauri backend)
+      - name: cargo check (Tauri + meatshell)
         run: cargo check
         working-directory: src-tauri
 
-      # ---- Full Tauri build (binary) ----
+      # ---- Full Tauri build ----
       - name: Tauri build
         run: npx tauri build
         env:
