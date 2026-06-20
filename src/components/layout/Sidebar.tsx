@@ -5,6 +5,7 @@ import { useSessionStore } from "@/stores/sessionStore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { getSystemStats, type SystemSnapshot } from "@/lib/tauriCommands";
+import CommandPanel from "@/components/CommandPanel";
 
 export default function Sidebar() {
   const isOpen = useUIStore((s) => s.isSidebarOpen);
@@ -71,9 +72,9 @@ export default function Sidebar() {
 
           <TabsContent
             value="commands"
-            className="flex-1 flex items-center justify-center text-sm text-[var(--text-secondary)]"
+            className="flex-1 overflow-hidden"
           >
-            <p>No saved commands</p>
+            <CommandPanel />
           </TabsContent>
         </Tabs>
       </div>

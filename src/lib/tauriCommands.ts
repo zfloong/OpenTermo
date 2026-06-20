@@ -38,6 +38,17 @@ export interface SystemSnapshot {
   netTxPerSec: number;
 }
 
+// ── Command snippets ─────────────────────────────────────────────────────
+
+export interface CommandEntry {
+  id: string;
+  label: string;
+  command: string;
+  category: string;
+  pinned: boolean;
+  last_used: string | null;
+}
+
 // ── Prompt event payloads ─────────────────────────────────────────────────
 
 export interface HostKeyPromptPayload {
@@ -120,4 +131,16 @@ export async function replyCredential(
 
 export async function getSystemStats(): Promise<SystemSnapshot> {
   return invoke<SystemSnapshot>("get_system_stats");
+}
+
+export async function listCommands(): Promise<CommandEntry[]> {
+  return invoke<CommandEntry[]>("list_commands");
+}
+
+export async function saveCommand(entry: CommandEntry): Promise<CommandEntry> {
+  return invoke<CommandEntry>("save_command", { entry });
+}
+
+export async function deleteCommand(id: string): Promise<void> {
+  return invoke("delete_command", { id });
 }

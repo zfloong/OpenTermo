@@ -6,6 +6,7 @@
 
 #![allow(dead_code)]
 
+pub mod command;
 pub mod config;
 pub mod errlog;
 pub mod forward;

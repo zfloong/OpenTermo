@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use meatshell::command::{CommandEntry, CommandStore};
 use meatshell::config::{ConfigStore, Session as SessionConfig};
 use meatshell::system::{SystemSampler, SystemSnapshot};
 use tauri::State;
@@ -29,6 +30,40 @@ pub fn delete_session(id: String) -> Result<(), String> {
     let mut store = ConfigStore::load().map_err(|e| e.to_string())?;
     store.remove(&id);
     store.save().map_err(|e| e.to_string())
+}
+
+// ── Quick-command snippets ─────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn list_commands() -> Result<Vec<CommandEntry>, String> {
+    let store = CommandStore::load().map_err(|e| e.to_string())?;
+    Ok(store.entries().to_vec())
+}
+
+#[tauri::command]
+pub fn save_command(entry: CommandEntry) -> Result<CommandEntry, String> {
+    let mut store = CommandStore::load().map_err(|e| e.to_string())?;
+    let existing = store.entries().iter().any(|e| e.id == entry.id);
+    if existing {
+        store.update(&entry.id, entry).map_err(|e| e.to_string())?;
+    } else {
+        store.add(entry);
+    }
+    store.save().map_err(|e| e.to_string())?;
+    // Reload so the returned entry is canonical
+    let store2 = CommandStore::load().map_err(|e| e.to_string())?;
+    Ok(store2.entries().iter()
+        .find(|e| e.id == entry.id)
+        .cloned()
+        .unwrap_or(entry))
+}
+
+#[tauri::command]
+pub fn delete_command(id: String) -> Result<(), String> {
+    let mut store = CommandStore::load().map_err(|e| e.to_string())?;
+    store.remove(&id);
+    store.save().map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // ── Terminal session lifecycle ────────────────────────────────────────────
