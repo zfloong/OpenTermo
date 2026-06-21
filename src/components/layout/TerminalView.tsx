@@ -5,17 +5,17 @@ import "xterm/css/xterm.css";
 import { useSessionStore } from "@/stores/sessionStore";
 
 const terminalTheme = {
-  background: "#0d1117",
+  background: "#0a0e14",
   foreground: "#d4d4d4",
-  cursor: "#4fadff",
-  cursorAccent: "#0d1117",
-  selectionBackground: "rgba(79, 173, 255, 0.25)",
+  cursor: "#66b8ff",
+  cursorAccent: "#0a0e14",
+  selectionBackground: "rgba(102, 184, 255, 0.25)",
   selectionForeground: "#ffffff",
-  black: "#1a1a2e",
+  black: "#0a0e14",
   red: "#d9534f",
   green: "#5cb85c",
   yellow: "#f0ad4e",
-  blue: "#4fadff",
+  blue: "#66b8ff",
   magenta: "#c678dd",
   cyan: "#56b6c2",
   white: "#d4d4d4",

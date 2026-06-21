@@ -5,23 +5,23 @@
 /* ── Design Tokens (Dark Theme) ─────────────────────────────────────────── */
 :root {
   /* Background layers (deep → light) */
-  --bg-base:       #0d1117;
-  --bg-surface:    #131d27;
-  --bg-glass:      rgba(19, 29, 39, 0.72);
-  --bg-elevated:   #1a2733;
+  --bg-base:       #0a0e14;
+  --bg-surface:    #111820;
+  --bg-glass:      rgba(17, 24, 32, 0.72);
+  --bg-elevated:   #171f2b;
   --bg-overlay:    rgba(0, 0, 0, 0.55);
 
   /* Text layers */
-  --text-primary:   #d4d4d4;
-  --text-secondary: #8a9baa;
-  --text-heading:   #ced9e2;
+  --text-primary:   #dce2e8;
+  --text-secondary: #8b99a5;
+  --text-heading:   #e0e6ed;
   --text-muted:     rgba(255, 255, 255, 0.4);
   --text-inverse:   #ffffff;
 
   /* Accent — single blue */
-  --accent:         #4fadff;
-  --accent-dim:     rgba(79, 173, 255, 0.15);
-  --accent-border:  rgba(79, 173, 255, 0.3);
+  --accent:         #66b8ff;
+  --accent-dim:     rgba(102, 184, 255, 0.15);
+  --accent-border:  rgba(102, 184, 255, 0.3);
 
   /* Semantic */
   --color-success:  #5cb85c;
@@ -32,7 +32,7 @@
   /* Surface interaction */
   --surface-hover:   rgba(255, 255, 255, 0.04);
   --surface-active:  rgba(255, 255, 255, 0.07);
-  --surface-selected: rgba(79, 173, 255, 0.1);
+  --surface-selected: rgba(102, 184, 255, 0.1);
 
   /* Borders */
   --border-subtle:   rgba(255, 255, 255, 0.06);
@@ -86,25 +86,25 @@
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
 
   /* ── shadcn/ui CSS variable bridge (HSL) — used by Radix primitives ── */
-  --color-background:          215 28% 7%;
-  --color-foreground:          210 14% 85%;
-  --color-card:                210 28% 13%;
-  --color-card-foreground:     210 14% 85%;
-  --color-popover:             210 28% 13%;
-  --color-popover-foreground:  210 14% 85%;
-  --color-primary:             208 100% 65%;
-  --color-primary-foreground:  215 28% 7%;
-  --color-secondary:           210 14% 65%;
-  --color-secondary-foreground: 215 28% 7%;
-  --color-muted:               210 20% 18%;
-  --color-muted-foreground:    210 14% 68%;
-  --color-accent:              208 100% 65%;
-  --color-accent-foreground:   215 28% 7%;
+  --color-background:          216 33% 6%;
+  --color-foreground:          210 21% 89%;
+  --color-card:                212 31% 10%;
+  --color-card-foreground:     210 21% 89%;
+  --color-popover:             216 30% 13%;
+  --color-popover-foreground:  210 21% 89%;
+  --color-primary:             208 100% 70%;
+  --color-primary-foreground:  216 33% 6%;
+  --color-secondary:           208 13% 60%;
+  --color-secondary-foreground: 216 33% 6%;
+  --color-muted:               210 18% 15%;
+  --color-muted-foreground:    208 13% 64%;
+  --color-accent:              208 100% 70%;
+  --color-accent-foreground:   216 33% 6%;
   --color-destructive:         354 62% 58%;
-  --color-destructive-foreground: 215 28% 7%;
+  --color-destructive-foreground: 216 33% 6%;
   --color-border:              0 0% 100%;
   --color-input:               0 0% 100%;
-  --color-ring:                208 100% 65%;
+  --color-ring:                208 100% 70%;
   --radius: 0.5rem;
 }
 
@@ -128,7 +128,7 @@
 
   --surface-hover:   rgba(0, 0, 0, 0.03);
   --surface-active:  rgba(0, 0, 0, 0.06);
-  --surface-selected: rgba(79, 173, 255, 0.12);
+  --surface-selected: rgba(102, 184, 255, 0.12);
 
   --shadow-md:  0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg:  0 8px 24px rgba(0, 0, 0, 0.1);
@@ -202,7 +202,7 @@ body,
 
 /* ── Selection ──────────────────────────────────────────────────────────── */
 ::selection {
-  background-color: rgba(79, 173, 255, 0.25);
+  background-color: rgba(102, 184, 255, 0.25);
   color: var(--text-inverse);
 }
 
@@ -261,11 +261,9 @@ body,
 
 /* ── Component utility classes ──────────────────────────────────────────── */
 
-/* Sidebar glass */
+/* Sidebar (solid surface, no glass for flex layout) */
 .sidebar-glass {
-  background: var(--bg-glass);
-  backdrop-filter: blur(16px) saturate(1.2);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  background: var(--bg-surface);
   border-right: 1px solid var(--border-subtle);
 }
 
@@ -324,8 +322,8 @@ body,
   cursor: pointer;
 }
 .btn-primary:hover {
-  background: rgba(79, 173, 255, 0.25);
-  border-color: rgba(79, 173, 255, 0.5);
+  background: rgba(102, 184, 255, 0.25);
+  border-color: rgba(102, 184, 255, 0.5);
 }
 
 .btn-ghost {

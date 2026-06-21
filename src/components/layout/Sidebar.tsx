@@ -1,17 +1,10 @@
-import { useEffect, useState } from "react";
-import { PanelLeftOpen, PanelLeftClose, Activity, Zap, Terminal } from "lucide-react";
+import { PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import { useUIStore } from "@/stores/uiStore";
-import { useSessionStore } from "@/stores/sessionStore";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getSystemStats, type SystemSnapshot } from "@/lib/tauriCommands";
 import CommandPanel from "@/components/CommandPanel";
 
 export default function Sidebar() {
   const isOpen = useUIStore((s) => s.isSidebarOpen);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
-  const tabs = useSessionStore((s) => s.tabs);
-  const setActiveTab = useSessionStore((s) => s.setActiveTab);
-  const activeTabId = useSessionStore((s) => s.activeTabId);
 
   return (
     <>
@@ -28,177 +21,26 @@ export default function Sidebar() {
       )}
 
       <aside
-        className="sidebar-glass flex flex-col overflow-hidden flex-shrink-0 transition-[width] duration-200 ease-out"
+        className="flex flex-col overflow-hidden flex-shrink-0 transition-[width] duration-200 ease-out bg-[var(--bg-surface)] border-r border-[var(--border-subtle)]"
         style={{ width: isOpen ? 260 : 0 }}
       >
         <div className="w-[260px] flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between px-3 h-10 border-b border-[var(--border-subtle)]">
             <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-              Resources
+              Commands
             </span>
-            <button
-              onClick={toggleSidebar}
-              className="btn-icon h-7 w-7"
-            >
+            <button onClick={toggleSidebar} className="btn-icon h-7 w-7">
               <PanelLeftClose size={16} />
             </button>
           </div>
 
-          {/* Active sessions bar */}
-          {tabs.length > 0 && (
-            <div className="border-b border-[var(--border-subtle)] px-2 py-1.5 flex flex-wrap gap-1">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-sm transition-colors truncate max-w-full ${
-                    tab.id === activeTabId
-                      ? "bg-[var(--accent-dim)] text-[var(--accent)]"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
-                  }`}
-                >
-                  <Terminal size={10} />
-                  <span className="truncate">{tab.session.name || tab.session.host}</span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          <Tabs defaultValue="monitor" className="flex flex-col flex-1 px-2 pt-2">
-            <TabsList className="w-full">
-              <TabsTrigger value="monitor" className="flex-1 gap-1.5">
-                <Activity size={14} />
-                <span>Monitor</span>
-              </TabsTrigger>
-              <TabsTrigger value="commands" className="flex-1 gap-1.5">
-                <Zap size={14} />
-                <span>Commands</span>
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="monitor" className="flex-1 overflow-auto mt-1">
-              <SystemMonitorPanel />
-            </TabsContent>
-
-            <TabsContent value="commands" className="flex-1 overflow-hidden">
-              <CommandPanel />
-            </TabsContent>
-          </Tabs>
+          {/* Command panel — fills the rest */}
+          <div className="flex-1 overflow-hidden">
+            <CommandPanel />
+          </div>
         </div>
       </aside>
     </>
   );
-}
-
-// ── System Monitor ─────────────────────────────────────────────────────────
-
-function colorForPercent(pct: number): string {
-  if (pct >= 85) return "var(--color-danger)";
-  if (pct >= 60) return "var(--color-warning)";
-  return "var(--color-success)";
-}
-
-function SystemMonitorPanel() {
-  const [stats, setStats] = useState<SystemSnapshot | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    const poll = async () => {
-      try {
-        const s = await getSystemStats();
-        if (active) setStats(s);
-      } catch {
-        // ignore
-      }
-    };
-    poll();
-    const id = setInterval(poll, 2000);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
-  }, []);
-
-  if (!stats) {
-    return (
-      <div className="flex items-center justify-center h-full text-xs text-[var(--text-secondary)]">
-        Loading...
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-3 p-2">
-      <StatBlock
-        label="CPU"
-        value={percent(stats.cpuPercent)}
-        pct={stats.cpuPercent}
-      />
-      <StatBlock
-        label="Memory"
-        value={mib(stats.memUsedMib, stats.memTotalMib)}
-        pct={stats.memPercent}
-      />
-      {stats.swapTotalMib > 0 && (
-        <StatBlock
-          label="Swap"
-          value={mib(stats.swapUsedMib, stats.swapTotalMib)}
-          pct={stats.swapPercent}
-        />
-      )}
-      <StatBlock label="NET ↓" value={formatBytes(stats.netRxPerSec)} />
-      <StatBlock label="NET ↑" value={formatBytes(stats.netTxPerSec)} />
-    </div>
-  );
-}
-
-function StatBlock({
-  label,
-  value,
-  pct,
-}: {
-  label: string;
-  value: string;
-  pct?: number;
-}) {
-  return (
-    <div className="sidebar-card">
-      <div className="flex justify-between items-center mb-1.5">
-        <span className="text-xs text-[var(--text-secondary)]">{label}</span>
-        <span
-          className="font-mono text-xs tabular-nums"
-          style={{ color: pct != null ? colorForPercent(pct) : "var(--text-secondary)" }}
-        >
-          {value}
-        </span>
-      </div>
-      {pct != null && (
-        <div className="h-[3px] bg-[var(--border-subtle)] rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full transition-[width,background-color] duration-500"
-            style={{
-              width: `${Math.min(100, pct)}%`,
-              backgroundColor: colorForPercent(pct),
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function percent(v: number) {
-  return `${v.toFixed(1)}%`;
-}
-
-function mib(used: number, total: number) {
-  if (total === 0) return "—";
-  return `${(used / 1024).toFixed(1)} / ${(total / 1024).toFixed(1)} GiB`;
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B/s`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB/s`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB/s`;
 }
