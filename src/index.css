@@ -4,24 +4,24 @@
 
 /* ── Design Tokens (Dark Theme) ─────────────────────────────────────────── */
 :root {
-  /* Background layers (deep → light) */
-  --bg-base:       #0a0e14;
-  --bg-surface:    #111820;
-  --bg-glass:      rgba(17, 24, 32, 0.72);
-  --bg-elevated:   #171f2b;
+  /* Background layers (deep → light) — visibly differentiated */
+  --bg-base:       #0c1117;
+  --bg-surface:    #18202a;
+  --bg-glass:      rgba(24, 32, 42, 0.72);
+  --bg-elevated:   #222c38;
   --bg-overlay:    rgba(0, 0, 0, 0.55);
 
   /* Text layers */
-  --text-primary:   #dce2e8;
-  --text-secondary: #8b99a5;
-  --text-heading:   #e0e6ed;
+  --text-primary:   #e6eef5;
+  --text-secondary: #9aabba;
+  --text-heading:   #e9f0f7;
   --text-muted:     rgba(255, 255, 255, 0.4);
   --text-inverse:   #ffffff;
 
-  /* Accent — single blue */
-  --accent:         #66b8ff;
-  --accent-dim:     rgba(102, 184, 255, 0.15);
-  --accent-border:  rgba(102, 184, 255, 0.3);
+  /* Accent — single blue, punchy */
+  --accent:         #60a5fa;
+  --accent-dim:     rgba(96, 165, 250, 0.15);
+  --accent-border:  rgba(96, 165, 250, 0.3);
 
   /* Semantic */
   --color-success:  #5cb85c;
@@ -32,7 +32,7 @@
   /* Surface interaction */
   --surface-hover:   rgba(255, 255, 255, 0.04);
   --surface-active:  rgba(255, 255, 255, 0.07);
-  --surface-selected: rgba(102, 184, 255, 0.1);
+  --surface-selected: rgba(96, 165, 250, 0.1);
 
   /* Borders */
   --border-subtle:   rgba(255, 255, 255, 0.06);
@@ -86,25 +86,25 @@
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
 
   /* ── shadcn/ui CSS variable bridge (HSL) — used by Radix primitives ── */
-  --color-background:          216 33% 6%;
-  --color-foreground:          210 21% 89%;
-  --color-card:                212 31% 10%;
-  --color-card-foreground:     210 21% 89%;
-  --color-popover:             216 30% 13%;
-  --color-popover-foreground:  210 21% 89%;
-  --color-primary:             208 100% 70%;
-  --color-primary-foreground:  216 33% 6%;
-  --color-secondary:           208 13% 60%;
-  --color-secondary-foreground: 216 33% 6%;
-  --color-muted:               210 18% 15%;
-  --color-muted-foreground:    208 13% 64%;
-  --color-accent:              208 100% 70%;
-  --color-accent-foreground:   216 33% 6%;
+  --color-background:          213 31% 7%;
+  --color-foreground:          210 25% 93%;
+  --color-card:                213 27% 13%;
+  --color-card-foreground:     210 25% 93%;
+  --color-popover:             213 24% 18%;
+  --color-popover-foreground:  210 25% 93%;
+  --color-primary:             213 94% 68%;
+  --color-primary-foreground:  213 31% 7%;
+  --color-secondary:           210 14% 60%;
+  --color-secondary-foreground: 213 31% 7%;
+  --color-muted:               213 20% 18%;
+  --color-muted-foreground:    210 14% 68%;
+  --color-accent:              213 94% 68%;
+  --color-accent-foreground:   213 31% 7%;
   --color-destructive:         354 62% 58%;
-  --color-destructive-foreground: 216 33% 6%;
+  --color-destructive-foreground: 213 31% 7%;
   --color-border:              0 0% 100%;
   --color-input:               0 0% 100%;
-  --color-ring:                208 100% 70%;
+  --color-ring:                213 94% 68%;
   --radius: 0.5rem;
 }
 
@@ -128,7 +128,7 @@
 
   --surface-hover:   rgba(0, 0, 0, 0.03);
   --surface-active:  rgba(0, 0, 0, 0.06);
-  --surface-selected: rgba(102, 184, 255, 0.12);
+  --surface-selected: rgba(96, 165, 250, 0.12);
 
   --shadow-md:  0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg:  0 8px 24px rgba(0, 0, 0, 0.1);
@@ -202,7 +202,7 @@ body,
 
 /* ── Selection ──────────────────────────────────────────────────────────── */
 ::selection {
-  background-color: rgba(102, 184, 255, 0.25);
+  background-color: rgba(96, 165, 250, 0.25);
   color: var(--text-inverse);
 }
 
@@ -322,8 +322,8 @@ body,
   cursor: pointer;
 }
 .btn-primary:hover {
-  background: rgba(102, 184, 255, 0.25);
-  border-color: rgba(102, 184, 255, 0.5);
+  background: rgba(96, 165, 250, 0.25);
+  border-color: rgba(96, 165, 250, 0.5);
 }
 
 .btn-ghost {
@@ -379,7 +379,7 @@ body,
 
 /* ── Input ──────────────────────────────────────────────────────────────── */
 .input-field {
-  background: #151c22;
+  background: var(--bg-surface);
   color: var(--text-primary);
   border: 2px solid transparent;
   border-radius: var(--radius-sm);
@@ -393,7 +393,7 @@ body,
 }
 .input-field:focus {
   border-color: var(--border-focus);
-  background: #181e23;
+  background: var(--bg-elevated);
 }
 .input-field::placeholder {
   color: var(--text-muted);

@@ -7,14 +7,16 @@ export default function StatusBar() {
   const activeTabId = useSessionStore((s) => s.activeTabId);
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
-  const [stats, setStats] = useState<SystemSnapshot | null>(null);
+  const [localStats, setLocalStats] = useState<SystemSnapshot | null>(null);
+  const remoteStats = activeTab?.remoteStats ?? null;
 
+  // Poll local stats (always, for fallback and network data)
   useEffect(() => {
     let active = true;
     const poll = async () => {
       try {
         const s = await getSystemStats();
-        if (active) setStats(s);
+        if (active) setLocalStats(s);
       } catch {
         // ignore
       }
@@ -48,30 +50,47 @@ export default function StatusBar() {
         )}
       </div>
 
-      {/* Center: system monitor inline */}
-      {stats && (
-        <div className="flex items-center gap-3 min-w-0 overflow-hidden text-[11px]">
-          <MonitorItem
-            label="CPU"
-            value={percent(stats.cpuPercent)}
-            pct={stats.cpuPercent}
-          />
-          <MonitorItem
-            label="Mem"
-            value={mib(stats.memUsedMib, stats.memTotalMib)}
-            pct={stats.memPercent}
-          />
-          {stats.swapTotalMib > 0 && (
-            <MonitorItem
-              label="Swap"
-              value={mib(stats.swapUsedMib, stats.swapTotalMib)}
-              pct={stats.swapPercent}
+      {/* Center: inline system monitor */}
+      <div className="flex items-center gap-3 min-w-0 overflow-hidden text-[11px]">
+        {remoteStats ? (
+          // ── Remote SSH stats ──────────────────────────────────────────
+          <>
+            <MonitorChip label="CPU" value={`${remoteStats.cpu_percent.toFixed(1)}%`} />
+            <MonitorChip
+              label="Mem"
+              value={kibToGiB(remoteStats.mem_used_kib, remoteStats.mem_total_kib)}
+              pct={
+                remoteStats.mem_total_kib > 0
+                  ? (remoteStats.mem_used_kib / remoteStats.mem_total_kib) * 100
+                  : undefined
+              }
             />
-          )}
-          <MonitorItem label="↓" value={formatBytes(stats.netRxPerSec)} />
-          <MonitorItem label="↑" value={formatBytes(stats.netTxPerSec)} />
-        </div>
-      )}
+          </>
+        ) : localStats ? (
+          // ── Local system stats ───────────────────────────────────────
+          <>
+            <MonitorChip
+              label="CPU"
+              value={percent(localStats.cpuPercent)}
+              pct={localStats.cpuPercent}
+            />
+            <MonitorChip
+              label="Mem"
+              value={mib(localStats.memUsedMib, localStats.memTotalMib)}
+              pct={localStats.memPercent}
+            />
+            {localStats.swapTotalMib > 0 && (
+              <MonitorChip
+                label="Swap"
+                value={mib(localStats.swapUsedMib, localStats.swapTotalMib)}
+                pct={localStats.swapPercent}
+              />
+            )}
+            <MonitorChip label="↓" value={formatBytes(localStats.netRxPerSec)} />
+            <MonitorChip label="↑" value={formatBytes(localStats.netTxPerSec)} />
+          </>
+        ) : null}
+      </div>
 
       {/* Right: session count */}
       <div className="flex-1" />
@@ -85,7 +104,7 @@ export default function StatusBar() {
 
 // ── Inline monitor chip ────────────────────────────────────────────────────
 
-function MonitorItem({
+function MonitorChip({
   label,
   value,
   pct,
@@ -120,6 +139,13 @@ function percent(v: number) {
 function mib(used: number, total: number) {
   if (total === 0) return "—";
   return `${(used / 1024).toFixed(1)}/${(total / 1024).toFixed(1)}G`;
+}
+
+function kibToGiB(usedKib: number, totalKib: number) {
+  if (totalKib === 0) return "—";
+  const usedG = usedKib / 1024 / 1024;
+  const totalG = totalKib / 1024 / 1024;
+  return `${usedG.toFixed(1)}/${totalG.toFixed(1)}G`;
 }
 
 function formatBytes(bytes: number) {

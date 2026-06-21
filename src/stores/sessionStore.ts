@@ -15,11 +15,20 @@ import {
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
+/** Remote resource stats pushed by the SSH session. */
+export interface RemoteStats {
+  cpu_percent: number;
+  mem_used_kib: number;
+  mem_total_kib: number;
+}
+
 export interface ActiveTab {
   id: string;
   session: SessionConfig;
   status: ConnectionStatus;
   statusText: string;
+  /** Remote monitoring data (SSH sessions only). */
+  remoteStats: RemoteStats | null;
 }
 
 interface SessionState {
@@ -68,20 +77,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   credentialPrompt: null,
   _unlisteners: new Map(),
 
-  // ── Data loading ──────────────────────────────────────────────────────
+  // ── Session CRUD ───────────────────────────────────────────────────────
 
   async loadSessions() {
-    try {
-      const sessions = await listSessions();
-      set({ sessions });
-    } catch {
-      // Backend not ready (e.g. during SSR). Retry later.
-    }
+    const sessions = await listSessions();
+    set({ sessions });
   },
 
   async save(session) {
-    await saveSession(session);
+    const saved = await saveSession(session);
     await get().loadSessions();
+    return saved;
   },
 
   async remove(id) {
@@ -89,33 +95,21 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     await get().loadSessions();
   },
 
-  // ── Session lifecycle ─────────────────────────────────────────────────
-
   async connect(tabId, session) {
-    const existing = get().tabs.find((t) => t.id === tabId);
-    if (existing) return;
-
-    set((s) => ({
-      tabs: [
-        ...s.tabs,
-        { id: tabId, session, status: "connecting", statusText: "Connecting..." },
-      ],
-      activeTabId: tabId,
-    }));
-
+    // Ensure the tab exists
+    set((s) => {
+      const exists = s.tabs.find((t) => t.id === tabId);
+      if (exists) return s;
+      return {
+        tabs: [
+          ...s.tabs,
+          { id: tabId, session, status: "connecting", statusText: "Connecting...", remoteStats: null },
+        ],
+        activeTabId: tabId,
+      };
+    });
     await get()._setupListener(tabId);
-
-    try {
-      await connectSession(tabId, session);
-    } catch (err) {
-      set((s) => ({
-        tabs: s.tabs.map((t) =>
-          t.id === tabId
-            ? { ...t, status: "disconnected", statusText: String(err) }
-            : t,
-        ),
-      }));
-    }
+    await connectSession(tabId, session);
   },
 
   async disconnect(tabId) {
@@ -139,24 +133,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ activeTabId: tabId });
   },
 
-  // ── Dialogs ───────────────────────────────────────────────────────────
+  // ── Dialog controls ────────────────────────────────────────────────────
 
-  openConnectDialog() {
-    get().loadSessions(); // refresh list
-    set({ connectDialogOpen: true });
-  },
-
-  closeConnectDialog() {
-    set({ connectDialogOpen: false });
-  },
-
-  dismissHostKey() {
-    set({ hostKeyPrompt: null });
-  },
-
-  dismissCredential() {
-    set({ credentialPrompt: null });
-  },
+  openConnectDialog: () => set({ connectDialogOpen: true }),
+  closeConnectDialog: () => set({ connectDialogOpen: false }),
+  dismissHostKey: () => set({ hostKeyPrompt: null }),
+  dismissCredential: () => set({ credentialPrompt: null }),
 
   // ── Event listeners ───────────────────────────────────────────────────
 
@@ -204,16 +186,29 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       },
     );
 
+    // ── Remote resource stats (SSH) ────────────────────────────────────
+    const unlistenRemoteStats = await listen<RemoteStats>(
+      `remote-stats:${tabId}`,
+      (event) => {
+        set((s) => ({
+          tabs: s.tabs.map((t) =>
+            t.id === tabId ? { ...t, remoteStats: event.payload } : t,
+          ),
+        }));
+      },
+    );
+
     const ul = get()._unlisteners;
     ul.set(`${tabId}-output`, unlistenOutput);
     ul.set(`${tabId}-connected`, unlistenConnected);
     ul.set(`${tabId}-closed`, unlistenClosed);
     ul.set(`${tabId}-status`, unlistenStatus);
+    ul.set(`${tabId}-remotestats`, unlistenRemoteStats);
   },
 
   async _teardownListener(tabId) {
     const ul = get()._unlisteners;
-    for (const suffix of ["output", "connected", "closed", "status"]) {
+    for (const suffix of ["output", "connected", "closed", "status", "remotestats"]) {
       const key = `${tabId}-${suffix}`;
       const fn = ul.get(key);
       if (fn) {
