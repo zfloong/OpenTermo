@@ -1,4 +1,10 @@
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { HostKeyPromptPayload } from "@/lib/tauriCommands";
 import { replyHostKey } from "@/lib/tauriCommands";
 
@@ -19,21 +25,21 @@ export default function HostKeyDialog({ prompt, onClose }: HostKeyDialogProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="flex flex-col w-[420px] bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl p-5 gap-4">
-        <div>
-          <span className="text-sm font-semibold text-[var(--warning)]">
+    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-[420px] bg-[var(--surface)] border-[var(--border)]">
+        <DialogHeader>
+          <DialogTitle className="text-sm font-semibold text-[var(--warning)]">
             {prompt.changed ? "Host Key Changed!" : "Unknown Host Key"}
-          </span>
-        </div>
+          </DialogTitle>
+        </DialogHeader>
 
-        <p className="text-sm text-[var(--text-secondary)]">
+        <p className="text-sm text-[var(--text-secondary)] -mt-1">
           {prompt.changed
             ? "The host key for this server has changed. This could indicate a man-in-the-middle attack."
             : "The authenticity of this host cannot be established."}
         </p>
 
-        <div className="flex flex-col gap-1.5 p-3 bg-[var(--background)] rounded-md">
+        <div className="flex flex-col gap-1.5 p-3 bg-[var(--background)] rounded-md mt-1">
           <div className="flex justify-between text-xs">
             <span className="text-[var(--text-secondary)]">Host</span>
             <span className="text-[var(--text)] font-mono">{prompt.host}:{prompt.port}</span>
@@ -48,7 +54,7 @@ export default function HostKeyDialog({ prompt, onClose }: HostKeyDialogProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 justify-end">
+        <div className="flex items-center gap-2 justify-end mt-2">
           <Button variant="outline" onClick={handleReject}>
             Reject
           </Button>
@@ -56,7 +62,7 @@ export default function HostKeyDialog({ prompt, onClose }: HostKeyDialogProps) {
             {prompt.changed ? "Accept Anyway" : "Accept"}
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

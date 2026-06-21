@@ -26,6 +26,7 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
         </span>
         <button
           onClick={onConnect}
+          onMouseDown={(e) => e.stopPropagation()}
           className="no-drag flex items-center gap-1 px-2 py-0.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--hover)] rounded transition-colors"
         >
           <Plus size={12} />
