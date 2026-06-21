@@ -4,6 +4,8 @@ mod session;
 
 use std::sync::{Arc, Mutex};
 
+use tauri::Manager;
+
 use meatshell::system::SystemSampler;
 use prompts::PromptManager;
 use session::SessionManager;
