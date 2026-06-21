@@ -478,7 +478,7 @@ export default function FileExplorer() {
         />
 
         {/* Hidden files toggle */}
-        <label className="flex items-center gap-1 ml-1 text-[10px] text-[var(--text-muted)] cursor-pointer select-none flex-shrink-0">
+        <label className="flex items-center gap-0.5 ml-1 text-[10px] text-[var(--text-muted)] cursor-pointer select-none flex-shrink-0" title="Show hidden files (starting with .)">
           <input
             type="checkbox"
             checked={showHidden}
@@ -486,6 +486,7 @@ export default function FileExplorer() {
             className="w-3 h-3 accent-[var(--accent)] cursor-pointer"
           />
           <EyeOff size={11} className={showHidden ? "text-[var(--accent)]" : ""} />
+          <span>Hidden</span>
         </label>
       </div>
 
@@ -556,7 +557,7 @@ export default function FileExplorer() {
                       sel ? "bg-[var(--surface-selected)]" : "hover:bg-[var(--surface-hover)]"
                     }`}
                     onClick={(ev) => { if (isParent) goUp(); else toggleSelect(e.full_path, ev); }}
-                    onDoubleClick={() => { if (isDir) navigate(e.full_path); else if (!isParent) downloadEntry(e); }}
+                    onDoubleClick={() => { if (isDir && !isParent) navigate(e.full_path); }}
                     onContextMenu={(ev) => {
                       if (isParent) return;
                       if (sel && selected.size > 1) showCtx(ev, multiCtx());
@@ -614,9 +615,11 @@ export default function FileExplorer() {
               {numFolders > 0 && numFiles > 0 && ", "}
               {numFiles > 0 && `${numFiles} file${numFiles !== 1 ? "s" : ""}`}
               {numFolders === 0 && numFiles === 0 && "Empty"}</span>
-            {selected.size > 0 && (
+            {selected.size > 0 ? (
               <span className="text-[var(--accent)]">{selected.size} selected</span>
-            )}
+            ) : entries.length > 0 ? (
+              <span className="text-[var(--text-muted)] opacity-50">Ctrl/Shift+Click to select multiple</span>
+            ) : null}
             {status && (
               <span className="ml-auto truncate max-w-[120px]">{status}</span>
             )}
