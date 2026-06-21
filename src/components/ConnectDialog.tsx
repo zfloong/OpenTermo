@@ -1,7 +1,13 @@
 import { useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { type SessionConfig } from "@/lib/tauriCommands";
 
 interface ConnectDialogProps {
@@ -83,18 +89,13 @@ export default function ConnectDialog({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div
-        className="flex flex-col w-[800px] max-h-[80vh] bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
-          <span className="text-sm font-semibold text-[var(--text)]">Connect</span>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
-            <X size={14} />
-          </Button>
-        </div>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-[800px] max-h-[80vh] bg-[var(--surface)] border-[var(--border)] p-0">
+        <DialogHeader className="px-4 py-3 border-b border-[var(--border)]">
+          <DialogTitle className="text-sm font-semibold text-[var(--text)]">
+            Connect
+          </DialogTitle>
+        </DialogHeader>
 
         <div className="flex flex-1 overflow-hidden">
           {/* Left: saved sessions list */}
@@ -219,7 +220,7 @@ export default function ConnectDialog({
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -15,70 +15,86 @@ export default function Sidebar() {
   const activeTabId = useSessionStore((s) => s.activeTabId);
 
   return (
-    <aside
-      className="flex flex-col bg-[var(--surface)] border-r border-[var(--border)] overflow-hidden flex-shrink-0 transition-all duration-200 ease-in-out"
-      style={{ width: isOpen ? 260 : 0 }}
-    >
-      <div className="w-[260px] flex flex-col h-full">
-        <div className="flex items-center justify-between px-3 h-10 border-b border-[var(--border)]">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-            Resources
-          </span>
+    <>
+      {/* Floating expand handle — visible only when sidebar is collapsed */}
+      {!isOpen && (
+        <div className="flex-shrink-0 bg-[var(--surface)] border-r border-[var(--border)]">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-[var(--text-secondary)] hover:text-[var(--text)]"
+            className="h-10 w-7 rounded-none text-[var(--text-secondary)] hover:text-[var(--text)] hover:bg-[var(--hover)]"
             onClick={toggleSidebar}
           >
-            {isOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+            <PanelLeftOpen size={16} />
           </Button>
         </div>
+      )}
 
-        {/* Active sessions bar */}
-        {tabs.length > 0 && (
-          <div className="border-b border-[var(--border)] px-2 py-1.5 flex flex-wrap gap-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1 px-2 py-0.5 text-[11px] rounded transition-colors truncate max-w-full ${
-                  tab.id === activeTabId
-                    ? "bg-[var(--primary)] text-[var(--background)]"
-                    : "bg-[var(--background)] text-[var(--text-secondary)] hover:text-[var(--text)]"
-                }`}
-              >
-                <Terminal size={10} />
-                <span className="truncate">{tab.session.name || tab.session.host}</span>
-              </button>
-            ))}
+      <aside
+        className="flex flex-col bg-[var(--surface)] border-r border-[var(--border)] overflow-hidden flex-shrink-0 transition-all duration-200 ease-in-out"
+        style={{ width: isOpen ? 260 : 0 }}
+      >
+        <div className="w-[260px] flex flex-col h-full">
+          <div className="flex items-center justify-between px-3 h-10 border-b border-[var(--border)]">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+              Resources
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-[var(--text-secondary)] hover:text-[var(--text)]"
+              onClick={toggleSidebar}
+            >
+              <PanelLeftClose size={16} />
+            </Button>
           </div>
-        )}
 
-        <Tabs defaultValue="monitor" className="flex flex-col flex-1 px-2 pt-2">
-          <TabsList className="w-full">
-            <TabsTrigger value="monitor" className="flex-1 gap-1.5">
-              <Activity size={14} />
-              <span>Monitor</span>
-            </TabsTrigger>
-            <TabsTrigger value="commands" className="flex-1 gap-1.5">
-              <Zap size={14} />
-              <span>Commands</span>
-            </TabsTrigger>
-          </TabsList>
+          {/* Active sessions bar */}
+          {tabs.length > 0 && (
+            <div className="border-b border-[var(--border)] px-2 py-1.5 flex flex-wrap gap-1">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-1 px-2 py-0.5 text-[11px] rounded transition-colors truncate max-w-full ${
+                    tab.id === activeTabId
+                      ? "bg-[var(--primary)] text-[var(--background)]"
+                      : "bg-[var(--background)] text-[var(--text-secondary)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  <Terminal size={10} />
+                  <span className="truncate">{tab.session.name || tab.session.host}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
-          <TabsContent value="monitor" className="flex-1 overflow-auto mt-1">
-            <SystemMonitorPanel />
-          </TabsContent>
+          <Tabs defaultValue="monitor" className="flex flex-col flex-1 px-2 pt-2">
+            <TabsList className="w-full">
+              <TabsTrigger value="monitor" className="flex-1 gap-1.5">
+                <Activity size={14} />
+                <span>Monitor</span>
+              </TabsTrigger>
+              <TabsTrigger value="commands" className="flex-1 gap-1.5">
+                <Zap size={14} />
+                <span>Commands</span>
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent
-            value="commands"
-            className="flex-1 overflow-hidden"
-          >
-            <CommandPanel />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </aside>
+            <TabsContent value="monitor" className="flex-1 overflow-auto mt-1">
+              <SystemMonitorPanel />
+            </TabsContent>
+
+            <TabsContent
+              value="commands"
+              className="flex-1 overflow-hidden"
+            >
+              <CommandPanel />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </aside>
+    </>
   );
 }
 
