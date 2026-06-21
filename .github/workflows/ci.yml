@@ -72,9 +72,15 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "=== Bundle dir contents ==="
-          Get-ChildItem -Recurse src-tauri/target/release/bundle/ 2>$null | ForEach-Object { Write-Host $_.FullName }
+          if (Test-Path src-tauri/target/release/bundle/) {
+            Get-ChildItem -Recurse src-tauri/target/release/bundle/ -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
+          } else {
+            Write-Host "(no bundle directory)"
+          }
           Write-Host "=== Exe ==="
-          Get-ChildItem src-tauri/target/release/*.exe 2>$null | ForEach-Object { Write-Host $_.FullName }
+          Get-ChildItem src-tauri/target/release/*.exe -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
+          Write-Host "=== Target release root ==="
+          Get-ChildItem src-tauri/target/release/ -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
 
       # ---- Upload build artifacts ----
       - name: Upload Windows installer
