@@ -15,7 +15,6 @@ const DialogOverlay = React.forwardRef<
     ref={ref}
     className={cn(
       "fixed inset-0 z-50 dialog-overlay",
-      "animate-fade-in",
       className,
     )}
     {...props}
@@ -34,7 +33,6 @@ const DialogContent = React.forwardRef<
       className={cn(
         "fixed left-[50%] top-[50%] z-50 w-full max-w-lg translate-x-[-50%] translate-y-[-50%]",
         "dialog-glass",
-        "animate-dialog-in",
         "focus-visible:outline-none",
         className,
       )}

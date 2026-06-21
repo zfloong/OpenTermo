@@ -1,34 +1,39 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+﻿import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import { SearchAddon } from "xterm-addon-search";
 import "xterm/css/xterm.css";
 import { useSessionStore } from "@/stores/sessionStore";
+import { useUIStore } from "@/stores/uiStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 
-const terminalTheme = {
-  background: "#080c12",
-  foreground: "#e9eef5",
-  cursor: "#5b9cf5",
-  cursorAccent: "#080c12",
-  selectionBackground: "rgba(91, 156, 245, 0.28)",
-  selectionForeground: "#ffffff",
-  black: "#080c12",
-  red: "#f87171",
-  green: "#4ade80",
-  yellow: "#fbbf24",
-  blue: "#5b9cf5",
-  magenta: "#c084fc",
-  cyan: "#22d3ee",
-  white: "#e9eef5",
-  brightBlack: "#4a5568",
-  brightRed: "#fca5a5",
-  brightGreen: "#86efac",
-  brightYellow: "#fde68a",
-  brightBlue: "#93c5fd",
-  brightMagenta: "#d8b4fe",
-  brightCyan: "#67e8f9",
-  brightWhite: "#ffffff",
-};
+function getTerminalTheme() {
+  const s = getComputedStyle(document.documentElement);
+  return {
+    background: s.getPropertyValue("--bg-base").trim() || "#080c12",
+    foreground: s.getPropertyValue("--text-primary").trim() || "#e9eef5",
+    cursor: s.getPropertyValue("--accent").trim() || "#5b9cf5",
+    cursorAccent: s.getPropertyValue("--bg-base").trim() || "#080c12",
+    selectionBackground: s.getPropertyValue("--accent-dim").trim() || "rgba(91,156,245,0.28)",
+    selectionForeground: s.getPropertyValue("--text-inverse").trim() || "#ffffff",
+    black: s.getPropertyValue("--bg-base").trim() || "#080c12",
+    red: s.getPropertyValue("--color-danger").trim() || "#f87171",
+    green: s.getPropertyValue("--color-success").trim() || "#4ade80",
+    yellow: s.getPropertyValue("--color-warning").trim() || "#fbbf24",
+    blue: s.getPropertyValue("--accent").trim() || "#5b9cf5",
+    magenta: "#c084fc",
+    cyan: "#22d3ee",
+    white: s.getPropertyValue("--text-primary").trim() || "#e9eef5",
+    brightBlack: "#4a5568",
+    brightRed: "#fca5a5",
+    brightGreen: "#86efac",
+    brightYellow: "#fde68a",
+    brightBlue: "#93c5fd",
+    brightMagenta: "#d8b4fe",
+    brightCyan: "#67e8f9",
+    brightWhite: s.getPropertyValue("--text-inverse").trim() || "#ffffff",
+  };
+}
 
 /** Duration (ms) of the green selection flash after copy. */
 const COPY_FLASH_MS = 200;
@@ -46,6 +51,8 @@ export default function TerminalView({ tabId }: { tabId: string }) {
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const sendInput = useSessionStore((s) => s.sendInput);
   const onResize = useSessionStore((s) => s.resize);
+  const bottomPanelHeight = useUIStore((s) => s.bottomPanelHeight);
+  const theme = useSettingsStore((s) => s.theme);
 
   // ── Search state ──────────────────────────────────────────────────────
   const [searchOpen, setSearchOpen] = useState(false);
@@ -160,7 +167,7 @@ export default function TerminalView({ tabId }: { tabId: string }) {
     const container = containerRef.current;
 
     const term = new Terminal({
-      theme: terminalTheme,
+      theme: getTerminalTheme(),
       fontFamily: "'Meatshell Mono', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace",
       fontSize: 14,
       lineHeight: 1.2,
@@ -220,11 +227,11 @@ export default function TerminalView({ tabId }: { tabId: string }) {
 
       // Brief green flash to distinguish from normal blue selection
       term.options.theme = {
-        ...terminalTheme,
+        ...getTerminalTheme(),
         selectionBackground: "rgba(34, 197, 94, 0.40)",
       };
       setTimeout(() => {
-        term.options.theme = { ...terminalTheme };
+        term.options.theme = getTerminalTheme();
       }, COPY_FLASH_MS);
     };
 
@@ -246,6 +253,29 @@ export default function TerminalView({ tabId }: { tabId: string }) {
     container.addEventListener("mousedown", onMouseDown);
     container.addEventListener("mouseup", onMouseUp);
     container.addEventListener("mouseleave", onMouseLeave);
+
+      // Right-click context menu for copy/paste
+      container.addEventListener("contextmenu", (e: MouseEvent) => {
+        e.preventDefault();
+        const sel = term.getSelection();
+        const hasSel = sel.length > 0;
+        const menu = document.createElement("div");
+        menu.className = "dropdown-menu";
+        menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:200`;
+        const addItem = (label: string, action: () => void) => {
+          const btn = document.createElement("button");
+          btn.className = "dropdown-item";
+          btn.textContent = label;
+          btn.onmousedown = (ev) => { ev.preventDefault(); ev.stopPropagation(); action(); menu.remove(); };
+          menu.appendChild(btn);
+        };
+        addItem("复制", async () => { if (hasSel) await navigator.clipboard.writeText(sel); });
+        addItem("粘贴", () => { navigator.clipboard.readText().then((t) => { if (t) sendInput(tabId, t); }); });
+        if (hasSel) addItem("复制并粘贴", async () => { await navigator.clipboard.writeText(sel); navigator.clipboard.readText().then((t) => { if (t) sendInput(tabId, t); }); });
+        document.body.appendChild(menu);
+        const close = () => { menu.remove(); document.removeEventListener("mousedown", close); };
+        setTimeout(() => document.addEventListener("mousedown", close), 0);
+      });
 
     terminalRef.current = term;
     fitAddonRef.current = fitAddon;
@@ -270,6 +300,14 @@ export default function TerminalView({ tabId }: { tabId: string }) {
       searchAddonRef.current = null;
     };
   }, [tabId, sendInput, openSearch, closeSearch]);
+
+  // ── Watch theme changes and update terminal colors ───────
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.options.theme = getTerminalTheme();
+    }
+  }, [theme]);
+
 
   // ── Resize terminal to fill container ────────────────────────────────
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
@@ -308,6 +346,20 @@ export default function TerminalView({ tabId }: { tabId: string }) {
       }
     };
   }, []);
+
+  // Force-fit when bottom panel height changes (grid row resize)
+  useEffect(() => {
+    const fitAddon = fitAddonRef.current;
+    const term = terminalRef.current;
+    if (!fitAddon || !term) return;
+    const raf = requestAnimationFrame(() => {
+      try {
+        fitAddon.fit();
+        onResize(tabId, term.cols, term.rows);
+      } catch {}
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [bottomPanelHeight, tabId, onResize]);
 
   // ── Search keyboard navigation in history dropdown ───────────────────
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -381,7 +433,7 @@ export default function TerminalView({ tabId }: { tabId: string }) {
   };
 
   return (
-    <div className="relative h-full w-full">
+    <div className="absolute inset-0">
       <div
         ref={containerCallback}
         className="h-full w-full"

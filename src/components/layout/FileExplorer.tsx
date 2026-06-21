@@ -524,7 +524,7 @@ export default function FileExplorer() {
   return (
     <div className="flex flex-col h-full">
       {/* ── Toolbar ──────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-0.5 px-2 py-1 border-b border-[var(--border-subtle)] flex-shrink-0 relative">
+      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-[var(--border-subtle)] flex-shrink-0 relative">
         {/* Action buttons */}
         <button onClick={goUp} className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-sm transition-colors" title="Parent directory">
           <ArrowUp size={15} />
@@ -555,7 +555,7 @@ export default function FileExplorer() {
           >
             <Clock size={14} />
             {downloadHistory.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--accent)] text-[8px] font-bold text-white flex items-center justify-center leading-none">
+              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--accent)] text-xs font-bold text-white flex items-center justify-center leading-none">
                 {downloadHistory.length > 9 ? "9+" : downloadHistory.length}
               </span>
             )}
@@ -567,11 +567,11 @@ export default function FileExplorer() {
               <div className="fixed inset-0 z-20" onClick={() => setShowHistory(false)} />
               <div className="absolute left-0 top-full mt-1 w-64 max-h-64 overflow-y-auto bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-md shadow-xl z-30">
               <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-[var(--border-subtle)]">
-                <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">最近下载</span>
-                <button onClick={() => setDownloadHistory([])} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)]">清除</button>
+                <span className="text-xs text-[var(--text-muted)] uppercase tracking-wider">最近下载</span>
+                <button onClick={() => setDownloadHistory([])} className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]">清除</button>
               </div>
               {downloadHistory.length === 0 ? (
-                <div className="px-3 py-6 text-center text-[11px] text-[var(--text-muted)]">暂无下载</div>
+                <div className="px-3 py-6 text-center text-sm text-[var(--text-muted)]">暂无下载</div>
               ) : (
                 downloadHistory.map((r, i) => (
                   <div key={`${r.remotePath}-${r.timestamp}-${i}`} className="px-2.5 py-1.5 hover:bg-[var(--surface-hover)] transition-colors group">
@@ -579,11 +579,11 @@ export default function FileExplorer() {
                       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                         r.status === "done" ? "bg-green-400" : r.status === "failed" ? "bg-red-400" : "bg-yellow-400 animate-pulse"
                       }`} />
-                      <span className="text-[11px] text-[var(--text-primary)] truncate flex-1">{r.name}</span>
-                      {r.size > 0 && <span className="text-[10px] text-[var(--text-muted)] flex-shrink-0">{formatSize(r.size)}</span>}
+                      <span className="text-sm text-[var(--text-primary)] truncate flex-1">{r.name}</span>
+                      {r.size > 0 && <span className="text-xs text-[var(--text-muted)] flex-shrink-0">{formatSize(r.size)}</span>}
                     </div>
                     <div className="flex items-center gap-1 mt-0.5 pl-4">
-                      <span className="text-[10px] text-[var(--text-muted)] truncate flex-1" title={r.localPath}>{r.localPath}</span>
+                      <span className="text-xs text-[var(--text-muted)] truncate flex-1" title={r.localPath}>{r.localPath}</span>
                       <button
                         className="p-0.5 text-[var(--text-muted)] hover:text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-all"
                         title="Show in folder"
@@ -606,7 +606,7 @@ export default function FileExplorer() {
         {/* Breadcrumb — only when connected */}
         {activeTab && activeTab.status === "connected" && (
           <>
-            <div className="flex items-center gap-0 text-[11px] font-mono ml-0.5 overflow-x-auto min-w-0">
+            <div className="flex items-center gap-0 text-sm font-mono ml-0.5 overflow-x-auto min-w-0">
               {crumbs.map((c, i) => (
                 <span key={c.path} className="flex items-center flex-shrink-0">
                   {/* Skip separator between root "/" and first child, since root already is "/" */}
@@ -626,7 +626,7 @@ export default function FileExplorer() {
             {/* Path input */}
             <input
               ref={pathInputRef}
-              className="flex-1 ml-1 px-1.5 py-0 h-5 text-[11px] font-mono bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-transparent focus:border-[var(--border-focus)] rounded-sm outline-none min-w-[60px] placeholder:text-[var(--text-muted)]"
+              className="flex-1 ml-1 px-1.5 py-0 h-5 text-sm font-mono bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-transparent focus:border-[var(--border-focus)] rounded-sm outline-none min-w-[60px] placeholder:text-[var(--text-muted)]"
               value={pathInput}
               onChange={(e) => setPathInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
@@ -635,7 +635,7 @@ export default function FileExplorer() {
             />
 
             {/* Hidden files toggle */}
-            <label className="flex items-center gap-0.5 ml-1 text-[10px] text-[var(--text-muted)] cursor-pointer select-none flex-shrink-0" title="Show hidden files (starting with .)">
+            <label className="flex items-center gap-0.5 ml-1 text-xs text-[var(--text-muted)] cursor-pointer select-none flex-shrink-0" title="Show hidden files (starting with .)">
               <input
                 type="checkbox"
                 checked={showHidden}
@@ -651,7 +651,7 @@ export default function FileExplorer() {
 
       {/* ── Edit banner ───────────────────────────────────────────────────── */}
       {editing && (
-        <div className={`flex items-center gap-2 px-2.5 py-1.5 text-[11px] border-b flex-shrink-0 ${
+        <div className={`flex items-center gap-2 px-2.5 py-1.5 text-sm border-b flex-shrink-0 ${
           editing.pending
             ? "bg-[var(--surface-selected)] border-[var(--accent-border)] text-[var(--accent)]"
             : "bg-green-900/20 border-green-700/30 text-green-300"
@@ -665,10 +665,10 @@ export default function FileExplorer() {
             <>
               <Edit3 size={12} />
               <span className="flex-1 truncate">Editing {editing.name}</span>
-              <span className="text-[10px] text-[var(--text-muted)]">Save the file, then click →</span>
+              <span className="text-xs text-[var(--text-muted)]">Save the file, then click →</span>
               <button
                 onClick={saveEdit}
-                className="flex items-center gap-1 px-2 py-0.5 bg-green-600 hover:bg-green-500 text-white rounded-sm transition-colors text-[10px]"
+                className="flex items-center gap-1 px-2 py-0.5 bg-green-600 hover:bg-green-500 text-white rounded-sm transition-colors text-xs"
               >
                 <Save size={10} />
                 Save &amp; Upload
@@ -703,7 +703,7 @@ export default function FileExplorer() {
 
         {/* Loading */}
         {loading && (
-          <div className="flex items-center justify-center py-16 text-[11px] text-[var(--text-muted)]">
+          <div className="flex items-center justify-center py-16 text-sm text-[var(--text-muted)]">
             Loading...
           </div>
         )}
@@ -712,8 +712,8 @@ export default function FileExplorer() {
         {!loading && entries.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 gap-1.5">
             <Folder size={28} className="text-[var(--text-muted)] opacity-40" />
-            <span className="text-[11px] text-[var(--text-muted)]">此文件夹为空</span>
-            <span className="text-[10px] text-[var(--text-muted)] opacity-60">
+            <span className="text-sm text-[var(--text-muted)]">此文件夹为空</span>
+            <span className="text-xs text-[var(--text-muted)] opacity-60">
               Right-click → New Folder / Upload Files
             </span>
           </div>
@@ -721,15 +721,15 @@ export default function FileExplorer() {
 
         {/* Table */}
         {entries.length > 0 && (
-          <table className="w-full text-[11px]">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--border-subtle)] sticky top-0 bg-[var(--bg-surface)] z-[1]">
                 <th className="w-5" />
                 <th className="text-left py-1.5 cursor-pointer select-none hover:text-[var(--accent)] transition-colors" onClick={() => toggleSort("name")}>
-                  <span className="text-[var(--text-secondary)] text-[10px] uppercase tracking-wider">Name {sortIndicator("name")}</span>
+                  <span className="text-[var(--text-secondary)] text-xs uppercase tracking-wider">Name {sortIndicator("name")}</span>
                 </th>
                 <th className="text-right pr-2 w-16 cursor-pointer select-none hover:text-[var(--accent)] transition-colors" onClick={() => toggleSort("size")}>
-                  <span className="text-[var(--text-secondary)] text-[10px] uppercase tracking-wider">Size {sortIndicator("size")}</span>
+                  <span className="text-[var(--text-secondary)] text-xs uppercase tracking-wider">Size {sortIndicator("size")}</span>
                 </th>
               </tr>
             </thead>
@@ -777,7 +777,7 @@ export default function FileExplorer() {
 
       {/* ── Transfer progress ────────────────────────────────────────────── */}
       {!transfer.done && (
-        <div className="flex-shrink-0 px-3 py-[2px] border-t border-[var(--border-subtle)] flex items-center gap-2 text-[10px] text-[var(--text-muted)] min-h-[20px]">
+        <div className="flex-shrink-0 px-3 py-[2px] border-t border-[var(--border-subtle)] flex items-center gap-2 text-xs text-[var(--text-muted)] min-h-[20px]">
           {transfer.isUpload ? <Upload size={10} className="text-[var(--accent)] flex-shrink-0" /> : <Download size={10} className="text-[var(--accent)] flex-shrink-0" />}
           <span className="truncate flex-1 min-w-0">{transfer.name}</span>
           <span className="tabular-nums flex-shrink-0">
@@ -792,7 +792,7 @@ export default function FileExplorer() {
         </div>
       )}
       {status && (
-        <div className="flex-shrink-0 px-3 py-[2px] border-t border-[var(--border-subtle)] text-[10px] text-red-400">{status}</div>
+        <div className="flex-shrink-0 px-3 py-[2px] border-t border-[var(--border-subtle)] text-xs text-red-400">{status}</div>
       )}
 
       {ctx && <ContextMenu items={ctx.items} x={ctx.x} y={ctx.y} onClose={() => setCtx(null)} />}

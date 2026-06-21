@@ -108,7 +108,7 @@ export default function CommandPalette() {
             spellCheck={false}
             autoComplete="off"
           />
-          <kbd className="text-[10px] text-[var(--text-muted)] bg-[var(--surface-hover)] px-1.5 py-0.5 rounded font-mono">
+          <kbd className="text-xs text-[var(--text-muted)] bg-[var(--surface-hover)] px-1.5 py-0.5 rounded font-mono">
             ESC
           </kbd>
         </div>
@@ -134,7 +134,7 @@ export default function CommandPalette() {
                   }`}
                 >
                   {/* Icon or category tag */}
-                  <span className="shrink-0 w-6 h-6 flex items-center justify-center rounded bg-[var(--accent-dim)] text-[var(--accent)] text-xs font-mono">
+                  <span className="shrink-0 w-6 h-8 flex items-center justify-center rounded bg-[var(--accent-dim)] text-[var(--accent)] text-xs font-mono">
                     {entry.icon || (entry.command || "").slice(0, 2).toUpperCase()}
                   </span>
 
@@ -142,7 +142,7 @@ export default function CommandPalette() {
                     <div className="text-sm text-[var(--text-primary)] truncate font-medium">
                       {entry.label || entry.command}
                     </div>
-                    <div className="text-[11px] text-[var(--text-muted)] truncate">
+                    <div className="text-sm text-[var(--text-muted)] truncate">
                       {entry.category && (
                         <span className="text-[var(--accent)]">{entry.category} · </span>
                       )}
@@ -163,7 +163,7 @@ export default function CommandPalette() {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center gap-4 px-4 py-2 border-t border-[var(--border-subtle)] text-[10px] text-[var(--text-muted)]">
+        <div className="flex items-center gap-4 px-4 py-2 border-t border-[var(--border-subtle)] text-xs text-[var(--text-muted)]">
           <span>↑↓ Navigate</span>
           <span>↵ 执行</span>
           <span>Esc 关闭</span>

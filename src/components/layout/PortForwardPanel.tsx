@@ -119,8 +119,8 @@ export default function PortForwardPanel() {
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1 border-b border-[var(--border-subtle)] flex-shrink-0">
-        <span className="text-[11px] font-semibold text-[var(--text-secondary)] tracking-wide mr-auto">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[var(--border-subtle)] flex-shrink-0">
+        <span className="text-sm font-semibold text-[var(--text-secondary)] tracking-wide mr-auto">
           Port Forwarding
         </span>
         <button
@@ -140,7 +140,7 @@ export default function PortForwardPanel() {
             <select
               value={fKind}
               onChange={(e) => setFKind(e.target.value)}
-              className="w-20 px-1 py-0.5 text-[11px] bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-sm outline-none"
+              className="w-20 px-1 py-0.5 text-sm bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-sm outline-none"
             >
               <option value="local">本地 (-L)</option>
               <option value="dynamic">动态 (-D)</option>
@@ -149,49 +149,49 @@ export default function PortForwardPanel() {
               placeholder="Name (optional)"
               value={fName}
               onChange={(e) => setFName(e.target.value)}
-              className="flex-1 px-1.5 py-0.5 text-[11px] bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-sm outline-none focus:border-[var(--border-focus)]"
+              className="flex-1 px-1.5 py-0.5 text-sm bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-sm outline-none focus:border-[var(--border-focus)]"
             />
           </div>
           <div className="flex gap-1">
             <div className="flex items-center gap-0.5 flex-1">
-              <span className="text-[10px] text-[var(--text-muted)] flex-shrink-0">绑定:</span>
+              <span className="text-xs text-[var(--text-muted)] flex-shrink-0">绑定:</span>
               <input
                 placeholder="port"
                 value={fBindPort}
                 onChange={(e) => setFBindPort(e.target.value.replace(/\D/g, ""))}
-                className="flex-1 px-1.5 py-0.5 text-[11px] bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-sm outline-none focus:border-[var(--border-focus)] w-16"
+                className="flex-1 px-1.5 py-0.5 text-sm bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-sm outline-none focus:border-[var(--border-focus)] w-16"
               />
             </div>
             {fKind === "local" && (
               <>
-                <span className="text-[10px] text-[var(--text-muted)] self-center">→</span>
+                <span className="text-xs text-[var(--text-muted)] self-center">→</span>
                 <input
                   placeholder="host"
                   value={fHost}
                   onChange={(e) => setFHost(e.target.value)}
-                  className="flex-1 px-1.5 py-0.5 text-[11px] bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-sm outline-none focus:border-[var(--border-focus)]"
+                  className="flex-1 px-1.5 py-0.5 text-sm bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-sm outline-none focus:border-[var(--border-focus)]"
                 />
-                <span className="text-[10px] text-[var(--text-muted)] self-center">:</span>
+                <span className="text-xs text-[var(--text-muted)] self-center">:</span>
                 <input
                   placeholder="port"
                   value={fHostPort}
                   onChange={(e) => setFHostPort(e.target.value.replace(/\D/g, ""))}
-                  className="w-16 px-1.5 py-0.5 text-[11px] bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-sm outline-none focus:border-[var(--border-focus)]"
+                  className="w-16 px-1.5 py-0.5 text-sm bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-sm outline-none focus:border-[var(--border-focus)]"
                 />
               </>
             )}
           </div>
-          {error && <div className="text-[10px] text-[var(--color-danger)]">{error}</div>}
+          {error && <div className="text-xs text-[var(--color-danger)]">{error}</div>}
           <div className="flex gap-1">
             <button
               onClick={add}
-              className="px-2 py-0.5 text-[10px] bg-[var(--accent)] text-white rounded-sm hover:opacity-90 transition-opacity"
+              className="px-2 py-0.5 text-xs bg-[var(--accent)] text-white rounded-sm hover:opacity-90 transition-opacity"
             >
               Start
             </button>
             <button
               onClick={() => { setShowAdd(false); setError(""); }}
-              className="px-2 py-0.5 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-sm transition-colors"
+              className="px-2 py-0.5 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-sm transition-colors"
             >
               Cancel
             </button>
@@ -202,24 +202,24 @@ export default function PortForwardPanel() {
       {/* Forward list */}
       <div className="flex-1 overflow-y-auto">
         {!isConnected ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-1.5 text-[11px] text-[var(--text-muted)]">
+          <div className="flex flex-col items-center justify-center py-12 gap-1.5 text-sm text-[var(--text-muted)]">
             <Wifi size={24} className="opacity-30" />
             <span>连接到 SSH 会话以管理端口转发</span>
           </div>
         ) : forwards.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-1.5 text-[11px] text-[var(--text-muted)]">
+          <div className="flex flex-col items-center justify-center py-12 gap-1.5 text-sm text-[var(--text-muted)]">
             <ArrowLeftRight size={24} className="opacity-30" />
             <span>无活跃转发</span>
-            <span className="text-[10px] opacity-60">点击 + 添加本地或动态转发</span>
+            <span className="text-xs opacity-60">点击 + 添加本地或动态转发</span>
           </div>
         ) : (
-          <table className="w-full text-[11px]">
+          <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--border-subtle)] sticky top-0 bg-[var(--bg-surface)]">
                 <th className="w-6" />
-                <th className="text-left py-1 px-2 text-[var(--text-secondary)] text-[10px] uppercase tracking-wider">名称</th>
-                <th className="text-left py-1 px-2 text-[var(--text-secondary)] text-[10px] uppercase tracking-wider">绑定</th>
-                <th className="text-left py-1 px-2 text-[var(--text-secondary)] text-[10px] uppercase tracking-wider">目标</th>
+                <th className="text-left py-1.5 px-2 text-[var(--text-secondary)] text-xs uppercase tracking-wider">名称</th>
+                <th className="text-left py-1.5 px-2 text-[var(--text-secondary)] text-xs uppercase tracking-wider">绑定</th>
+                <th className="text-left py-1.5 px-2 text-[var(--text-secondary)] text-xs uppercase tracking-wider">目标</th>
                 <th className="w-8" />
               </tr>
             </thead>
@@ -228,13 +228,13 @@ export default function PortForwardPanel() {
                 <tr key={fw.id} className="hover:bg-[var(--surface-hover)] transition-colors">
                   <td className="pl-2 py-[3px]">{kindIcon(fw.kind)}</td>
                   <td className="px-2 text-[var(--text-primary)] truncate max-w-[100px]">
-                    <span className="text-[10px] text-[var(--text-muted)] mr-1">{kindLabel(fw.kind)}</span>
+                    <span className="text-xs text-[var(--text-muted)] mr-1">{kindLabel(fw.kind)}</span>
                     {fw.name}
                   </td>
-                  <td className="px-2 text-[var(--text-secondary)] font-mono text-[10px]">
+                  <td className="px-2 text-[var(--text-secondary)] font-mono text-xs">
                     {fw.bind_addr}:{fw.bind_port}
                   </td>
-                  <td className="px-2 text-[var(--text-secondary)] font-mono text-[10px]">
+                  <td className="px-2 text-[var(--text-secondary)] font-mono text-xs">
                     {fw.kind === "dynamic" ? "SOCKS5" : `${fw.host}:${fw.host_port}`}
                   </td>
                   <td className="pr-2">

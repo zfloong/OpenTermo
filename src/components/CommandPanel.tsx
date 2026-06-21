@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   ChevronDown,
@@ -83,6 +83,8 @@ export default function CommandPanel() {
   const [editing, setEditing] = useState<CommandEntry | null>(null);
   const [editingNew, setEditingNew] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [expandedInit, setExpandedInit] = useState(false);
   const [ctx, setCtx] = useState<CtxState | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ ids: string[] } | null>(null);
   const [newFolderPrompt, setNewFolderPrompt] = useState<{ parentPath: string } | null>(null);
@@ -154,7 +156,7 @@ export default function CommandPanel() {
     if (!activeTabId || selectedIds.size === 0) return;
     const selected = entries.filter((e) => selectedIds.has(e.id));
     const commands = selected.map((e) => resolveCommandTemplate(e.command, activeTab?.session ?? null)).join("\n");
-    sendInput(activeTabId, commands + "\n");
+    sendInput(activeTabId, commands);
     selected.forEach((e) => recordUsage(e.id));
     setSelectedIds(new Set());
   }, [activeTabId, activeTab, selectedIds, entries, sendInput, recordUsage]);
@@ -308,6 +310,14 @@ export default function CommandPanel() {
     return rootNodes;
   }, [entries, emptyFolders, search, sortCommands]);
 
+  // Auto-expand all cards on first load
+  useEffect(() => {
+    if (!expandedInit && tree.length > 0) {
+      setExpandedCards(new Set(tree.map((n) => n.path)));
+      setExpandedInit(true);
+    }
+  }, [tree, expandedInit]);
+
   // ── Actions ───────────────────────────────────────────────────────────
 
   const toggleCollapse = useCallback((path: string) => {
@@ -325,7 +335,7 @@ export default function CommandPanel() {
       const resolved = resolveCommandTemplate(cmd.command, activeTab?.session ?? null);
       const updated = { ...cmd, last_used: new Date().toISOString() };
       await upsert(updated);
-      await sendInput(activeTabId, resolved + "\n");
+      await sendInput(activeTabId, resolved);
       recordUsage(cmd.id);
     },
     [activeTabId, activeTab, upsert, sendInput, recordUsage],
@@ -573,7 +583,65 @@ export default function CommandPanel() {
 
   // ── Render helpers ────────────────────────────────────────────────────
 
-  const renderNode = useCallback(
+      const renderCmd = useCallback(
+    (cmd: CommandEntry, leftPad: number) => (
+      <div key={cmd.id}
+        onDoubleClick={() => handleSend(cmd)}
+        onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
+        className={`group flex items-center gap-1.5 pr-2 py-1 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer ${
+          cmd.pinned ? "border-l-2 border-[var(--accent)]" : ""
+        }`}
+        style={{ paddingLeft: leftPad }}
+      >
+        {/* Select checkbox */}
+        <button
+          onClick={(e2) => { e2.stopPropagation(); toggleSelect(cmd.id); }}
+          className={`shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded transition-opacity ${
+            selectedIds.has(cmd.id) ? "opacity-100 text-[var(--accent)]" : "opacity-0 group-hover:opacity-50 text-[var(--text-muted)]"
+          }`}
+        >
+          {selectedIds.has(cmd.id) ? <CheckSquare size={15} /> : <Square size={15} />}
+        </button>
+
+        {/* Icon (emoji) */}
+        {cmd.icon && (
+          <span className="shrink-0 w-4 text-center text-xs leading-none">{cmd.icon}</span>
+        )}
+
+        {/* Name + sub info */}
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-[var(--text-primary)] truncate">
+            {cmd.label || cmd.command}
+          </div>
+          {(cmd.label && cmd.label !== cmd.command) && (
+            <div className="text-[11px] text-[var(--text-muted)] truncate font-mono opacity-0 group-hover:opacity-50 transition-opacity leading-tight">
+              {cmd.command}
+            </div>
+          )}
+        </div>
+
+        {/* Right side: usage + send */}
+        <div className="flex items-center gap-1 shrink-0">
+          {usageCounts[cmd.id] > 0 && (
+            <span className="text-xs text-[var(--text-muted)] tabular-nums opacity-0 group-hover:opacity-100 transition-opacity">
+              {usageCounts[cmd.id]}x
+            </span>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); handleSend(cmd); }}
+            disabled={!activeTabId}
+            className="p-1.5 rounded-md text-[var(--color-success)] hover:bg-[var(--color-success)]/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="发送到终端"
+          >
+            <Send size={14} />
+          </button>
+        </div>
+      </div>
+    ),
+    [activeTabId, selectedIds, usageCounts, handleSend, toggleSelect, showCtx, cmdCtx]
+  );
+
+const renderNode = useCallback(
     (node: TreeNode): React.ReactNode => {
       const isCollapsed = collapsed.has(node.path);
       const hasChildren = node.children.length > 0;
@@ -587,30 +655,30 @@ export default function CommandPanel() {
             <button
               onClick={() => toggleCollapse(node.path)}
               onContextMenu={(e) => showCtx(e, folderCtx(node))}
-              className="flex items-center gap-1 w-full pr-2 py-0.5 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors"
+              className="flex items-center gap-2 w-full pr-2 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-md transition-colors"
               style={{ paddingLeft: 8 + indent }}
             >
               {hasContent ? (
                 isCollapsed ? (
-                  <ChevronRight size={11} className="flex-shrink-0" />
+                  <ChevronRight size={15} className="flex-shrink-0" />
                 ) : (
-                  <ChevronDown size={11} className="flex-shrink-0" />
+                  <ChevronDown size={15} className="flex-shrink-0" />
                 )
               ) : (
-                <span className="w-[11px] flex-shrink-0" />
+                <span className="w-[15px] flex-shrink-0" />
               )}
               {isCollapsed ? (
-                <FolderClosed size={11} className="flex-shrink-0" />
+                <FolderClosed size={15} className="flex-shrink-0" />
               ) : (
-                <FolderOpen size={11} className="flex-shrink-0" />
+                <FolderOpen size={15} className="flex-shrink-0" />
               )}
               <span className="flex-1 text-left truncate">{node.name}</span>
               {node.isEmpty ? (
-                <span className="text-[10px] tabular-nums opacity-50 italic">
+                <span className="text-xs tabular-nums opacity-50 italic">
                   empty
                 </span>
               ) : (
-                <span className="text-[10px] tabular-nums opacity-60">
+                <span className="text-xs tabular-nums opacity-60">
                   {node.commands.length}
                 </span>
               )}
@@ -625,7 +693,7 @@ export default function CommandPanel() {
                   onDoubleClick={() => handleSend(cmd)}
                   onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
                   title="双击发送"
-                  className={`group flex items-center gap-1.5 pr-1.5 py-1 hover:bg-[var(--surface-hover)] transition-colors rounded-sm
+                  className={`group flex items-center gap-1.5 pr-1.5 py-1.5 hover:bg-[var(--surface-hover)] transition-colors rounded-sm
                     ${cmd.pinned ? "border-l-2 border-[var(--accent)]" : ""}`}
                   style={{
                     paddingLeft: node.path === "未分类" ? 20 : 24 + indent,
@@ -634,19 +702,19 @@ export default function CommandPanel() {
                   {/* Select checkbox */}
                   <button
                     onClick={(e2) => { e2.stopPropagation(); toggleSelect(cmd.id); }}
-                    className={"shrink-0 w-4 h-4 flex items-center justify-center rounded transition-opacity " + (selectedIds.has(cmd.id) ? "opacity-100 text-[var(--accent)]" : "opacity-0 group-hover:opacity-40 hover:!opacity-70 text-[var(--text-muted)]")}
+                    className={"shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded transition-opacity " + (selectedIds.has(cmd.id) ? "opacity-100 text-[var(--accent)]" : "opacity-0 group-hover:opacity-40 hover:!opacity-70 text-[var(--text-muted)]")}
                   >
                     {selectedIds.has(cmd.id) ? <CheckSquare size={12} /> : <Square size={12} />}
                   </button>
                   <span className="flex-shrink-0 text-xs leading-none w-4 text-center">
-                    {cmd.icon || "-"}
+                    {cmd.icon || ""}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <span className="text-[11px] text-[var(--text-primary)] leading-tight truncate block">
+                    <span className="text-sm text-[var(--text-primary)] leading-tight truncate block">
                       {cmd.label || cmd.command}
                     </span>
                     {cmd.description && (
-                      <span className="text-[10px] text-[var(--text-muted)] leading-tight truncate block">
+                      <span className="text-xs text-[var(--text-muted)] leading-tight truncate block">
                         {cmd.description}
                       </span>
                     )}
@@ -663,7 +731,7 @@ export default function CommandPanel() {
                     <Send size={14} />
                   </button>
                   {usageCounts[cmd.id] > 0 && (
-                    <span className="shrink-0 text-[9px] text-[var(--text-muted)] tabular-nums opacity-0 group-hover:opacity-100 transition-opacity" title={"已使用 " + String(usageCounts[cmd.id]) + " 次"}>
+                    <span className="shrink-0 text-xs text-[var(--text-muted)] tabular-nums opacity-0 group-hover:opacity-100 transition-opacity" title={"已使用 " + String(usageCounts[cmd.id]) + " 次"}>
                       {usageCounts[cmd.id]}
                     </span>
                   )}
@@ -696,7 +764,7 @@ export default function CommandPanel() {
       {/* Search */}
       <div className="relative px-2 pb-1">
         <Search
-          size={13}
+          size={15}
           className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]"
         />
         <input
@@ -704,7 +772,7 @@ export default function CommandPanel() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="筛选命令..."
-          className="w-full h-7 pl-8 pr-2 text-[11px] bg-[var(--bg-surface)] border-2 border-transparent rounded-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] transition-[border-color,background]"
+          className="w-full h-8 pl-8 pr-2 text-sm bg-[var(--bg-surface)] border-2 border-transparent rounded-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] transition-[border-color,background]"
         />
       </div>
 
@@ -715,26 +783,26 @@ export default function CommandPanel() {
             <button
               onClick={batchExecute}
               disabled={!activeTabId}
-              className="flex items-center gap-1 px-2 py-1 text-[10px] rounded bg-[var(--accent-dim)] text-[var(--accent)] hover:bg-[var(--accent)]/25 transition-colors disabled:opacity-40"
+              className="flex items-center gap-1 px-3 py-2 text-sm rounded-md bg-[var(--accent-dim)] text-[var(--accent)] hover:bg-[var(--accent)]/25 transition-colors disabled:opacity-40"
             >
-              <Send size={10} />
+              <Send size={14} />
               执行 {selectedIds.size} 条
             </button>
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="px-2 py-1 text-[10px] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+              className="px-3 py-2 text-sm rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
             >
-              Clear
+                            取消
             </button>
           </>
         ) : (
           <>
             <button
               onClick={toggleSelectAll}
-              className="flex items-center gap-1 px-2 py-1 text-[10px] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+              className="flex items-center gap-1 px-3 py-2 text-sm rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
               title="全选可见"
             >
-              <CheckSquare size={11} />
+              <CheckSquare size={15} />
             </button>
             <div className="w-px h-4 bg-[var(--border-subtle)] mx-0.5" />
             <button
@@ -745,16 +813,16 @@ export default function CommandPanel() {
                 a.href = url; a.download = "meatshell-commands.json"; a.click();
                 URL.revokeObjectURL(url);
               }}
-              className="flex items-center gap-1 px-2 py-1 text-[10px] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+              className="flex items-center gap-1 px-3 py-2 text-sm rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
               title="导出全部命令"
             >
-              <Download size={11} />
+              <Download size={15} />
             </button>
             <label
-              className="flex items-center gap-1 px-2 py-1 text-[10px] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-3 py-2 text-sm rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
               title="从 JSON 导入命令"
             >
-              <Upload size={11} />
+              <Upload size={15} />
               <input
                 type="file"
                 accept=".json"
@@ -767,19 +835,50 @@ export default function CommandPanel() {
       </div>
 
       {importMsg && (
-        <div className='text-[10px] px-2 py-1 rounded mx-2 mb-1 text-[var(--color-success)] bg-[var(--color-success)]/10'>
+        <div className='text-xs px-2 py-1.5 rounded mx-2 mb-1 text-[var(--color-success)] bg-[var(--color-success)]/10'>
           {importMsg}
         </div>
       )}
 
-      {/* Command tree */}
-      <div className="flex-1 overflow-y-auto px-1 min-h-0">
-        {tree.length === 0 && (
-          <div className="flex items-center justify-center h-20 text-[11px] text-[var(--text-muted)]">
-            {search ? "无匹配" : "暂无保存的命令"}
+      {/* Command cards */}
+      <div className="flex-1 overflow-y-auto min-h-0 px-2 py-1.5 space-y-1.5">
+        {tree.length === 0 ? (
+          <div className="flex items-center justify-center h-20 text-sm text-[var(--text-muted)]">
+            {search ? "无匹配命令" : "暂无保存的命令"}
           </div>
+        ) : (
+          tree.map((node) => {
+            const isExpanded = expandedCards.has(node.path);
+            return (
+              <div key={node.path} className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]/50">
+                <button
+                  onClick={() => setExpandedCards((prev) => { const n = new Set(prev); if (n.has(node.path)) n.delete(node.path); else n.add(node.path); return n; })}
+                  onContextMenu={(e) => showCtx(e, folderCtx(node))}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--surface-hover)] transition-colors "
+                >
+                  <ChevronDown size={16} className={`shrink-0 text-[var(--text-muted)] transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
+                  <span className="text-sm font-semibold text-[var(--text-primary)] flex-1">{node.name}</span>
+                  <span className="text-xs tabular-nums text-[var(--text-muted)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
+                    {node.commands.length + node.children.reduce((acc, c) => acc + c.commands.length, 0)}
+                  </span>
+                </button>
+                {isExpanded && (
+                  <div className="border-t border-[var(--border-subtle)]">
+                    {node.commands.map((cmd) => renderCmd(cmd, 16))}
+                    {node.children.map((child) => (
+                      <div key={child.path}>
+                        <div className="px-4 py-1.5 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider bg-[var(--bg-base)]/30">
+                          {child.name}
+                        </div>
+                        {child.commands.map((cmd) => renderCmd(cmd, 24))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
-        {tree.map(renderNode)}
       </div>
 
       {/* Context menu */}
@@ -896,7 +995,7 @@ function CommandEditDialog({
 
         <div className="flex flex-col gap-3 mt-2">
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] text-[var(--text-secondary)]">
+            <label className="text-sm text-[var(--text-secondary)]">
               Icon (emoji)
             </label>
             <Input
@@ -908,19 +1007,19 @@ function CommandEditDialog({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] text-[var(--text-secondary)]">标签</label>
+            <label className="text-sm text-[var(--text-secondary)]">标签</label>
             <Input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
               placeholder="Friendly name"
-              className="h-8 text-[12px]"
+              className="h-8 text-sm"
               autoFocus
             />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] text-[var(--text-secondary)]">
+            <label className="text-sm text-[var(--text-secondary)]">
               Command
             </label>
             <Input
@@ -928,12 +1027,12 @@ function CommandEditDialog({
               onChange={(e) => setCommand(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
               placeholder="e.g. docker compose up -d"
-              className="h-8 text-[12px] font-mono"
+              className="h-8 text-sm font-mono"
             />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] text-[var(--text-secondary)]">
+            <label className="text-sm text-[var(--text-secondary)]">
               Description (optional)
             </label>
             <textarea
@@ -941,12 +1040,12 @@ function CommandEditDialog({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="What does this command do?"
               rows={2}
-              className="w-full rounded-sm border-2 border-transparent bg-[var(--bg-surface)] px-3 py-1.5 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] resize-none transition-[border-color]"
+              className="w-full rounded-sm border-2 border-transparent bg-[var(--bg-surface)] px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] resize-none transition-[border-color]"
             />
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] text-[var(--text-secondary)]">
+            <label className="text-sm text-[var(--text-secondary)]">
               Category
             </label>
             <Input
@@ -954,7 +1053,7 @@ function CommandEditDialog({
               onChange={(e) => setCategory(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
               placeholder="文件夹/子文件夹（如 数据库/MySQL）"
-              className="h-8 text-[12px]"
+              className="h-8 text-sm"
               list="cmd-categories"
             />
             <datalist id="cmd-categories">
@@ -967,7 +1066,7 @@ function CommandEditDialog({
           </div>
 
           <div className="flex justify-end gap-2 mt-1">
-            <Button variant="ghost" size="sm" onClick={onClose} className="text-[11px] h-7">
+            <Button variant="ghost" size="sm" onClick={onClose} className="text-sm h-7">
               Cancel
             </Button>
             <Button
@@ -975,7 +1074,7 @@ function CommandEditDialog({
               size="sm"
               onClick={handleSave}
               disabled={!isValid}
-              className="text-[11px] h-7"
+              className="text-sm h-7"
             >
               Save
             </Button>
@@ -1011,7 +1110,7 @@ function MoveDialog({
           <select
             value={selected}
             onChange={(e) => setSelected(e.target.value)}
-            className="w-full h-8 rounded-sm border-2 border-transparent bg-[var(--bg-surface)] px-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-focus)]"
+            className="w-full h-8 rounded-sm border-2 border-transparent bg-[var(--bg-surface)] px-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-focus)]"
           >
             <option value="">-- 选择文件夹 --</option>
             <option value="">Uncategorized</option>
@@ -1024,14 +1123,14 @@ function MoveDialog({
               ))}
           </select>
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={onClose} className="text-[11px] h-7">
+            <Button variant="ghost" size="sm" onClick={onClose} className="text-sm h-7">
               Cancel
             </Button>
             <Button
               variant="primary"
               size="sm"
               onClick={() => onMove(ids, selected)}
-              className="text-[11px] h-7"
+              className="text-sm h-7"
             >
               Move
             </Button>
@@ -1068,7 +1167,7 @@ function NewFolderDialog({
         </DialogHeader>
         <div className="flex flex-col gap-3 mt-2">
           {parentPath && (
-            <p className="text-[11px] text-[var(--text-muted)]">
+            <p className="text-sm text-[var(--text-muted)]">
               父级：{parentPath}
             </p>
           )}
@@ -1077,11 +1176,11 @@ function NewFolderDialog({
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleConfirm(); }}
             placeholder="文件夹名称"
-            className="h-8 text-[12px]"
+            className="h-8 text-sm"
             autoFocus
           />
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={onClose} className="text-[11px] h-7">
+            <Button variant="ghost" size="sm" onClick={onClose} className="text-sm h-7">
               Cancel
             </Button>
             <Button
@@ -1089,7 +1188,7 @@ function NewFolderDialog({
               size="sm"
               onClick={handleConfirm}
               disabled={!name.trim()}
-              className="text-[11px] h-7"
+              className="text-sm h-7"
             >
               Create
             </Button>

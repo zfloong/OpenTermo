@@ -46,7 +46,7 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
               onMouseDown={(e) => e.stopPropagation()}
               className={`no-drag group relative flex items-center gap-1.5 h-8 px-3 text-xs cursor-pointer rounded-md transition-all duration-150
                 ${isActive
-                  ? "bg-[var(--surface-selected)] text-[var(--text-primary)] font-medium shadow-sm"
+                  ? "bg-[var(--surface-selected)] text-[var(--text-primary)] font-semibold shadow-sm"
                   : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
                 }`}
             >
@@ -77,10 +77,10 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
         <button
           onClick={onConnect}
           onMouseDown={(e) => e.stopPropagation()}
-          className="no-drag flex items-center gap-1.5 px-3 h-8 text-xs text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-dim)] rounded-md transition-all duration-150 ml-0.5 flex-shrink-0"
+          className="no-drag flex items-center gap-1.5 px-3 h-8 text-sm text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-dim)] rounded-md transition-all duration-150 ml-0.5 flex-shrink-0"
         >
-          <Plus size={14} />
-          <span className="hidden sm:inline font-medium">连接</span>
+          <Plus size={17} />
+          <span className="hidden sm:inline font-semibold">连接</span>
         </button>
       </div>
 
