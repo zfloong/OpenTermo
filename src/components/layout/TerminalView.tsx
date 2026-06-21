@@ -420,7 +420,7 @@ export default function TerminalView({ tabId }: { tabId: string }) {
               onKeyDown={handleSearchKeyDown}
               onFocus={handleSearchFocus}
               onBlur={() => setTimeout(() => setHistoryVisible(false), 150)}
-              placeholder="Search…"
+              placeholder="搜索…"
               className="flex-1 bg-transparent text-[var(--text-primary)] text-[13px] font-mono outline-none placeholder:text-[var(--text-muted)] min-w-0"
               spellCheck={false}
               autoComplete="off"
@@ -431,14 +431,14 @@ export default function TerminalView({ tabId }: { tabId: string }) {
               className={`shrink-0 w-1.5 h-1.5 rounded-full ${
                 hasMatch ? "bg-green-400" : "bg-red-400"
               }`}
-              title={hasMatch ? "Match found" : "No match"}
+              title={hasMatch ? "已匹配" : "无匹配"}
             />
 
             {/* Prev / Next */}
             <button
               onClick={searchPrev}
               className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded transition-colors"
-              title="Previous match"
+              title="上一个"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <polyline points="15,18 9,12 15,6" />
@@ -447,7 +447,7 @@ export default function TerminalView({ tabId }: { tabId: string }) {
             <button
               onClick={searchNext}
               className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded transition-colors"
-              title="Next match"
+              title="下一个"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <polyline points="9,18 15,12 9,6" />
@@ -458,7 +458,7 @@ export default function TerminalView({ tabId }: { tabId: string }) {
             <button
               onClick={closeSearch}
               className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded transition-colors"
-              title="Close search (Esc)"
+              title="关闭搜索 (Esc)"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -498,7 +498,7 @@ export default function TerminalView({ tabId }: { tabId: string }) {
                         removeHistoryItem(q);
                       }}
                       className="p-0.5 opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded transition-all"
-                      title="Remove"
+                      title="移除"
                     >
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                         <line x1="18" y1="6" x2="6" y2="18" />

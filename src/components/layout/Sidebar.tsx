@@ -56,7 +56,7 @@ export default function Sidebar() {
       {!isOpen && (
         <button
           onClick={toggleSidebar}
-          title="Expand sidebar"
+          title="展开侧栏"
           className="absolute left-3 top-12 z-50 w-8 h-8 flex items-center justify-center
                      rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)]
                      hover:bg-[var(--surface-hover)] backdrop-blur-sm transition-all duration-150
@@ -77,11 +77,11 @@ export default function Sidebar() {
           data-tauri-drag-region
         >
           <span className="text-xs font-semibold text-[var(--text-secondary)] tracking-wide no-drag uppercase">
-            {tab === "sessions" ? "Sessions" : "Commands"}
+            {tab === "sessions" ? "会话" : "命令"}
           </span>
           <button
             onClick={toggleSidebar}
-            title="Collapse sidebar"
+            title="收起侧栏"
             className="no-drag w-7 h-7 flex items-center justify-center rounded-md
                        text-[var(--text-secondary)] hover:text-[var(--text-primary)]
                        hover:bg-[var(--surface-hover)] transition-all duration-150"
@@ -100,7 +100,7 @@ export default function Sidebar() {
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
             }`}
           >
-            Sessions
+            会话
           </button>
           <button
             onClick={() => setTab("commands")}
@@ -110,7 +110,7 @@ export default function Sidebar() {
                 : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
             }`}
           >
-            Commands
+            命令
           </button>
         </div>
 

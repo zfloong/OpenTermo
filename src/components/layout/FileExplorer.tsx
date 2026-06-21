@@ -567,11 +567,11 @@ export default function FileExplorer() {
               <div className="fixed inset-0 z-20" onClick={() => setShowHistory(false)} />
               <div className="absolute left-0 top-full mt-1 w-64 max-h-64 overflow-y-auto bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-md shadow-xl z-30">
               <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-[var(--border-subtle)]">
-                <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Recent Downloads</span>
-                <button onClick={() => setDownloadHistory([])} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)]">Clear</button>
+                <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">最近下载</span>
+                <button onClick={() => setDownloadHistory([])} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)]">清除</button>
               </div>
               {downloadHistory.length === 0 ? (
-                <div className="px-3 py-6 text-center text-[11px] text-[var(--text-muted)]">No downloads yet</div>
+                <div className="px-3 py-6 text-center text-[11px] text-[var(--text-muted)]">暂无下载</div>
               ) : (
                 downloadHistory.map((r, i) => (
                   <div key={`${r.remotePath}-${r.timestamp}-${i}`} className="px-2.5 py-1.5 hover:bg-[var(--surface-hover)] transition-colors group">
@@ -643,7 +643,7 @@ export default function FileExplorer() {
                 className="w-3 h-3 accent-[var(--accent)] cursor-pointer"
               />
               <EyeOff size={11} className={showHidden ? "text-[var(--accent)]" : ""} />
-              <span>Hidden</span>
+              <span>隐藏</span>
             </label>
           </>
         )}
@@ -712,7 +712,7 @@ export default function FileExplorer() {
         {!loading && entries.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 gap-1.5">
             <Folder size={28} className="text-[var(--text-muted)] opacity-40" />
-            <span className="text-[11px] text-[var(--text-muted)]">This folder is empty</span>
+            <span className="text-[11px] text-[var(--text-muted)]">此文件夹为空</span>
             <span className="text-[10px] text-[var(--text-muted)] opacity-60">
               Right-click → New Folder / Upload Files
             </span>

@@ -165,10 +165,10 @@ export default function CommandPalette() {
         {/* Footer */}
         <div className="flex items-center gap-4 px-4 py-2 border-t border-[var(--border-subtle)] text-[10px] text-[var(--text-muted)]">
           <span>↑↓ Navigate</span>
-          <span>↵ Execute</span>
-          <span>Esc Close</span>
+          <span>↵ 执行</span>
+          <span>Esc 关闭</span>
           {!activeTabId && (
-            <span className="text-[var(--color-warning)] ml-auto">No active session</span>
+            <span className="text-[var(--color-warning)] ml-auto">无活跃会话</span>
           )}
         </div>
       </div>

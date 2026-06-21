@@ -111,8 +111,8 @@ export default function SessionManager() {
         {Object.keys(grouped).length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-1.5 text-[11px] text-[var(--text-muted)]">
             <Terminal size={24} className="opacity-30" />
-            <span>No saved sessions</span>
-            <span className="text-[10px] opacity-60">Click + to create one</span>
+            <span>暂无保存的会话</span>
+            <span className="text-[10px] opacity-60">点击 + 创建会话</span>
           </div>
         ) : (
           Object.entries(grouped).map(([group, items]) => (
@@ -138,8 +138,8 @@ export default function SessionManager() {
                         className="w-full px-1.5 py-0.5 text-[11px] bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-sm outline-none focus:border-[var(--border-focus)]"
                       />
                       <div className="flex gap-1">
-                        <button onClick={saveEdit} className="px-2 py-0.5 text-[10px] bg-[var(--accent)] text-white rounded-sm">Save</button>
-                        <button onClick={cancelEdit} className="px-2 py-0.5 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-sm">Cancel</button>
+                        <button onClick={saveEdit} className="px-2 py-0.5 text-[10px] bg-[var(--accent)] text-white rounded-sm">保存</button>
+                        <button onClick={cancelEdit} className="px-2 py-0.5 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-sm">取消</button>
                       </div>
                     </div>
                   ) : (

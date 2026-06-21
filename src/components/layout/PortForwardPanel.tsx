@@ -142,8 +142,8 @@ export default function PortForwardPanel() {
               onChange={(e) => setFKind(e.target.value)}
               className="w-20 px-1 py-0.5 text-[11px] bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-default)] rounded-sm outline-none"
             >
-              <option value="local">Local (-L)</option>
-              <option value="dynamic">Dynamic (-D)</option>
+              <option value="local">本地 (-L)</option>
+              <option value="dynamic">动态 (-D)</option>
             </select>
             <input
               placeholder="Name (optional)"
@@ -154,7 +154,7 @@ export default function PortForwardPanel() {
           </div>
           <div className="flex gap-1">
             <div className="flex items-center gap-0.5 flex-1">
-              <span className="text-[10px] text-[var(--text-muted)] flex-shrink-0">Bind:</span>
+              <span className="text-[10px] text-[var(--text-muted)] flex-shrink-0">绑定:</span>
               <input
                 placeholder="port"
                 value={fBindPort}
@@ -204,22 +204,22 @@ export default function PortForwardPanel() {
         {!isConnected ? (
           <div className="flex flex-col items-center justify-center py-12 gap-1.5 text-[11px] text-[var(--text-muted)]">
             <Wifi size={24} className="opacity-30" />
-            <span>Connect to an SSH session to manage port forwards</span>
+            <span>连接到 SSH 会话以管理端口转发</span>
           </div>
         ) : forwards.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-1.5 text-[11px] text-[var(--text-muted)]">
             <ArrowLeftRight size={24} className="opacity-30" />
-            <span>No active forwards</span>
-            <span className="text-[10px] opacity-60">Click + to add a local or dynamic forward</span>
+            <span>无活跃转发</span>
+            <span className="text-[10px] opacity-60">点击 + 添加本地或动态转发</span>
           </div>
         ) : (
           <table className="w-full text-[11px]">
             <thead>
               <tr className="border-b border-[var(--border-subtle)] sticky top-0 bg-[var(--bg-surface)]">
                 <th className="w-6" />
-                <th className="text-left py-1 px-2 text-[var(--text-secondary)] text-[10px] uppercase tracking-wider">Name</th>
-                <th className="text-left py-1 px-2 text-[var(--text-secondary)] text-[10px] uppercase tracking-wider">Bind</th>
-                <th className="text-left py-1 px-2 text-[var(--text-secondary)] text-[10px] uppercase tracking-wider">Target</th>
+                <th className="text-left py-1 px-2 text-[var(--text-secondary)] text-[10px] uppercase tracking-wider">名称</th>
+                <th className="text-left py-1 px-2 text-[var(--text-secondary)] text-[10px] uppercase tracking-wider">绑定</th>
+                <th className="text-left py-1 px-2 text-[var(--text-secondary)] text-[10px] uppercase tracking-wider">目标</th>
                 <th className="w-8" />
               </tr>
             </thead>

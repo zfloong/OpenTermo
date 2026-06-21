@@ -135,7 +135,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return {
         tabs: [
           ...s.tabs,
-          { id: tabId, session, status: "connecting", statusText: "Connecting...", remoteStats: null },
+          { id: tabId, session, status: "connecting", statusText: "连接中...", remoteStats: null },
         ],
         activeTabId: tabId,
       };
@@ -211,7 +211,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       () => {
         set((s) => ({
           tabs: s.tabs.map((t) =>
-            t.id === tabId ? { ...t, status: "connected", statusText: "Connected" } : t,
+            t.id === tabId ? { ...t, status: "connected", statusText: "已连接" } : t,
           ),
         }));
       },
@@ -223,7 +223,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         const tab = get().tabs.find((t) => t.id === tabId);
         // If tab was still connecting, show error
         if (tab && tab.status === "connecting") {
-          set({ lastError: `Connection failed: ${event.payload}` });
+          set({ lastError: `连接失败: ${event.payload}` });
           setTimeout(() => set({ lastError: null }), 6000);
         }
         set((s) => ({

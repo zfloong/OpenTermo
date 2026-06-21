@@ -126,10 +126,10 @@ export default function CommandPanel() {
       try {
         const text = await file.text();
         const result = await importCommands(text);
-        setImportMsg("Imported " + result.imported + " commands" + (result.skipped > 0 ? " (" + result.skipped + " skipped)" : ""));
+        setImportMsg("已导入 " + result.imported + " 条命令" + (result.skipped > 0 ? "（" + result.skipped + " 条跳过）" : ""));
         setTimeout(() => setImportMsg(null), 3000);
       } catch (e: any) {
-        setImportMsg(e.message || "Import failed");
+        setImportMsg(e.message || "导入失败");
         setTimeout(() => setImportMsg(null), 4000);
       }
     },
@@ -214,7 +214,7 @@ export default function CommandPanel() {
           (e.description ?? "").toLowerCase().includes(lower);
         if (!match) continue;
       }
-      const cat = e.category.trim() || "Uncategorized";
+      const cat = e.category.trim() || "未分类";
       if (!cmdByPath.has(cat)) cmdByPath.set(cat, []);
       cmdByPath.get(cat)!.push(e);
     }
@@ -222,7 +222,7 @@ export default function CommandPanel() {
     // Collect folder paths from commands + empty folders
     const folderPaths = new Set<string>();
     for (const cat of cmdByPath.keys()) {
-      if (cat === "Uncategorized") continue;
+      if (cat === "未分类") continue;
       const parts = cat.split("/");
       for (let i = 0; i < parts.length; i++) {
         folderPaths.add(parts.slice(0, i + 1).join("/"));
@@ -236,11 +236,11 @@ export default function CommandPanel() {
     const rootNodes: TreeNode[] = [];
 
     // Uncategorized
-    const uncategorized = cmdByPath.get("Uncategorized");
+    const uncategorized = cmdByPath.get("未分类");
     if (uncategorized && uncategorized.length > 0) {
       rootNodes.push({
-        name: "Uncategorized",
-        path: "Uncategorized",
+        name: "未分类",
+        path: "未分类",
         depth: 0,
         commands: sortCommands(uncategorized),
         children: [],
@@ -401,13 +401,13 @@ export default function CommandPanel() {
   const cmdCtx = useCallback(
     (cmd: CommandEntry): (ContextMenuItem | null)[] => [
       {
-        label: "Send",
+        label: "发送",
         icon: <Send size={12} />,
         onClick: () => handleSend(cmd),
         disabled: !activeTabId,
       },
       {
-        label: "Edit",
+        label: "编辑",
         icon: <Edit3 size={12} />,
         onClick: () => {
           setEditing(cmd);
@@ -415,29 +415,29 @@ export default function CommandPanel() {
         },
       },
       {
-        label: "Duplicate",
+        label: "复制命令",
         icon: <Copy size={12} />,
         onClick: () => handleDuplicate(cmd),
       },
       {
-        label: "Move to Folder",
+        label: "移动到文件夹",
         icon: <ArrowRightLeft size={12} />,
         onClick: () => setMoveTarget({ ids: [cmd.id] }),
       },
       cmd.pinned
         ? {
-            label: "Unpin",
+            label: "取消置顶",
             icon: <PinOff size={12} />,
             onClick: () => handleTogglePin(cmd),
           }
         : {
-            label: "Pin",
+            label: "置顶",
             icon: <Pin size={12} />,
             onClick: () => handleTogglePin(cmd),
           },
       null,
       {
-        label: "Delete",
+        label: "删除",
         icon: <Trash2 size={12} />,
         onClick: () => handleDelete(cmd.id),
         danger: true,
@@ -450,7 +450,7 @@ export default function CommandPanel() {
     (node: TreeNode): (ContextMenuItem | null)[] => {
       const items: (ContextMenuItem | null)[] = [
         {
-          label: "New Command",
+          label: "新建命令",
           icon: <Plus size={12} />,
           onClick: () => openNewCommandDialog(node.path),
         },
@@ -458,7 +458,7 @@ export default function CommandPanel() {
 
       if (node.depth < 2) {
         items.push({
-          label: "New Subfolder",
+          label: "新建子文件夹",
           icon: <FolderPlus size={12} />,
           onClick: () => setNewFolderPrompt({ parentPath: node.path }),
         });
@@ -466,7 +466,7 @@ export default function CommandPanel() {
 
       items.push(
         {
-          label: "Rename",
+          label: "重命名",
           icon: <Edit3 size={12} />,
           onClick: () => {
             const newName = prompt("Rename folder:", node.name);
@@ -479,7 +479,7 @@ export default function CommandPanel() {
         },
         null,
         {
-          label: "Export Folder",
+          label: "导出文件夹",
           icon: <Download size={12} />,
           onClick: () => {
             const json = exportFolder(node.path);
@@ -492,12 +492,12 @@ export default function CommandPanel() {
         },
         null,
         {
-          label: "Delete Folder",
+          label: "删除文件夹",
           icon: <Trash2 size={12} />,
           onClick: () => {
             const msg = node.isEmpty
-              ? `Delete folder "${node.path}"?`
-              : `Delete folder "${node.path}" and all its commands?`;
+              ? `删除文件夹 "${node.path}"?`
+              : `删除文件夹 "${node.path}" 及其所有命令？`;
             if (confirm(msg)) {
               const collectIds = (n: TreeNode): string[] => [
                 ...n.commands.map((c) => c.id),
@@ -519,12 +519,12 @@ export default function CommandPanel() {
   const emptyCtx = useCallback(
     (): (ContextMenuItem | null)[] => [
       {
-        label: "New Command",
+        label: "新建命令",
         icon: <Plus size={12} />,
         onClick: () => openNewCommandDialog(""),
       },
       {
-        label: "New Folder",
+        label: "新建文件夹",
         icon: <FolderPlus size={12} />,
         onClick: () => setNewFolderPrompt({ parentPath: "" }),
       },
@@ -566,7 +566,7 @@ export default function CommandPanel() {
   const folderPathsForMove = useMemo(() => {
     const paths: string[] = [""]; // Uncategorized
     for (const p of allFolderPaths) {
-      if (p !== "Uncategorized") paths.push(p);
+      if (p !== "未分类") paths.push(p);
     }
     return paths;
   }, [allFolderPaths]);
@@ -583,7 +583,7 @@ export default function CommandPanel() {
       return (
         <div key={node.path}>
           {/* Folder header */}
-          {node.path !== "Uncategorized" && (
+          {node.path !== "未分类" && (
             <button
               onClick={() => toggleCollapse(node.path)}
               onContextMenu={(e) => showCtx(e, folderCtx(node))}
@@ -624,11 +624,11 @@ export default function CommandPanel() {
                 <div
                   onDoubleClick={() => handleSend(cmd)}
                   onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
-                  title="Double-click to send"
+                  title="双击发送"
                   className={`group flex items-center gap-1.5 pr-1.5 py-1 hover:bg-[var(--surface-hover)] transition-colors rounded-sm
                     ${cmd.pinned ? "border-l-2 border-[var(--accent)]" : ""}`}
                   style={{
-                    paddingLeft: node.path === "Uncategorized" ? 20 : 24 + indent,
+                    paddingLeft: node.path === "未分类" ? 20 : 24 + indent,
                   }}
                 >
                   {/* Select checkbox */}
@@ -658,12 +658,12 @@ export default function CommandPanel() {
                     }}
                     disabled={!activeTabId}
                     className="flex-shrink-0 p-0.5 text-[var(--color-success)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="Send to terminal"
+                    title="发送到终端"
                   >
                     <Send size={14} />
                   </button>
                   {usageCounts[cmd.id] > 0 && (
-                    <span className="shrink-0 text-[9px] text-[var(--text-muted)] tabular-nums opacity-0 group-hover:opacity-100 transition-opacity" title={"Used " + String(usageCounts[cmd.id]) + " times"}>
+                    <span className="shrink-0 text-[9px] text-[var(--text-muted)] tabular-nums opacity-0 group-hover:opacity-100 transition-opacity" title={"已使用 " + String(usageCounts[cmd.id]) + " 次"}>
                       {usageCounts[cmd.id]}
                     </span>
                   )}
@@ -703,7 +703,7 @@ export default function CommandPanel() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Filter commands..."
+          placeholder="筛选命令..."
           className="w-full h-7 pl-8 pr-2 text-[11px] bg-[var(--bg-surface)] border-2 border-transparent rounded-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] transition-[border-color,background]"
         />
       </div>
@@ -718,7 +718,7 @@ export default function CommandPanel() {
               className="flex items-center gap-1 px-2 py-1 text-[10px] rounded bg-[var(--accent-dim)] text-[var(--accent)] hover:bg-[var(--accent)]/25 transition-colors disabled:opacity-40"
             >
               <Send size={10} />
-              Run {selectedIds.size}
+              执行 {selectedIds.size} 条
             </button>
             <button
               onClick={() => setSelectedIds(new Set())}
@@ -732,7 +732,7 @@ export default function CommandPanel() {
             <button
               onClick={toggleSelectAll}
               className="flex items-center gap-1 px-2 py-1 text-[10px] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
-              title="Select all visible"
+              title="全选可见"
             >
               <CheckSquare size={11} />
             </button>
@@ -746,13 +746,13 @@ export default function CommandPanel() {
                 URL.revokeObjectURL(url);
               }}
               className="flex items-center gap-1 px-2 py-1 text-[10px] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
-              title="Export all commands"
+              title="导出全部命令"
             >
               <Download size={11} />
             </button>
             <label
               className="flex items-center gap-1 px-2 py-1 text-[10px] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
-              title="Import commands from JSON"
+              title="从 JSON 导入命令"
             >
               <Upload size={11} />
               <input
@@ -776,7 +776,7 @@ export default function CommandPanel() {
       <div className="flex-1 overflow-y-auto px-1 min-h-0">
         {tree.length === 0 && (
           <div className="flex items-center justify-center h-20 text-[11px] text-[var(--text-muted)]">
-            {search ? "No matches" : "No saved commands"}
+            {search ? "无匹配" : "暂无保存的命令"}
           </div>
         )}
         {tree.map(renderNode)}
@@ -890,7 +890,7 @@ function CommandEditDialog({
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>
-            {isNew ? "New Command" : "Edit Command"}
+            {isNew ? "新建命令" : "编辑命令"}
           </DialogTitle>
         </DialogHeader>
 
@@ -908,7 +908,7 @@ function CommandEditDialog({
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] text-[var(--text-secondary)]">Label</label>
+            <label className="text-[11px] text-[var(--text-secondary)]">标签</label>
             <Input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
@@ -953,13 +953,13 @@ function CommandEditDialog({
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-              placeholder="Folder/Subfolder (e.g. Docker/Containers)"
+              placeholder="文件夹/子文件夹（如 数据库/MySQL）"
               className="h-8 text-[12px]"
               list="cmd-categories"
             />
             <datalist id="cmd-categories">
               {folderPaths
-                .filter((c) => c !== "Uncategorized")
+                .filter((c) => c !== "未分类")
                 .map((c) => (
                   <option key={c} value={c} />
                 ))}
@@ -1005,7 +1005,7 @@ function MoveDialog({
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-xs">
         <DialogHeader>
-          <DialogTitle>Move to Folder</DialogTitle>
+          <DialogTitle>移动到文件夹</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-3 mt-2">
           <select
@@ -1013,10 +1013,10 @@ function MoveDialog({
             onChange={(e) => setSelected(e.target.value)}
             className="w-full h-8 rounded-sm border-2 border-transparent bg-[var(--bg-surface)] px-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-focus)]"
           >
-            <option value="">-- Select folder --</option>
+            <option value="">-- 选择文件夹 --</option>
             <option value="">Uncategorized</option>
             {folderPaths
-              .filter((p) => p && p !== "Uncategorized")
+              .filter((p) => p && p !== "未分类")
               .map((p) => (
                 <option key={p} value={p}>
                   {p}
@@ -1064,19 +1064,19 @@ function NewFolderDialog({
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-xs">
         <DialogHeader>
-          <DialogTitle>New Folder</DialogTitle>
+          <DialogTitle>新建文件夹</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-3 mt-2">
           {parentPath && (
             <p className="text-[11px] text-[var(--text-muted)]">
-              Parent: {parentPath}
+              父级：{parentPath}
             </p>
           )}
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleConfirm(); }}
-            placeholder="Folder name"
+            placeholder="文件夹名称"
             className="h-8 text-[12px]"
             autoFocus
           />

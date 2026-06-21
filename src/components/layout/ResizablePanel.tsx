@@ -8,7 +8,7 @@ type BottomTab = "files" | "ports";
 /**
  * Bottom panel with a draggable split bar at the top.
  * Height is controlled via `uiStore.bottomPanelHeight`.
- * Contains tabs: File Explorer | Port Forwarding.
+ * Contains tabs: 文件浏览 | 端口转发ing.
  */
 export default function ResizablePanel() {
   const height = useUIStore((s) => s.bottomPanelHeight);
@@ -76,7 +76,7 @@ export default function ResizablePanel() {
               : "text-[var(--text-muted)] border-transparent hover:text-[var(--text-primary)]"
           }`}
         >
-          File Explorer
+          文件浏览
         </button>
         <button
           onClick={() => setTab("ports")}
@@ -86,7 +86,7 @@ export default function ResizablePanel() {
               : "text-[var(--text-muted)] border-transparent hover:text-[var(--text-primary)]"
           }`}
         >
-          Port Forward
+          端口转发
         </button>
       </div>
 

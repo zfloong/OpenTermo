@@ -31,7 +31,7 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
           M
         </div>
         <span className="text-xs font-semibold text-[var(--text-secondary)] tracking-wide">
-          meatshell
+          肉壳
         </span>
       </div>
 
@@ -80,7 +80,7 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
           className="no-drag flex items-center gap-1.5 px-3 h-8 text-xs text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-dim)] rounded-md transition-all duration-150 ml-0.5 flex-shrink-0"
         >
           <Plus size={14} />
-          <span className="hidden sm:inline font-medium">Connect</span>
+          <span className="hidden sm:inline font-medium">连接</span>
         </button>
       </div>
 

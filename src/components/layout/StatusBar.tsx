@@ -54,29 +54,29 @@ export default function StatusBar() {
               className={`status-dot ${activeTab.status === "connected" ? "connected" : "connecting"}`}
             />
             <span className="text-[11px] text-[var(--text-primary)] font-medium">
-              {activeTab.session.name || activeTab.session.host}
+              {activeTab.个会话.name || activeTab.个会话.host}
             </span>
             <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">
               · {activeTab.statusText}
             </span>
           </div>
         ) : (
-          <span className="text-[11px] text-[var(--text-muted)]">Ready</span>
+          <span className="text-[11px] text-[var(--text-muted)]">就绪</span>
         )}
       </div>
 
       {/* File explorer stats */}
-      {sftpStats && (sftpStats.folders > 0 || sftpStats.files > 0) && (
+      {sftpStats && (sftpStats.个文件夹s > 0 || sftpStats.个文件s > 0) && (
         <div className="flex items-center gap-1.5 flex-shrink-0 text-[11px] text-[var(--text-secondary)]">
           <span>
-            {sftpStats.folders > 0 && `${sftpStats.folders} folder${sftpStats.folders !== 1 ? "s" : ""}`}
-            {sftpStats.folders > 0 && sftpStats.files > 0 && ", "}
-            {sftpStats.files > 0 && `${sftpStats.files} file${sftpStats.files !== 1 ? "s" : ""}`}
+            {sftpStats.个文件夹s > 0 && `${sftpStats.个文件夹s} 个文件夹${sftpStats.个文件夹s !== 1 ? "s" : ""}`}
+            {sftpStats.个文件夹s > 0 && sftpStats.个文件s > 0 && ", "}
+            {sftpStats.个文件s > 0 && `${sftpStats.个文件s} 个文件${sftpStats.个文件s !== 1 ? "s" : ""}`}
           </span>
           {sftpStats.selected > 0 ? (
-            <span className="text-[var(--accent)] font-medium">{sftpStats.selected} selected</span>
+            <span className="text-[var(--accent)] font-medium">{sftpStats.selected} 已选择</span>
           ) : (
-            <span className="text-[var(--text-muted)]">Ctrl/Shift+Click to multi-select</span>
+            <span className="text-[var(--text-muted)]">Ctrl/Shift+点击多选</span>
           )}
         </div>
       )}
@@ -121,11 +121,11 @@ export default function StatusBar() {
         ) : null}
       </div>
 
-      {/* Right: session count */}
+      {/* Right: 个会话 count */}
       <div className="flex-1" />
       <span className="text-[11px] text-[var(--text-muted)] flex-shrink-0 tabular-nums">
         {tabs.length > 0 &&
-          `${tabs.length} session${tabs.length > 1 ? "s" : ""}`}
+          `${tabs.length} 个会话${tabs.length > 1 ? "s" : ""}`}
       </span>
     </footer>
   );

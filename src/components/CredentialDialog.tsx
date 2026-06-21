@@ -40,18 +40,18 @@ export default function CredentialDialog({ prompt, onClose }: CredentialDialogPr
       <DialogContent className="max-w-[380px]">
         <DialogHeader>
           <DialogTitle>
-            Login — {prompt.host}
+            登录 — {prompt.host}
           </DialogTitle>
         </DialogHeader>
 
         <p className="text-xs text-[var(--text-secondary)] -mt-1">
-          Additional credentials are required to connect.
+          需要额外凭据才能连接。
         </p>
 
         <div className="flex flex-col gap-4 mt-1">
           {prompt.need_user && (
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--text-secondary)]">Username</span>
+              <span className="text-xs text-[var(--text-secondary)]">用户名</span>
               <Input
                 value={user}
                 onChange={(e) => setUser(e.target.value)}
@@ -62,7 +62,7 @@ export default function CredentialDialog({ prompt, onClose }: CredentialDialogPr
 
           {prompt.need_password && (
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--text-secondary)]">Password</span>
+              <span className="text-xs text-[var(--text-secondary)]">密码</span>
               <Input
                 type="password"
                 value={password}
@@ -80,7 +80,7 @@ export default function CredentialDialog({ prompt, onClose }: CredentialDialogPr
               onChange={(e) => setRemember(e.target.checked)}
               className="accent-[var(--accent)]"
             />
-            Remember for this session
+            记住本次会话
           </label>
         </div>
 

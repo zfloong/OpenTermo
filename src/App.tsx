@@ -47,7 +47,7 @@ export default function App() {
               <div className="flex flex-col items-center justify-center h-full gap-3">
                 <span className="text-2xl opacity-20">⌨</span>
                 <span className="text-sm text-[var(--text-muted)] select-none">
-                  Press <kbd className="px-1.5 py-0.5 text-[11px] bg-[var(--surface-hover)] rounded font-mono">Ctrl+K</kbd> to search commands
+                  按 <kbd className="px-1.5 py-0.5 text-[11px] bg-[var(--surface-hover)] rounded font-mono">Ctrl+K</kbd> 搜索命令
                 </span>
               </div>
             )}

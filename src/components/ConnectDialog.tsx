@@ -117,7 +117,7 @@ export default function ConnectDialog({
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="flex flex-col max-w-[820px] max-h-[85vh] p-0">
         <DialogHeader className="px-5 py-4 border-b border-[var(--border-subtle)]">
-          <DialogTitle>New Connection</DialogTitle>
+          <DialogTitle>新建连接</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-1 overflow-hidden">
@@ -125,13 +125,13 @@ export default function ConnectDialog({
           <div className="w-[300px] border-r border-[var(--border-subtle)] flex flex-col bg-[var(--bg-base)]/40">
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border-subtle)]">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-                Saved Sessions
+                已保存的会话
               </span>
             </div>
             <div className="flex-1 overflow-auto">
               {sessions.length === 0 ? (
                 <div className="px-4 py-8 text-xs text-center text-[var(--text-muted)]">
-                  No saved sessions yet
+                  暂无保存的会话
                 </div>
               ) : (
                 sessions.map((s) => (
@@ -166,9 +166,9 @@ export default function ConnectDialog({
           {/* Right: connection form */}
           <div className="flex-1 flex flex-col gap-4 p-5 overflow-auto">
             <div className="grid grid-cols-2 gap-4">
-              {field("Session Name", form.name, (v) => setForm({ ...form, name: v }), { placeholder: "My Server" })}
+              {field("会话名称", form.name, (v) => setForm({ ...form, name: v }), { placeholder: "我的服务器" })}
               <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-[var(--text-secondary)]">Protocol</span>
+                <span className="text-xs font-medium text-[var(--text-secondary)]">协议</span>
                 <select
                   value={form.kind}
                   onChange={(e) => setForm({ ...form, kind: e.target.value as SessionConfig["kind"], port: e.target.value === "ssh" ? 22 : e.target.value === "telnet" ? 23 : 0 })}
@@ -182,9 +182,9 @@ export default function ConnectDialog({
             </div>
 
             <div className="grid grid-cols-[1fr_100px] gap-4">
-              {field("Host", form.host, (v) => setForm({ ...form, host: v }), { placeholder: "192.168.1.1" })}
+              {field("主机", form.host, (v) => setForm({ ...form, host: v }), { placeholder: "192.168.1.1" })}
               <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-[var(--text-secondary)]">Port</span>
+                <span className="text-xs font-medium text-[var(--text-secondary)]">端口</span>
                 <Input
                   type="number"
                   value={form.port}
@@ -195,15 +195,15 @@ export default function ConnectDialog({
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {field("Username", form.user, (v) => setForm({ ...form, user: v }), { placeholder: "root" })}
+              {field("用户名", form.user, (v) => setForm({ ...form, user: v }), { placeholder: "root" })}
               <label className="flex flex-col gap-1.5">
-                <span className="text-xs font-medium text-[var(--text-secondary)]">Auth Method</span>
+                <span className="text-xs font-medium text-[var(--text-secondary)]">认证方式</span>
                 <select
                   value={form.auth}
                   onChange={(e) => setForm({ ...form, auth: e.target.value as SessionConfig["auth"] })}
                   className={selectClass}
                 >
-                  <option value="password">Password</option>
+                  <option value="password">密码</option>
                   <option value="key">Private Key</option>
                 </select>
               </label>
@@ -211,10 +211,10 @@ export default function ConnectDialog({
 
             <div className="grid grid-cols-2 gap-4">
               {form.auth === "password" ? (
-                field("Password", form.password, (v) => setForm({ ...form, password: v }), { type: "password", placeholder: "········" })
+                field("密码", form.password, (v) => setForm({ ...form, password: v }), { type: "password", placeholder: "········" })
               ) : (
                 <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-[var(--text-secondary)]">Private Key Path</span>
+                  <span className="text-xs font-medium text-[var(--text-secondary)]">私钥路径</span>
                   <div className="flex gap-1.5">
                     <Input
                       value={form.private_key_path}
@@ -234,9 +234,9 @@ export default function ConnectDialog({
                 </label>
               )}
               {form.auth === "key" ? (
-                field("Key Passphrase", keyPassphrase, setKeyPassphrase, { type: "password", placeholder: "(optional)" })
+                field("密钥密码", keyPassphrase, setKeyPassphrase, { type: "password", placeholder: "(可选)" })
               ) : (
-                field("Proxy", form.proxy, (v) => setForm({ ...form, proxy: v }), { placeholder: "socks5://127.0.0.1:1080" })
+                field("代理", form.proxy, (v) => setForm({ ...form, proxy: v }), { placeholder: "socks5://127.0.0.1:1080" })
               )}
             </div>
 
@@ -249,7 +249,7 @@ export default function ConnectDialog({
                 disabled={!isValid}
               >
                 <Plus size={15} />
-                Connect & Save
+                连接并保存
               </Button>
               <Button
                 variant="outline"
@@ -257,7 +257,7 @@ export default function ConnectDialog({
                 onClick={handleSave}
                 disabled={!isValid || saving}
               >
-                Save Only
+                仅保存
               </Button>
             </div>
           </div>
