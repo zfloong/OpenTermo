@@ -25,7 +25,7 @@ use crate::i18n::t;
 // ---------------------------------------------------------------------------
 
 /// Metadata for a single remote filesystem entry returned by SFTP listing.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct RemoteEntry {
     pub name: String,
     pub full_path: String,

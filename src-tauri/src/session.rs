@@ -103,8 +103,7 @@ impl SessionManager {
         }
 
         let (events_tx, events_rx) = mpsc::unbounded_channel();
-        let handle = sftp::spawn_sftp(self.runtime.handle(), session, events_tx)
-            .map_err(|e| e.to_string())?;
+        let handle = sftp::spawn_sftp(self.runtime.handle(), session, events_tx);
 
         self.sftp_handles
             .lock()
