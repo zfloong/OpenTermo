@@ -37,6 +37,7 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
       <div className="no-drag flex h-full">
         <button
           onClick={minimize}
+          onMouseDown={(e) => e.stopPropagation()}
           className="flex h-full w-11 items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--hover)] hover:text-[var(--text)] transition-colors"
           aria-label="Minimize"
         >
@@ -44,6 +45,7 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
         </button>
         <button
           onClick={toggleMaximize}
+          onMouseDown={(e) => e.stopPropagation()}
           className="flex h-full w-11 items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--hover)] hover:text-[var(--text)] transition-colors"
           aria-label="Maximize"
         >
@@ -51,6 +53,7 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
         </button>
         <button
           onClick={close}
+          onMouseDown={(e) => e.stopPropagation()}
           className="flex h-full w-11 items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--error)] hover:text-white transition-colors"
           aria-label="Close"
         >
