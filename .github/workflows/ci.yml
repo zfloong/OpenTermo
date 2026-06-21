@@ -57,13 +57,41 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.toml', 'meatshell/Cargo.toml') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: cargo check (Tauri + meatshell)
-        run: cargo check
+      - name: cargo check (Tauri + meatshell, with retry)
+        shell: pwsh
+        run: |
+          $attempt = 0
+          while ($true) {
+            try {
+              cargo check 2>&1 | Out-Host
+              if ($LASTEXITCODE -eq 0) { break }
+              throw "cargo check exit code: $LASTEXITCODE"
+            } catch {
+              $attempt++
+              if ($attempt -ge 3) { throw }
+              Write-Host "Retrying cargo check (attempt $attempt/3) in 15s..."
+              Start-Sleep -Seconds 15
+            }
+          }
         working-directory: src-tauri
 
       # ---- Full Tauri build ----
-      - name: Tauri build
-        run: npx tauri build
+      - name: Tauri build (with retry)
+        shell: pwsh
+        run: |
+          $attempt = 0
+          while ($true) {
+            try {
+              npx tauri build 2>&1 | Out-Host
+              if ($LASTEXITCODE -eq 0) { break }
+              throw "tauri build exit code: $LASTEXITCODE"
+            } catch {
+              $attempt++
+              if ($attempt -ge 3) { throw }
+              Write-Host "Retrying tauri build (attempt $attempt/3) in 15s..."
+              Start-Sleep -Seconds 15
+            }
+          }
         env:
           TAURI_SKIP_DEVSERVER_CHECK: "true"
 
