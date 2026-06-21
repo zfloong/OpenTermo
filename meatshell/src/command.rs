@@ -32,6 +32,10 @@ pub struct CommandEntry {
     /// Short description shown below the label in the panel.
     #[serde(default)]
     pub description: Option<String>,
+    /// Manual drag-sort order within the category (smaller = higher).
+    /// Absent = not yet manually ordered (falls back to pinned → last_used sort).
+    #[serde(default)]
+    pub order: Option<usize>,
 }
 
 /// In-memory state backed by `commands.json`.
@@ -94,6 +98,16 @@ impl CommandStore {
         self.entries.retain(|e| e.id != id);
     }
 
+    /// Assign sequential `order` values to entries matching the given IDs,
+    /// in the provided order.  Other entries keep their existing order (or None).
+    pub fn reorder(&mut self, ids: &[String]) {
+        for (i, id) in ids.iter().enumerate() {
+            if let Some(entry) = self.entries.iter_mut().find(|e| &e.id == id) {
+                entry.order = Some(i);
+            }
+        }
+    }
+
     /// Sorted unique category names (excluding empty / "uncategorized").
     pub fn categories(&self) -> Vec<String> {
         let mut set: Vec<String> = self.entries.iter()
@@ -116,6 +130,7 @@ impl CommandStore {
             last_used: None,
             icon: None,
             description: None,
+            order: None,
         }
     }
 

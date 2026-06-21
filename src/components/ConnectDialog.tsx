@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, FolderOpen } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -43,14 +44,18 @@ export default function ConnectDialog({
   onDelete,
 }: ConnectDialogProps) {
   const [form, setForm] = useState<SessionConfig>(emptySession());
+  const [keyPassphrase, setKeyPassphrase] = useState("");
   const [saving, setSaving] = useState(false);
 
   const isValid = form.host.trim().length > 0;
 
   const handleConnect = () => {
     if (!isValid) return;
-    onSave(form);
-    onConnect(form);
+    const session = form.auth === "key"
+      ? { ...form, password: keyPassphrase }
+      : form;
+    onSave(session);
+    onConnect(session);
     onClose();
   };
 
@@ -58,8 +63,12 @@ export default function ConnectDialog({
     if (!isValid) return;
     setSaving(true);
     try {
-      onSave(form);
+      const session = form.auth === "key"
+        ? { ...form, password: keyPassphrase }
+        : form;
+      onSave(session);
       setForm(emptySession());
+      setKeyPassphrase("");
     } finally {
       setSaving(false);
     }
@@ -68,6 +77,19 @@ export default function ConnectDialog({
   const handleSelectSession = (s: SessionConfig) => {
     onConnect(s);
     onClose();
+  };
+
+  const handleBrowseKey = async () => {
+    const selected = await open({
+      multiple: false,
+      filters: [{
+        name: "SSH Keys",
+        extensions: ["pem", "key", "ppk", "id_rsa", "id_ecdsa", "id_ed25519", "id_dsa"],
+      }],
+    });
+    if (selected) {
+      setForm({ ...form, private_key_path: selected as string });
+    }
   };
 
   const field = (
@@ -187,14 +209,36 @@ export default function ConnectDialog({
               </label>
             </div>
 
-            {/* Password / key path */}
+            {/* Password / key path + passphrase */}
             <div className="grid grid-cols-2 gap-3">
               {form.auth === "password" ? (
                 field("Password", form.password, (v) => setForm({ ...form, password: v }), { type: "password", placeholder: "••••••••" })
               ) : (
-                field("Private Key Path", form.private_key_path, (v) => setForm({ ...form, private_key_path: v }), { placeholder: "~/.ssh/id_ed25519" })
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-[var(--text-secondary)]">Private Key Path</span>
+                  <div className="flex gap-1">
+                    <Input
+                      value={form.private_key_path}
+                      onChange={(e) => setForm({ ...form, private_key_path: e.target.value })}
+                      placeholder="~/.ssh/id_ed25519"
+                      className="h-8 text-sm flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={handleBrowseKey}
+                    >
+                      <FolderOpen size={14} />
+                    </Button>
+                  </div>
+                </label>
               )}
-              {field("Proxy (optional)", form.proxy, (v) => setForm({ ...form, proxy: v }), { placeholder: "socks5://127.0.0.1:1080" })}
+              {form.auth === "key" ? (
+                field("Key Passphrase", keyPassphrase, setKeyPassphrase, { type: "password", placeholder: "(optional)" })
+              ) : (
+                field("Proxy (optional)", form.proxy, (v) => setForm({ ...form, proxy: v }), { placeholder: "socks5://127.0.0.1:1080" })
+              )}
             </div>
 
             {/* Actions */}

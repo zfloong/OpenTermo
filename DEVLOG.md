@@ -136,7 +136,7 @@
 
 ## 平台/环境注意事项
 
-- **本地无 Rust 环境**：所有编译在 GitHub CI 上进行
+- **本地 Rust 环境**：rustc 1.96.0，可本地编译
 - **CI 结果**：https://github.com/zfloong/meatshell-app/actions
 - **下载 exe**：CI 跑完 → 点进最新 run → Artifacts → `meatshell-win64.zip`
 - **PowerShell**：不支持 `&&`，使用 `;` 或分开执行
@@ -149,14 +149,14 @@
 
 | 优先级 | 功能 | 状态 |
 |--------|------|------|
-| 1 | SSH 密钥认证前端对话框 | 待做 |
+| 1 | SSH 密钥认证前端对话框 | ✅ 已做（2026-06-21，文件选择 Browse 按钮 + 密钥密码字段） |
 | 2 | SFTP 面板 UI（后端已完成） | ✅ 已做（FileExplorer 内嵌 SFTP，2026-06-21） |
 | 3 | 终端搜索/复制（xterm search addon） | ✅ 已做（2026-06-21，Ctrl+F 搜索+历史+选择复制） |
 | 4 | 远程系统监控 Sidebar 标签页 | ✅ 已做（移至 StatusBar 内联显示，2026-06-21） |
-| 5 | 等宽字体嵌入 | 待做 |
+| 5 | 等宽字体嵌入 | ✅ 已做（2026-06-21，JetBrains Mono woff2 嵌入 "Meatshell Mono"） |
 | 6 | 端口转发 UI（后端已完成） | ✅ 已做（2026-06-21，PortForwardPanel local/dynamic） |
 | 7 | Light/Dark 主题切换入口 | 待做 |
-| 8 | 会话拖拽排序 | 待做 |
+| 8 | 会话拖拽排序 | ✅ 已做（2026-06-21，useDragSort 共享 hook，SessionManager + CommandPanel） |
 | 9 | 侧边栏可拖拽宽度 | ✅ 已做（2026-06-21，160-400px） |
 | 10 | 远端监控数据接入前端 | ✅ 已做（2026-06-21，remote-stats 事件） |
 | 11 | 会话管理页面 | ✅ 已做（2026-06-21，编辑/删除/双击连接） |
@@ -164,6 +164,7 @@
 | 13 | 优雅断连（SSH_MSG_DISCONNECT） | ✅ 已做（2026-06-21） |
 | 14 | 文件下载定位功能 | ✅ 已做（2026-06-21，explorer /select,） |
 | 15 | 全页面汉化 | 待做 |
+| 16 | 命令排序模式选择器（手动/最近使用/名称/分类） | 待做 |
 
 ---
 
@@ -313,10 +314,32 @@
 - **原因**：PowerShell 不支持 bash heredoc 语法
 - **解决**：换用简短中文单行 commit message
 
+### 功能：SSH 密钥认证前端完善（2026-06-21）
+- **新依赖**：`tauri-plugin-dialog`（Rust + `@tauri-apps/plugin-dialog` npm）
+- **ConnectDialog 变更**：
+  - Private Key Path 旁加 `Browse` 按钮（`FolderOpen` 图标，调用 `@tauri-apps/plugin-dialog` `open()` 原生文件选择器，过滤 `.pem/.key/.ppk/id_*`）
+  - Key 认证时显示 `Key Passphrase`（可选）输入框，替代 Password 栏位的 Proxy 字段
+  - `handleConnect` / `handleSave` 在 key 认证时将 `keyPassphrase` 写入 `password` 字段（Rust 后端复用 password 作为密钥密码）
+
+### 功能：等宽字体嵌入（2026-06-21）
+- **字体**：JetBrains Mono（OFL 开源），Latin 子集 woff2 格式，~21KB
+- **路径**：`public/fonts/jetbrains-mono-latin-400-normal.woff2`
+- **CSS**：`index.css` 新增 `@font-face` 声明，family 名 `"Meatshell Mono"`
+- **TerminalView**：xterm 默认 fontFamily 改为 `"'Meatshell Mono', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace"`
+- **`--font-mono`** CSS 变量同步更新
+- **效果**：终端渲染不再依赖系统字体安装，所有机器显示一致
+
+### 功能：拖拽排序（2026-06-21）
+- **共享 Hook**：`src/hooks/useDragSort.ts` — HTML5 DnD `onDragStart/Over/Drop` 封装，返回 `{ dragging, dragOver, getDragProps }`
+- **SessionManager**：拖拽 `GripVertical` 手柄排序，跨分组（通过 `reorder_sessions` 持久化到 `sessions.json`）
+- **CommandPanel**：拖拽排序后所有同分类条目写入 `order` 字段（`reorder_commands` 持久化到 `commands.json`），有手动 order 时停用 `last_used` 自动排序
+- **Rust**：`CommandEntry` 新增 `order: Option<usize>`，`CommandStore::reorder()`，`reorder_commands` / `reorder_sessions` Tauri 命令
+- **视觉反馈**：拖拽中 30% 透明 + 目标位置 2px accent 顶部边框线
+
 ---
 
 ### 平台/环境注意事项（更新）
 
-- **用户本地环境**：Windows 10/11，已安装 Node.js
+- **用户本地环境**：Windows 10/11，已安装 Node.js + Rust（rustc 1.96.0），可本地编译
 - **cargo check 命令**：必须在项目根目录执行 `cargo check --manifest-path src-tauri\Cargo.toml`（Cargo.toml 在 src-tauri 子目录）
 - **PowerShell git 提交**：不用 heredoc，用简短单行 commit message

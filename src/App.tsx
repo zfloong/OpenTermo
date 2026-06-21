@@ -10,7 +10,6 @@ import CredentialDialog from "@/components/CredentialDialog";
 import { useSessionStore } from "@/stores/sessionStore";
 
 export default function App() {
-  const tabs = useSessionStore((s) => s.tabs);
   const activeTabId = useSessionStore((s) => s.activeTabId);
   const sessions = useSessionStore((s) => s.sessions);
   const connectDialogOpen = useSessionStore((s) => s.connectDialogOpen);

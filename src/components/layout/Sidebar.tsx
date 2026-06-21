@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PanelLeftOpen, PanelLeftClose } from "lucide-react";
-import { useUIStore, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH } from "@/stores/uiStore";
+import { useUIStore, MIN_SIDEBAR_WIDTH } from "@/stores/uiStore";
 import CommandPanel from "@/components/CommandPanel";
 import SessionManager from "@/components/SessionManager";
 

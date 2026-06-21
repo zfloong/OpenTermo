@@ -34,6 +34,30 @@ pub fn delete_session(id: String) -> Result<(), String> {
     store.save().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn reorder_sessions(ids: Vec<String>) -> Result<(), String> {
+    let mut store = ConfigStore::load().map_err(|e| e.to_string())?;
+    let sessions = store.sessions_mut();
+    // Build a map from id → session, then reconstruct in new order.
+    // Sessions not in the id list keep their relative order at the end.
+    let mut map: std::collections::HashMap<String, SessionConfig> = sessions
+        .drain(..)
+        .map(|s| (s.id.clone(), s))
+        .collect();
+    let mut reordered = Vec::with_capacity(map.len());
+    for id in &ids {
+        if let Some(s) = map.remove(id) {
+            reordered.push(s);
+        }
+    }
+    // Append any remaining (not in id list) in their original relative order
+    for (_k, s) in map {
+        reordered.push(s);
+    }
+    *sessions = reordered;
+    store.save().map_err(|e| e.to_string())
+}
+
 // ── Quick-command snippets ─────────────────────────────────────────────────
 
 #[tauri::command]
@@ -67,7 +91,15 @@ pub fn save_command(entry: CommandEntry) -> Result<CommandEntry, String> {
             last_used: None,
             icon: None,
             description: None,
+            order: None,
         }))
+}
+
+#[tauri::command]
+pub fn reorder_commands(ids: Vec<String>) -> Result<(), String> {
+    let mut store = CommandStore::load().map_err(|e| e.to_string())?;
+    store.reorder(&ids);
+    store.save().map_err(|e| e.to_string())
 }
 
 #[tauri::command]

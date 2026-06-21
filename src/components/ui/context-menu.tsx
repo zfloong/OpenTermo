@@ -9,7 +9,7 @@ export interface ContextMenuItem {
   danger?: boolean;
 }
 
-export interface ContextMenuProps {
+interface ContextMenuProps {
   /** The menu items to show.  A `null` separator inserts a divider line. */
   items: (ContextMenuItem | null)[];
   /** Screen position where the menu should appear. */

@@ -85,64 +85,7 @@ pub enum SftpCommand {
 /// Handle retained by the UI to drive a running SFTP worker.
 pub struct SftpHandle {
     pub commands: UnboundedSender<SftpCommand>,
-    #[allow(dead_code)]
     pub join: JoinHandle<()>,
-}
-
-impl SftpHandle {
-    pub fn list_dir(&self, path: String) {
-        let _ = self.commands.send(SftpCommand::ListDir(path));
-    }
-    pub fn download(&self, remote: String, local_dir: String) {
-        let _ = self
-            .commands
-            .send(SftpCommand::Download { remote, local_dir });
-    }
-    pub fn download_archive(&self, remote_dir: String, names: Vec<String>, local_dir: String) {
-        let _ = self.commands.send(SftpCommand::DownloadArchive {
-            remote_dir,
-            names,
-            local_dir,
-        });
-    }
-    pub fn cancel_transfer(&self, id: String) {
-        let _ = self.commands.send(SftpCommand::CancelTransfer(id));
-    }
-    pub fn upload(&self, local: String, remote_dir: String) {
-        let _ = self
-            .commands
-            .send(SftpCommand::Upload { local, remote_dir });
-    }
-    pub fn toggle_tree_node(&self, path: String) {
-        let _ = self.commands.send(SftpCommand::ToggleTreeNode(path));
-    }
-    pub fn delete(&self, path: String) {
-        let _ = self.commands.send(SftpCommand::Delete(path));
-    }
-    pub fn open_temp(&self, remote: String, edit: bool) {
-        let _ = self.commands.send(SftpCommand::OpenTemp { remote, edit });
-    }
-    pub fn rename(&self, from: String, to: String) {
-        let _ = self.commands.send(SftpCommand::Rename { from, to });
-    }
-    pub fn chmod(&self, path: String, mode: u32) {
-        let _ = self.commands.send(SftpCommand::Chmod { path, mode });
-    }
-    pub fn mkdir(&self, path: String) {
-        let _ = self.commands.send(SftpCommand::MkDir(path));
-    }
-    pub fn touch(&self, path: String) {
-        let _ = self.commands.send(SftpCommand::TouchFile(path));
-    }
-    pub fn read_text(&self, remote: String, edit: bool) {
-        let _ = self.commands.send(SftpCommand::ReadText { remote, edit });
-    }
-    pub fn write_text(&self, remote: String, content: String) {
-        let _ = self.commands.send(SftpCommand::WriteText { remote, content });
-    }
-    pub fn close(&self) {
-        let _ = self.commands.send(SftpCommand::Close);
-    }
 }
 
 // ---------------------------------------------------------------------------

@@ -16,7 +16,6 @@ pub mod proxy;
 pub mod serial;
 pub mod sftp;
 pub mod ssh;
-pub mod ssh_config;
 pub mod system;
 pub mod telnet;
 pub mod zmodem;

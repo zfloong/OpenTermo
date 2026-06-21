@@ -13,7 +13,6 @@ import {
   Trash2,
   FolderPlus,
   ClipboardPaste,
-  GripVertical,
 } from "lucide-react";
 import { useCommandStore } from "@/stores/commandStore";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -27,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ContextMenu, { type ContextMenuItem } from "@/components/ui/context-menu";
+import { useDragSort } from "@/hooks/useDragSort";
 
 // ── Context menu position state ────────────────────────────────────────────
 
@@ -41,6 +41,7 @@ export default function CommandPanel() {
   const load = useCommandStore((s) => s.load);
   const upsert = useCommandStore((s) => s.upsert);
   const remove = useCommandStore((s) => s.remove);
+  const reorder = useCommandStore((s) => s.reorder);
 
   const activeTabId = useSessionStore((s) => s.activeTabId);
   const sendInput = useSessionStore((s) => s.sendInput);
@@ -68,18 +69,29 @@ export default function CommandPanel() {
         )
       : [...entries];
 
-    filtered.sort((a, b) => {
-      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-      const la = a.last_used ?? "";
-      const lb = b.last_used ?? "";
-      return lb.localeCompare(la);
-    });
-
     const groups = new Map<string, CommandEntry[]>();
     for (const e of filtered) {
       const cat = e.category.trim() || "Uncategorized";
       if (!groups.has(cat)) groups.set(cat, []);
       groups.get(cat)!.push(e);
+    }
+
+    // Sort each category: use manual order if any entry has it, else auto-sort
+    for (const [, cmds] of groups) {
+      const hasManualOrder = cmds.some((c) => c.order != null);
+      if (hasManualOrder) {
+        cmds.sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          return (a.order ?? 0) - (b.order ?? 0);
+        });
+      } else {
+        cmds.sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          const la = a.last_used ?? "";
+          const lb = b.last_used ?? "";
+          return lb.localeCompare(la);
+        });
+      }
     }
 
     return [...groups.entries()].sort(([a], [b]) => {
@@ -88,6 +100,26 @@ export default function CommandPanel() {
       return a.localeCompare(b);
     });
   }, [entries, search]);
+
+  // ── Drag sort ───────────────────────────────────────────────────────────
+
+  const handleReorder = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      // Get all entry IDs in current render order (grouped → flat)
+      const allIds: string[] = [];
+      for (const [, cmds] of grouped) {
+        for (const c of cmds) allIds.push(c.id);
+      }
+      if (fromIndex < 0 || fromIndex >= allIds.length) return;
+      if (toIndex < 0 || toIndex >= allIds.length) return;
+      const [moved] = allIds.splice(fromIndex, 1);
+      allIds.splice(toIndex, 0, moved);
+      reorder(allIds);
+    },
+    [grouped, reorder],
+  );
+
+  const { dragging, dragOver, bindDragItem } = useDragSort(handleReorder);
 
   // ── Actions ─────────────────────────────────────────────────────────────
 
@@ -333,75 +365,84 @@ export default function CommandPanel() {
           </div>
         )}
 
-        {grouped.map(([cat, cmds]) => {
-          const isCollapsed = collapsed.has(cat);
-          return (
-            <div key={cat} className="mb-0.5">
-              {/* Category header */}
-              <button
-                onClick={() => toggleCollapse(cat)}
-                onContextMenu={(e) => showCtx(e, categoryCtx(cat))}
-                className="flex items-center gap-1 w-full px-2 py-0.5 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors"
-              >
-                {isCollapsed ? (
-                  <ChevronRight size={11} />
-                ) : (
-                  <ChevronDown size={11} />
-                )}
-                <FolderOpen size={11} />
-                <span className="flex-1 text-left truncate">{cat}</span>
-                <span className="text-[10px] tabular-nums opacity-60">
-                  {cmds.length}
-                </span>
-              </button>
+        {(() => {
+          let flatIdx = 0;
+          return grouped.map(([cat, cmds]) => {
+            const isCollapsed = collapsed.has(cat);
+            return (
+              <div key={cat} className="mb-0.5">
+                {/* Category header */}
+                <button
+                  onClick={() => toggleCollapse(cat)}
+                  onContextMenu={(e) => showCtx(e, categoryCtx(cat))}
+                  className="flex items-center gap-1 w-full px-2 py-0.5 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors"
+                >
+                  {isCollapsed ? (
+                    <ChevronRight size={11} />
+                  ) : (
+                    <ChevronDown size={11} />
+                  )}
+                  <FolderOpen size={11} />
+                  <span className="flex-1 text-left truncate">{cat}</span>
+                  <span className="text-[10px] tabular-nums opacity-60">
+                    {cmds.length}
+                  </span>
+                </button>
 
-              {/* Command items */}
-              {!isCollapsed &&
-                cmds.map((cmd) => (
-                  <div
-                    key={cmd.id}
-                    onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
-                    className={`group flex items-center gap-1.5 pl-5 pr-1.5 py-1 cursor-pointer rounded-sm transition-colors
-                      ${cmd.pinned ? "border-l-2 border-[var(--accent)] pl-[18px]" : ""}
-                      hover:bg-[var(--surface-hover)]`}
-                  >
-                    {/* Icon */}
-                    <span className="flex-shrink-0 text-xs leading-none w-4 text-center select-none">
-                      {cmd.icon || <GripVertical size={10} className="text-[var(--text-muted)] opacity-0 group-hover:opacity-30 transition-opacity" />}
-                    </span>
+                {/* Command items */}
+                {!isCollapsed &&
+                  cmds.map((cmd) => {
+                    const idx = flatIdx++;
+                    return (
+                      <div key={cmd.id} className="group">
+                        <div
+                          ref={bindDragItem(idx)}
+                          onDoubleClick={() => handleSend(cmd)}
+                          onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
+                          title="Double-click to send"
+                          className={`flex items-center gap-1.5 pl-5 pr-1.5 py-1 hover:bg-[var(--surface-hover)] transition-colors cursor-grab active:cursor-grabbing rounded-sm
+                            ${cmd.pinned ? "border-l-2 border-[var(--accent)] pl-[18px]" : ""}
+                            ${dragging === idx ? "opacity-30" : ""}
+                            ${dragOver === idx ? "border-t-2 border-t-[var(--accent)]" : ""}`}
+                          style={dragOver === idx ? { transform: "translateY(1px)" } : undefined}
+                        >
+                          {/* Icon */}
+                          <span className="flex-shrink-0 text-xs leading-none w-4 text-center">
+                            {cmd.icon || "-"}
+                          </span>
 
-                    {/* Label + description */}
-                    <div
-                      className="flex-1 min-w-0"
-                      onDoubleClick={() => handleSend(cmd)}
-                    >
-                      <span className="text-[11px] text-[var(--text-primary)] leading-tight truncate block">
-                        {cmd.label || cmd.command}
-                      </span>
-                      {cmd.description && (
-                        <span className="text-[10px] text-[var(--text-muted)] leading-tight truncate block">
-                          {cmd.description}
-                        </span>
-                      )}
-                    </div>
+                          {/* Label + description */}
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[11px] text-[var(--text-primary)] leading-tight truncate block">
+                              {cmd.label || cmd.command}
+                            </span>
+                            {cmd.description && (
+                              <span className="text-[10px] text-[var(--text-muted)] leading-tight truncate block">
+                                {cmd.description}
+                              </span>
+                            )}
+                          </div>
 
-                    {/* Send — always visible */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSend(cmd);
-                      }}
-                      disabled={!activeTabId}
-                      className="flex-shrink-0 p-0.5 text-[var(--color-success)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                      title="Send to terminal"
-                    >
-                      <Send size={14} />
-                    </button>
-                  </div>
-                ))}
-            </div>
-          );
-        })}
+                          {/* Send button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSend(cmd);
+                            }}
+                            disabled={!activeTabId}
+                            className="flex-shrink-0 p-0.5 text-[var(--color-success)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Send to terminal"
+                          >
+                            <Send size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            );
+          });
+        })()}
       </div>
 
       {/* New Command button */}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useUIStore, MIN_PANEL_HEIGHT, MAX_PANEL_HEIGHT } from "@/stores/uiStore";
+import { useUIStore } from "@/stores/uiStore";
 import FileExplorer from "./FileExplorer";
 import PortForwardPanel from "./PortForwardPanel";
 

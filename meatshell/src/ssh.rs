@@ -395,10 +395,8 @@ pub enum SessionEvent {
 
 /// Handle retained by the UI layer to talk to a running session.
 pub struct SessionHandle {
-    #[allow(dead_code)] // used by future resize / reconnect flows
     pub tab_id: String,
     pub commands: UnboundedSender<SessionCommand>,
-    #[allow(dead_code)] // keep alive; detach on Drop is fine for v0.1
     pub join: JoinHandle<()>,
     /// SSH connection handle for runtime port-forwarding management.
     /// Set internally once the SSH session is fully established.
@@ -410,14 +408,6 @@ pub struct SessionHandle {
 impl SessionHandle {
     pub fn send_raw(&self, bytes: Vec<u8>) {
         let _ = self.commands.send(SessionCommand::RawInput(bytes));
-    }
-
-    pub fn resize(&self, cols: u32, rows: u32) {
-        let _ = self.commands.send(SessionCommand::Resize(cols, rows));
-    }
-
-    pub fn close(&self) {
-        let _ = self.commands.send(SessionCommand::Close);
     }
 }
 

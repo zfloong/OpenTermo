@@ -3,8 +3,6 @@
 //! `sysinfo` is already a dependency for many Rust desktop apps; it gives us
 //! cross-platform data with ~2% CPU overhead at 1-second cadence.
 
-use std::time::Duration;
-
 use serde::{Deserialize, Serialize};
 use sysinfo::{Disks, Networks, System};
 
@@ -52,11 +50,6 @@ impl SystemSampler {
             last_tx_total,
             last_instant: std::time::Instant::now(),
         }
-    }
-
-    /// Recommended poll interval for a UI sidebar.
-    pub fn recommended_interval() -> Duration {
-        Duration::from_millis(1000)
     }
 
     pub fn sample(&mut self) -> SystemSnapshot {
@@ -126,38 +119,4 @@ impl SystemSampler {
     }
 }
 
-/// Format a used/total memory pair (both in MiB) for the narrow sidebar.
-/// Below 1 GiB it stays in megabytes (`512/2048M`); at or above, it switches to
-/// gigabytes and drops the decimal for whole or large values to stay compact
-/// (`1.5G/16G`, `120G/256G`).
-pub fn format_mem(used_mib: u64, total_mib: u64) -> String {
-    if total_mib < 1024 {
-        return format!("{used_mib}/{total_mib}M");
-    }
-    // MiB → GiB, with a tidy width: integer when round or ≥100, else one decimal.
-    fn gib(mib: u64) -> String {
-        let g = mib as f64 / 1024.0;
-        if g.fract() == 0.0 || g >= 100.0 {
-            (g as u64).to_string()
-        } else {
-            format!("{g:.1}")
-        }
-    }
-    format!("{}G/{}G", gib(used_mib), gib(total_mib))
-}
 
-/// Human-readable network throughput (e.g. `"1.2 MB/s"`).
-pub fn format_bytes_per_sec(bytes: u64) -> String {
-    const UNITS: [&str; 4] = ["B/s", "KB/s", "MB/s", "GB/s"];
-    let mut value = bytes as f64;
-    let mut idx = 0;
-    while value >= 1024.0 && idx < UNITS.len() - 1 {
-        value /= 1024.0;
-        idx += 1;
-    }
-    if idx == 0 {
-        format!("{} {}", bytes, UNITS[idx])
-    } else {
-        format!("{:.1} {}", value, UNITS[idx])
-    }
-}

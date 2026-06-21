@@ -7,16 +7,17 @@ import {
   listSessions,
   saveSession,
   deleteSession,
+  reorderSessions,
   connectSession,
   sendInput,
   resizeTerminal,
   disconnectSession,
 } from "@/lib/tauriCommands";
 
-export type ConnectionStatus = "disconnected" | "connecting" | "connected";
+type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
 /** Remote resource stats pushed by the SSH session. */
-export interface RemoteStats {
+interface RemoteStats {
   cpu_percent: number;
   mem_used_kib: number;
   mem_total_kib: number;
@@ -49,6 +50,7 @@ interface SessionState {
   loadSessions: () => Promise<void>;
   save: (session: SessionConfig) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  reorder: (ids: string[]) => void;
   connect: (tabId: string, session: SessionConfig) => Promise<void>;
   disconnect: (tabId: string) => Promise<void>;
   sendInput: (tabId: string, data: string) => Promise<void>;
@@ -93,6 +95,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   async remove(id) {
     await deleteSession(id);
     await get().loadSessions();
+  },
+
+  reorder(ids) {
+    // Optimistic UI update
+    set((s) => {
+      const map = new Map(s.sessions.map((e) => [e.id, e]));
+      const reordered = ids
+        .map((id) => map.get(id))
+        .filter((e): e is SessionConfig => !!e);
+      const idSet = new Set(ids);
+      for (const e of s.sessions) {
+        if (!idSet.has(e.id)) reordered.push(e);
+      }
+      return { sessions: reordered };
+    });
+    reorderSessions(ids).catch(console.error);
   },
 
   async connect(tabId, session) {

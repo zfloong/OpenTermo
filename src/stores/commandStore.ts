@@ -4,6 +4,7 @@ import {
   listCommands,
   saveCommand,
   deleteCommand,
+  reorderCommands,
 } from "@/lib/tauriCommands";
 
 interface CommandState {
@@ -13,6 +14,7 @@ interface CommandState {
   load: () => Promise<void>;
   upsert: (entry: CommandEntry) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  reorder: (ids: string[]) => void;
 }
 
 export const useCommandStore = create<CommandState>((set) => ({
@@ -47,5 +49,30 @@ export const useCommandStore = create<CommandState>((set) => ({
   async remove(id) {
     await deleteCommand(id);
     set((s) => ({ entries: s.entries.filter((e) => e.id !== id) }));
+  },
+
+  reorder(ids) {
+    // Optimistic UI update: set order fields so grouped() uses manual sort
+    set((s) => {
+      const map = new Map(s.entries.map((e) => [e.id, { ...e }]));
+      const reordered = ids
+        .map((id, xi) => {
+          const e = map.get(id);
+          if (e) e.order = xi; // order → preserve manual sort
+          return e;
+        })
+        .filter((e): e is CommandEntry => !!e);
+      // Append any not in the ids list (clear their order)
+      const idSet = new Set(ids);
+      for (const e of s.entries) {
+        if (!idSet.has(e.id)) {
+          const copy = { ...e };
+          copy.order = null;
+          reordered.push(copy);
+        }
+      }
+      return { entries: reordered };
+    });
+    reorderCommands(ids).catch(console.error);
   },
 }));

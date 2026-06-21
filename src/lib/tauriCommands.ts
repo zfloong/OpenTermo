@@ -4,9 +4,9 @@ import { invoke } from "@tauri-apps/api/core";
 // ── Types matching meatshell::config::Session ─────────────────────────────
 
 /** Rust uses `#[serde(rename_all = "lowercase")]` so these are lowercase. */
-export type AuthMethod = "password" | "key";
+type AuthMethod = "password" | "key";
 
-export type SessionKind = "ssh" | "serial" | "telnet";
+type SessionKind = "ssh" | "serial" | "telnet";
 
 export interface SessionConfig {
   id: string;
@@ -49,6 +49,7 @@ export interface CommandEntry {
   last_used: string | null;
   icon?: string | null;
   description?: string | null;
+  order?: number | null;
 }
 
 // ── Prompt event payloads ─────────────────────────────────────────────────
@@ -145,6 +146,14 @@ export async function saveCommand(entry: CommandEntry): Promise<CommandEntry> {
 
 export async function deleteCommand(id: string): Promise<void> {
   return invoke("delete_command", { id });
+}
+
+export async function reorderCommands(ids: string[]): Promise<void> {
+  return invoke("reorder_commands", { ids });
+}
+
+export async function reorderSessions(ids: string[]): Promise<void> {
+  return invoke("reorder_sessions", { ids });
 }
 
 // ── SFTP ──────────────────────────────────────────────────────────────────

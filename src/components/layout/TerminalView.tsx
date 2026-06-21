@@ -140,12 +140,8 @@ export default function TerminalView({ tabId }: { tabId: string }) {
     // A quick findNext then findPrevious to see if there's a result.
     // Simpler: use a flag — if findNext moved, there's a match.
     // Workaround: try findNext and if decorationsCount is 0, no match.
-    const before = (s as unknown as { _searchResultCount?: number })._searchResultCount;
     s.findNext(query, { incremental: false });
     s.findPrevious(query);
-    // Actually, the search addon highlights matches. If there are no matches,
-    // it silently fails. We can detect via a brute-force approach or just
-    // assume there's always a match. Let's use a simple flag.
     setHasMatch(true);
   }, []);
 
@@ -165,7 +161,7 @@ export default function TerminalView({ tabId }: { tabId: string }) {
 
     const term = new Terminal({
       theme: terminalTheme,
-      fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace",
+      fontFamily: "'Meatshell Mono', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace",
       fontSize: 14,
       lineHeight: 1.2,
       cursorBlink: true,

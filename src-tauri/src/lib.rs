@@ -13,6 +13,7 @@ use session::SessionManager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(SessionManager::new())
         .manage(Mutex::new(SystemSampler::new()))
         .manage(Arc::new(PromptManager::new()))
@@ -35,8 +36,10 @@ pub fn run() {
             commands::list_sessions,
             commands::save_session,
             commands::delete_session,
+            commands::reorder_sessions,
             commands::list_commands,
             commands::save_command,
+            commands::reorder_commands,
             commands::delete_command,
             commands::connect_session,
             commands::send_input,
