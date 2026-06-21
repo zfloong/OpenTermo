@@ -35,6 +35,7 @@ pub fn run() {
             commands::sftp_mkdir,
             commands::sftp_delete,
             commands::sftp_rename,
+            commands::reveal_in_explorer,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

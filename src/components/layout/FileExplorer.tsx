@@ -21,6 +21,9 @@ import {
   Copy,
   ArrowUpDown,
   EyeOff,
+  Clock,
+  FolderSearch,
+  X,
 } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import {
@@ -31,6 +34,7 @@ import {
   sftpDelete,
   sftpMkdir,
   sftpRename,
+  revealInExplorer,
   type RemoteEntry,
   type SftpEntriesPayload,
   type SftpTransferPayload,
@@ -54,6 +58,15 @@ interface CtxState {
   items: (ContextMenuItem | null)[];
   x: number;
   y: number;
+}
+
+interface DownloadRecord {
+  name: string;
+  localPath: string;
+  remotePath: string;
+  size: number;
+  status: "pending" | "done" | "failed";
+  timestamp: number;
 }
 
 const EMPTY_TRANSFER: TransferState = { name: "", transferred: 0, total: 0, isUpload: false, done: true };
@@ -120,6 +133,8 @@ export default function FileExplorer() {
   const [showHidden, setShowHidden] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dragOver, setDragOver] = useState(false);
+  const [downloadHistory, setDownloadHistory] = useState<DownloadRecord[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   const [sortCol, setSortCol] = useState<SortColumn>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -165,6 +180,12 @@ export default function FileExplorer() {
       if (done) {
         transferTimer.current = setTimeout(() => {
           setTransfer(EMPTY_TRANSFER);
+          if (!is_upload) {
+            setDownloadHistory(prev =>
+              prev.map(r => r.name === name && r.status === "pending"
+                ? { ...r, status: state === 1 ? "done" : "failed" as const }
+                : r));
+          }
           refreshCwd();
         }, 2500);
       }
@@ -218,21 +239,59 @@ export default function FileExplorer() {
     [activeTabId, cwd],
   );
 
+  // ── Download helpers ────────────────────────────────────────────────────
+  const addDownload = useCallback(async (entry: RemoteEntry, dirOverride?: string) => {
+    const dir = dirOverride || (await downloadDir());
+    const localPath = `${dir.replace(/\\/g, "/").replace(/\/$/, "")}/${entry.name}`;
+    const record: DownloadRecord = {
+      name: entry.name,
+      localPath,
+      remotePath: entry.full_path,
+      size: entry.size,
+      status: "pending",
+      timestamp: Date.now(),
+    };
+    setDownloadHistory(prev => [record, ...prev].slice(0, 50));
+    sftpDownload(activeTabId!, entry.full_path, dir);
+  }, [activeTabId]);
+
   const downloadEntry = useCallback(
     async (entry: RemoteEntry) => {
       if (!activeTabId || entry.is_dir) return;
-      const dir = await downloadDir();
-      sftpDownload(activeTabId, entry.full_path, dir);
+      addDownload(entry);
     },
-    [activeTabId],
+    [activeTabId, addDownload],
+  );
+
+  const downloadEntryTo = useCallback(
+    async (entry: RemoteEntry) => {
+      if (!activeTabId || entry.is_dir) return;
+      // Open save dialog — use a prompt for directory path as fallback
+      const dir = prompt("Save to directory:", await downloadDir());
+      if (!dir) return;
+      addDownload(entry, dir);
+    },
+    [activeTabId, addDownload],
   );
 
   const downloadSelected = useCallback(async () => {
     if (!activeTabId) return;
     const dir = await downloadDir();
     const files = filterEntries.filter(e => selected.has(e.full_path) && !e.is_dir);
-    files.forEach(e => sftpDownload(activeTabId, e.full_path, dir));
-  }, [activeTabId, selected]);
+    for (const e of files) {
+      const localPath = `${dir.replace(/\\/g, "/").replace(/\/$/, "")}/${e.name}`;
+      const record: DownloadRecord = {
+        name: e.name,
+        localPath,
+        remotePath: e.full_path,
+        size: e.size,
+        status: "pending",
+        timestamp: Date.now(),
+      };
+      setDownloadHistory(prev => [record, ...prev].slice(0, 50));
+      sftpDownload(activeTabId!, e.full_path, dir);
+    }
+  }, [activeTabId, filterEntries, selected]);
 
   // ── Sorting ────────────────────────────────────────────────────────────
   const toggleSort = useCallback(
@@ -333,6 +392,7 @@ export default function FileExplorer() {
   const fileCtx = useCallback(
     (entry: RemoteEntry): (ContextMenuItem | null)[] => [
       { label: "Download", icon: <Download size={12} />, onClick: () => downloadEntry(entry) },
+      { label: "Download to...", icon: <FolderSearch size={12} />, onClick: () => downloadEntryTo(entry) },
       null,
       { label: "Rename", icon: <Edit3 size={12} />, onClick: () => {
         const newName = prompt("Rename to:", entry.name);
@@ -488,6 +548,58 @@ export default function FileExplorer() {
           <EyeOff size={11} className={showHidden ? "text-[var(--accent)]" : ""} />
           <span>Hidden</span>
         </label>
+
+        {/* History */}
+        <button
+          onClick={() => setShowHistory(v => !v)}
+          className="relative p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-sm transition-colors ml-auto flex-shrink-0"
+          title="Download history"
+        >
+          <Clock size={14} />
+          {downloadHistory.length > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--accent)] text-[8px] font-bold text-white flex items-center justify-center leading-none">
+              {downloadHistory.length > 9 ? "9+" : downloadHistory.length}
+            </span>
+          )}
+        </button>
+
+        {/* History dropdown */}
+        {showHistory && (
+          <>
+            <div className="fixed inset-0 z-20" onClick={() => setShowHistory(false)} />
+            <div className="absolute top-full right-1 mt-1 w-64 max-h-64 overflow-y-auto bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-md shadow-xl z-30">
+              <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-[var(--border-subtle)]">
+                <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Recent Downloads</span>
+                <button onClick={() => setDownloadHistory([])} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)]">Clear</button>
+              </div>
+              {downloadHistory.length === 0 ? (
+                <div className="px-3 py-6 text-center text-[11px] text-[var(--text-muted)]">No downloads yet</div>
+              ) : (
+                downloadHistory.map((r, i) => (
+                  <div key={`${r.remotePath}-${r.timestamp}-${i}`} className="px-2.5 py-1.5 hover:bg-[var(--surface-hover)] transition-colors group">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        r.status === "done" ? "bg-green-400" : r.status === "failed" ? "bg-red-400" : "bg-yellow-400 animate-pulse"
+                      }`} />
+                      <span className="text-[11px] text-[var(--text-primary)] truncate flex-1">{r.name}</span>
+                      {r.size > 0 && <span className="text-[10px] text-[var(--text-muted)] flex-shrink-0">{formatSize(r.size)}</span>}
+                    </div>
+                    <div className="flex items-center gap-1 mt-0.5 pl-4">
+                      <span className="text-[10px] text-[var(--text-muted)] truncate flex-1" title={r.localPath}>{r.localPath}</span>
+                      <button
+                        className="p-0.5 text-[var(--text-muted)] hover:text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-all"
+                        title="Show in folder"
+                        onClick={() => revealInExplorer(r.localPath)}
+                      >
+                        <FolderSearch size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── File list ────────────────────────────────────────────────────── */}

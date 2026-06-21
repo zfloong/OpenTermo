@@ -220,3 +220,13 @@ pub fn sftp_rename(
 ) -> Result<(), String> {
     mgr.sftp_send(&tab_id, SftpCommand::Rename { from, to })
 }
+
+#[tauri::command]
+pub fn reveal_in_explorer(path: String) {
+    #[cfg(target_os = "windows")]
+    std::process::Command::new("explorer")
+        .arg("/select,")
+        .arg(&path)
+        .spawn()
+        .ok();
+}
