@@ -391,7 +391,7 @@ export default function FileExplorer() {
               <tr
                 key={e.full_path}
                 className="hover:bg-[var(--surface-hover)] cursor-pointer transition-colors"
-                onClick={() => { if (isDir(e) || isParent(e)) navigate(e.is_dir ? e.full_path : goUp()); }}
+                onClick={() => { if (isDir(e)) navigate(e.full_path); else if (isParent(e)) goUp(); }}
                 onDoubleClick={() => { if (!isDir(e) && !isParent(e)) download(e); }}
                 onContextMenu={(ev) => showCtx(ev, isParent(e) ? [] : entryCtx(e))}
               >
