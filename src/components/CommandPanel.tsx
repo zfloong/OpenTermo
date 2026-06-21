@@ -17,6 +17,10 @@ import {
   ArrowDownAZ,
   Clock,
   ArrowRightLeft,
+  Download,
+  Upload,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { useCommandStore } from "@/stores/commandStore";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -28,6 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { resolveCommandTemplate } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import ContextMenu, { type ContextMenuItem } from "@/components/ui/context-menu";
 
@@ -53,19 +58,26 @@ interface TreeNode {
 export default function CommandPanel() {
   const entries = useCommandStore((s) => s.entries);
   const emptyFolders = useCommandStore((s) => s.emptyFolders);
+  const usageCounts = useCommandStore((s) => s.usageCounts);
   const load = useCommandStore((s) => s.load);
   const upsert = useCommandStore((s) => s.upsert);
   const remove = useCommandStore((s) => s.remove);
   const addEmptyFolder = useCommandStore((s) => s.addEmptyFolder);
   const removeEmptyFolder = useCommandStore((s) => s.removeEmptyFolder);
   const renameFolder = useCommandStore((s) => s.renameFolder);
+  const recordUsage = useCommandStore((s) => s.recordUsage);
+  const exportAll = useCommandStore((s) => s.exportAll);
+  const exportFolder = useCommandStore((s) => s.exportFolder);
+  const importCommands = useCommandStore((s) => s.importCommands);
 
   const [sortMode, setSortMode] = useState<SortMode>(() =>
     localStorage.getItem("cmd-sort") === "recent" ? "recent" : "name",
   );
 
   const activeTabId = useSessionStore((s) => s.activeTabId);
+  const tabs = useSessionStore((s) => s.tabs);
   const sendInput = useSessionStore((s) => s.sendInput);
+  const activeTab = tabs.find((t) => t.id === activeTabId);
 
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<CommandEntry | null>(null);
@@ -74,6 +86,9 @@ export default function CommandPanel() {
   const [ctx, setCtx] = useState<CtxState | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ ids: string[] } | null>(null);
   const [newFolderPrompt, setNewFolderPrompt] = useState<{ parentPath: string } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   useEffect(() => {
     load();
@@ -103,6 +118,69 @@ export default function CommandPanel() {
   }, [entries, emptyFolders]);
 
   // ── Sort commands within a group ──────────────────────────────────────
+
+  // ═══ Import handler ══════════════════════════════════════════════════════════
+
+  const handleImport = useCallback(
+    async (file: File) => {
+      try {
+        const text = await file.text();
+        const result = await importCommands(text);
+        setImportMsg("Imported " + result.imported + " commands" + (result.skipped > 0 ? " (" + result.skipped + " skipped)" : ""));
+        setTimeout(() => setImportMsg(null), 3000);
+      } catch (e: any) {
+        setImportMsg(e.message || "Import failed");
+        setTimeout(() => setImportMsg(null), 4000);
+      }
+    },
+    [importCommands],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOverFolder(null);
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.endsWith(".json")) {
+        handleImport(file);
+      }
+    },
+    [handleImport],
+  );
+
+  // ═══ Batch execute ═══════════════════════════════════════════════════════════
+
+  const batchExecute = useCallback(() => {
+    if (!activeTabId || selectedIds.size === 0) return;
+    const selected = entries.filter((e) => selectedIds.has(e.id));
+    const commands = selected.map((e) => resolveCommandTemplate(e.command, activeTab?.session ?? null)).join("\n");
+    sendInput(activeTabId, commands + "\n");
+    selected.forEach((e) => recordUsage(e.id));
+    setSelectedIds(new Set());
+  }, [activeTabId, activeTab, selectedIds, entries, sendInput, recordUsage]);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    const visible = entries.filter((e) => {
+      const lower = search.toLowerCase();
+      if (!lower) return true;
+      return (e.label || "").toLowerCase().includes(lower) || e.command.toLowerCase().includes(lower) || (e.category || "").toLowerCase().includes(lower);
+    });
+    if (visible.every((e) => selectedIds.has(e.id))) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(visible.map((e) => e.id)));
+    }
+  }, [entries, search, selectedIds]);
+
+  // ═══ Sort commands within a group ════════════════════════════════════════════
 
   const sortCommands = useCallback(
     (cmds: CommandEntry[]) => {
@@ -244,11 +322,13 @@ export default function CommandPanel() {
   const handleSend = useCallback(
     async (cmd: CommandEntry) => {
       if (!activeTabId) return;
+      const resolved = resolveCommandTemplate(cmd.command, activeTab?.session ?? null);
       const updated = { ...cmd, last_used: new Date().toISOString() };
       await upsert(updated);
-      await sendInput(activeTabId, cmd.command + "\n");
+      await sendInput(activeTabId, resolved + "\n");
+      recordUsage(cmd.id);
     },
-    [activeTabId, upsert, sendInput],
+    [activeTabId, activeTab, upsert, sendInput, recordUsage],
   );
 
   const handleTogglePin = useCallback(
@@ -399,6 +479,19 @@ export default function CommandPanel() {
         },
         null,
         {
+          label: "Export Folder",
+          icon: <Download size={12} />,
+          onClick: () => {
+            const json = exportFolder(node.path);
+            const blob = new Blob([json], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = node.path.replace(/\//g, "-") + ".json"; a.click();
+            URL.revokeObjectURL(url);
+          },
+        },
+        null,
+        {
           label: "Delete Folder",
           icon: <Trash2 size={12} />,
           onClick: () => {
@@ -532,12 +625,19 @@ export default function CommandPanel() {
                   onDoubleClick={() => handleSend(cmd)}
                   onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
                   title="Double-click to send"
-                  className={`flex items-center gap-1.5 pr-1.5 py-1 hover:bg-[var(--surface-hover)] transition-colors rounded-sm
+                  className={`group flex items-center gap-1.5 pr-1.5 py-1 hover:bg-[var(--surface-hover)] transition-colors rounded-sm
                     ${cmd.pinned ? "border-l-2 border-[var(--accent)]" : ""}`}
                   style={{
                     paddingLeft: node.path === "Uncategorized" ? 20 : 24 + indent,
                   }}
                 >
+                  {/* Select checkbox */}
+                  <button
+                    onClick={(e2) => { e2.stopPropagation(); toggleSelect(cmd.id); }}
+                    className={"shrink-0 w-4 h-4 flex items-center justify-center rounded transition-opacity " + (selectedIds.has(cmd.id) ? "opacity-100 text-[var(--accent)]" : "opacity-0 group-hover:opacity-40 hover:!opacity-70 text-[var(--text-muted)]")}
+                  >
+                    {selectedIds.has(cmd.id) ? <CheckSquare size={12} /> : <Square size={12} />}
+                  </button>
                   <span className="flex-shrink-0 text-xs leading-none w-4 text-center">
                     {cmd.icon || "-"}
                   </span>
@@ -562,6 +662,11 @@ export default function CommandPanel() {
                   >
                     <Send size={14} />
                   </button>
+                  {usageCounts[cmd.id] > 0 && (
+                    <span className="shrink-0 text-[9px] text-[var(--text-muted)] tabular-nums opacity-0 group-hover:opacity-100 transition-opacity" title={"Used " + String(usageCounts[cmd.id]) + " times"}>
+                      {usageCounts[cmd.id]}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -602,6 +707,70 @@ export default function CommandPanel() {
           className="w-full h-7 pl-8 pr-2 text-[11px] bg-[var(--bg-surface)] border-2 border-transparent rounded-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] transition-[border-color,background]"
         />
       </div>
+
+      {/* Toolbar: batch select + import/export */}
+      <div className="flex items-center gap-1 px-2 pb-1">
+        {selectedIds.size > 0 ? (
+          <>
+            <button
+              onClick={batchExecute}
+              disabled={!activeTabId}
+              className="flex items-center gap-1 px-2 py-1 text-[10px] rounded bg-[var(--accent-dim)] text-[var(--accent)] hover:bg-[var(--accent)]/25 transition-colors disabled:opacity-40"
+            >
+              <Send size={10} />
+              Run {selectedIds.size}
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="px-2 py-1 text-[10px] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+            >
+              Clear
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={toggleSelectAll}
+              className="flex items-center gap-1 px-2 py-1 text-[10px] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+              title="Select all visible"
+            >
+              <CheckSquare size={11} />
+            </button>
+            <div className="w-px h-4 bg-[var(--border-subtle)] mx-0.5" />
+            <button
+              onClick={() => {
+                const blob = new Blob([exportAll()], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = "meatshell-commands.json"; a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="flex items-center gap-1 px-2 py-1 text-[10px] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+              title="Export all commands"
+            >
+              <Download size={11} />
+            </button>
+            <label
+              className="flex items-center gap-1 px-2 py-1 text-[10px] rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
+              title="Import commands from JSON"
+            >
+              <Upload size={11} />
+              <input
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}
+              />
+            </label>
+          </>
+        )}
+      </div>
+
+      {importMsg && (
+        <div className='text-[10px] px-2 py-1 rounded mx-2 mb-1 text-[var(--color-success)] bg-[var(--color-success)]/10'>
+          {importMsg}
+        </div>
+      )}
 
       {/* Command tree */}
       <div className="flex-1 overflow-y-auto px-1 min-h-0">

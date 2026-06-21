@@ -1,4 +1,4 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 import {
   type CommandEntry,
   listCommands,
@@ -6,11 +6,12 @@ import {
   deleteCommand,
 } from "@/lib/tauriCommands";
 
-const LS_KEY = "meatshell-empty-folders";
+const LS_EMPTY_FOLDERS = "meatshell-empty-folders";
+const LS_USAGE_COUNTS = "meatshell-cmd-usage";
 
 function loadEmptyFolders(): string[] {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(LS_EMPTY_FOLDERS);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -18,12 +19,26 @@ function loadEmptyFolders(): string[] {
 }
 
 function saveEmptyFolders(paths: string[]) {
-  localStorage.setItem(LS_KEY, JSON.stringify(paths));
+  localStorage.setItem(LS_EMPTY_FOLDERS, JSON.stringify(paths));
+}
+
+function loadUsageCounts(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(LS_USAGE_COUNTS);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveUsageCounts(counts: Record<string, number>) {
+  localStorage.setItem(LS_USAGE_COUNTS, JSON.stringify(counts));
 }
 
 interface CommandState {
   entries: CommandEntry[];
   emptyFolders: string[];
+  usageCounts: Record<string, number>;
   loading: boolean;
 
   load: () => Promise<void>;
@@ -32,18 +47,27 @@ interface CommandState {
   addEmptyFolder: (path: string) => void;
   removeEmptyFolder: (path: string) => void;
   renameFolder: (oldPath: string, newPath: string) => Promise<void>;
+
+  // Usage tracking
+  recordUsage: (id: string) => void;
+
+  // Import / Export
+  exportAll: () => string;
+  exportFolder: (folderPath: string) => string;
+  importCommands: (json: string) => Promise<{ imported: number; skipped: number }>;
 }
 
 export const useCommandStore = create<CommandState>((set, get) => ({
   entries: [],
   emptyFolders: loadEmptyFolders(),
+  usageCounts: loadUsageCounts(),
   loading: false,
 
   async load() {
     set({ loading: true });
     try {
       const entries = await listCommands();
-      set({ entries, emptyFolders: loadEmptyFolders() });
+      set({ entries, emptyFolders: loadEmptyFolders(), usageCounts: loadUsageCounts() });
     } catch {
       // Backend not ready; keep previous state
     } finally {
@@ -59,7 +83,6 @@ export const useCommandStore = create<CommandState>((set, get) => ({
         ? s.entries.map((e, i) => (i === idx ? saved : e))
         : [...s.entries, saved];
 
-      // If this command fills a previously empty folder, prune it
       const cat = (saved.category || "").trim();
       let folders = [...s.emptyFolders];
       if (cat) {
@@ -68,7 +91,6 @@ export const useCommandStore = create<CommandState>((set, get) => ({
 
       return { entries: copy, emptyFolders: folders };
     });
-    // Persist empty-folder pruning
     const cat = (saved.category || "").trim();
     if (cat) {
       const folders = get().emptyFolders.filter((p) => !isPathUnderOrEqual(p, cat));
@@ -77,13 +99,10 @@ export const useCommandStore = create<CommandState>((set, get) => ({
   },
 
   async remove(id) {
-    const entry = get().entries.find((e) => e.id === id);
     await deleteCommand(id);
     set((s) => ({
       entries: s.entries.filter((e) => e.id !== id),
     }));
-    // If the deleted entry was the last in its category, category disappears
-    // (no need to create empty folder — user explicitly creates those)
   },
 
   addEmptyFolder(path: string) {
@@ -114,13 +133,11 @@ export const useCommandStore = create<CommandState>((set, get) => ({
       },
     );
 
-    // Update commands with new category path
     for (const e of toUpdate) {
       const newCat = newPath + e.category.trim().slice(oldPath.length);
       await saveCommand({ ...e, category: newCat });
     }
 
-    // Update empty folders
     const newEntries = s.entries.map((e) => {
       const cat = e.category.trim();
       if (cat === oldPath || cat.startsWith(oldPath + "/")) {
@@ -139,11 +156,65 @@ export const useCommandStore = create<CommandState>((set, get) => ({
 
     set({ entries: newEntries, emptyFolders: newFolders });
   },
+
+  // ── Usage tracking ──
+  recordUsage(id: string) {
+    set((s) => {
+      const counts = { ...s.usageCounts, [id]: (s.usageCounts[id] || 0) + 1 };
+      saveUsageCounts(counts);
+      return { usageCounts: counts };
+    });
+  },
+
+  // ── Import / Export ──
+  exportAll(): string {
+    const entries = get().entries.map(({ id, ...rest }) => rest);
+    return JSON.stringify(entries, null, 2);
+  },
+
+  exportFolder(folderPath: string): string {
+    const entries = get().entries
+      .filter((e) => e.category.trim() === folderPath || e.category.trim().startsWith(folderPath + "/"))
+      .map(({ id, ...rest }) => rest);
+    return JSON.stringify(entries, null, 2);
+  },
+
+  async importCommands(json: string): Promise<{ imported: number; skipped: number }> {
+    let parsed: Array<Partial<CommandEntry>>;
+    try {
+      parsed = JSON.parse(json);
+      if (!Array.isArray(parsed)) throw new Error("Not an array");
+    } catch {
+      throw new Error("Invalid JSON: expected an array of command objects");
+    }
+
+    let imported = 0;
+    let skipped = 0;
+
+    for (const item of parsed) {
+      if (!item.command) { skipped++; continue; }
+      const entry: CommandEntry = {
+        id: crypto.randomUUID(),
+        label: item.label || item.command,
+        command: item.command,
+        category: item.category || "",
+        pinned: item.pinned ?? false,
+        last_used: item.last_used || null,
+        icon: item.icon || null,
+        description: item.description || null,
+        order: item.order || null,
+      };
+      await saveCommand(entry);
+      imported++;
+    }
+
+    // Reload fresh list
+    const entries = await listCommands();
+    set({ entries, emptyFolders: loadEmptyFolders() });
+    return { imported, skipped };
+  },
 }));
 
-// ── helpers ────────────────────────────────────────────────────────────────
-
-/** True if `child` equals `parent` or starts with `parent/` */
 function isPathUnderOrEqual(parent: string, child: string): boolean {
   return child === parent || child.startsWith(parent + "/");
 }

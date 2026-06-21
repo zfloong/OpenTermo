@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+﻿import { useEffect } from "react";
 import TitleBar from "@/components/layout/TitleBar";
 import Sidebar from "@/components/layout/Sidebar";
 import TerminalView from "@/components/layout/TerminalView";
@@ -7,6 +7,7 @@ import StatusBar from "@/components/layout/StatusBar";
 import ConnectDialog from "@/components/ConnectDialog";
 import HostKeyDialog from "@/components/HostKeyDialog";
 import CredentialDialog from "@/components/CredentialDialog";
+import CommandPalette from "@/components/CommandPalette";
 import { useSessionStore } from "@/stores/sessionStore";
 
 export default function App() {
@@ -43,9 +44,10 @@ export default function App() {
             {activeTabId ? (
               <TerminalView key={activeTabId} tabId={activeTabId} />
             ) : (
-              <div className="flex items-center justify-center h-full">
-                <span className="text-base text-[var(--text-muted)] select-none">
-                  Terminal Area
+              <div className="flex flex-col items-center justify-center h-full gap-3">
+                <span className="text-2xl opacity-20">⌨</span>
+                <span className="text-sm text-[var(--text-muted)] select-none">
+                  Press <kbd className="px-1.5 py-0.5 text-[11px] bg-[var(--surface-hover)] rounded font-mono">Ctrl+K</kbd> to search commands
                 </span>
               </div>
             )}
@@ -75,6 +77,9 @@ export default function App() {
       {credentialPrompt && (
         <CredentialDialog prompt={credentialPrompt} onClose={dismissCredential} />
       )}
+
+      {/* Global command palette */}
+      <CommandPalette />
     </div>
   );
 }
