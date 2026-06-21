@@ -152,8 +152,32 @@
 | 1 | SSH 密钥认证前端对话框 | 待做 |
 | 2 | SFTP 面板 UI（后端已完成） | 待做 |
 | 3 | 终端搜索/复制（xterm search addon） | 待做 |
-| 4 | 远程系统监控 Sidebar 标签页 | 待做 |
+| 4 | 远程系统监控 Sidebar 标签页 | ✅ 已做（移至 StatusBar 内联显示，2026-06-21） |
 | 5 | 等宽字体嵌入 | 待做 |
 | 6 | 端口转发 UI（后端已完成） | 待做 |
 | 7 | Light/Dark 主题切换入口 | 待做 |
 | 8 | 会话拖拽排序 | 待做 |
+| 9 | 侧边栏可拖拽宽度 | ✅ 已做（2026-06-21，160-400px） |
+| 10 | 远端监控数据接入前端 | ✅ 已做（2026-06-21，remote-stats 事件） |
+
+---
+
+## 2026-06-21 — 配色 + 侧边栏 + 远端监控
+
+### 错误 16：颜色 Token 变化肉眼不可见
+- **现象**：bg-base `#0d1117` → `#0a0e14` 仅差 3 个 RGB 点，用户完全看不出差异
+- **原因**：所有背景色集中在 `#0a-#1a` 区间，人眼无法分辨
+- **解决**：拉开层级间距，base `#0c1117` / surface `#18202a` / elevated `#222c38`（22 点差距），text 从 `#d4d4d4` 提到 `#e6eef5`
+- **教训**：暗色主题中相邻层级必须有 ≥10 个 RGB 点的差距才肉眼可见
+
+### 错误 17：远端监控数据被忽略
+- **现象**：SSH 连接后 StatusBar 仍显示本地 CPU/内存
+- **原因**：后端已在推送 `remote-stats:{tabId}` 事件，前端 `sessionStore._setupListener` 未监听
+- **解决**：`sessionStore.ts` 新增 `RemoteStats` 类型 + `_setupListener` 监听 `remote-stats` + `ActiveTab.remoteStats` 字段；`StatusBar.tsx` 优先显示远端数据，无远端时 fallback 本地
+
+### 错误 18：侧边栏固定宽度，不可拖拽
+- **解决**：`uiStore` 新增 `sidebarWidth`/`savedSidebarWidth`/`setSidebarWidth`；`toggleSidebar` 改为宽 0 ↔ 上次宽；`Sidebar.tsx` 右侧加 4px 拖拽手柄（160-400px，<60 吸附关闭）
+
+### 错误 19：按钮 hover 颜色使用旧 accent
+- **现象**：`button.tsx` 中 `hover:bg-[rgba(79,173,255,...)]` 是旧 `#4fadff`
+- **解决**：统一改为新 accent `rgba(96,165,250,...)`
