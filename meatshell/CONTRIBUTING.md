@@ -21,7 +21,7 @@ meatshell 目前是一个**个人实验性项目**。它的设计、取舍和代
 
 ### 欢迎你这样参与
 
-- 🐛 **报告 Bug**：在 [Issues](https://github.com/jeff141/meatshell/issues) 里描述复现步骤、系统环境和期望行为。
+- 🐛 **报告 Bug**：在 [Issues](https://github.com/zfloong/meatshell-app/issues) 里描述复现步骤、系统环境和期望行为。
 - 💡 **提出建议**：功能想法、交互改进、设计参考都欢迎在 Issue 区讨论。
 - ⭐ **Star / Fork**：如果你喜欢它，欢迎 fork 出自己的版本自由折腾。
 
@@ -56,7 +56,7 @@ in my own way.
 
 ### How you're very welcome to help
 
-- 🐛 **Report bugs**: open an [Issue](https://github.com/jeff141/meatshell/issues)
+- 🐛 **Report bugs**: open an [Issue](https://github.com/zfloong/meatshell-app/issues)
   with repro steps, your OS/environment, and expected behavior.
 - 💡 **Suggest ideas**: feature requests, UX improvements, and design references
   are all welcome in the issue tracker.
