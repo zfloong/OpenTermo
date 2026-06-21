@@ -71,9 +71,10 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
         <button
           onClick={onConnect}
           onMouseDown={(e) => e.stopPropagation()}
-          className="no-drag flex items-center gap-1 px-2 h-6 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors ml-1 flex-shrink-0"
+          className="no-drag flex items-center gap-1.5 px-2.5 h-7 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors ml-1 flex-shrink-0"
         >
-          <Plus size={12} />
+          <Plus size={14} />
+          <span className="hidden sm:inline">Connect</span>
         </button>
       </div>
 

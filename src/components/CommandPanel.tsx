@@ -4,12 +4,16 @@ import {
   ChevronDown,
   ChevronRight,
   Send,
-  Pin,
-  PinOff,
-  Pencil,
-  Trash2,
   Plus,
   FolderOpen,
+  Edit3,
+  Copy,
+  Pin,
+  PinOff,
+  Trash2,
+  FolderPlus,
+  ClipboardPaste,
+  GripVertical,
 } from "lucide-react";
 import { useCommandStore } from "@/stores/commandStore";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -22,6 +26,15 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import ContextMenu, { type ContextMenuItem } from "@/components/ui/context-menu";
+
+// ── Context menu position state ────────────────────────────────────────────
+
+interface CtxState {
+  items: (ContextMenuItem | null)[];
+  x: number;
+  y: number;
+}
 
 export default function CommandPanel() {
   const entries = useCommandStore((s) => s.entries);
@@ -36,6 +49,7 @@ export default function CommandPanel() {
   const [editing, setEditing] = useState<CommandEntry | null>(null);
   const [editingNew, setEditingNew] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [ctx, setCtx] = useState<CtxState | null>(null);
 
   useEffect(() => {
     load();
@@ -49,7 +63,8 @@ export default function CommandPanel() {
       ? entries.filter(
           (e) =>
             e.label.toLowerCase().includes(lower) ||
-            e.command.toLowerCase().includes(lower),
+            e.command.toLowerCase().includes(lower) ||
+            (e.description ?? "").toLowerCase().includes(lower),
         )
       : [...entries];
 
@@ -109,6 +124,122 @@ export default function CommandPanel() {
     [remove],
   );
 
+  const handleDuplicate = useCallback(
+    async (cmd: CommandEntry) => {
+      await upsert({
+        ...cmd,
+        id: crypto.randomUUID(),
+        label: `${cmd.label} (copy)`,
+        last_used: null,
+      });
+    },
+    [upsert],
+  );
+
+  // ── Context menu builders ──────────────────────────────────────────────
+
+  const showCtx = useCallback(
+    (e: React.MouseEvent, items: (ContextMenuItem | null)[]) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setCtx({ items, x: e.clientX, y: e.clientY });
+    },
+    [],
+  );
+
+  const cmdCtx = useCallback(
+    (cmd: CommandEntry) =>
+      [
+        {
+          label: "Send",
+          icon: <Send size={12} />,
+          onClick: () => handleSend(cmd),
+          disabled: !activeTabId,
+        },
+        {
+          label: "Edit",
+          icon: <Edit3 size={12} />,
+          onClick: () => {
+            setEditing(cmd);
+            setEditingNew(false);
+          },
+        },
+        {
+          label: "Duplicate",
+          icon: <Copy size={12} />,
+          onClick: () => handleDuplicate(cmd),
+        },
+        cmd.pinned
+          ? {
+              label: "Unpin",
+              icon: <PinOff size={12} />,
+              onClick: () => handleTogglePin(cmd),
+            }
+          : {
+              label: "Pin",
+              icon: <Pin size={12} />,
+              onClick: () => handleTogglePin(cmd),
+            },
+        null, // separator
+        {
+          label: "Delete",
+          icon: <Trash2 size={12} />,
+          onClick: () => handleDelete(cmd.id),
+          danger: true,
+        },
+      ],
+    [handleSend, handleTogglePin, handleDelete, handleDuplicate, activeTabId],
+  );
+
+  const categoryCtx = useCallback(
+    (cat: string): (ContextMenuItem | null)[] => [
+      {
+        label: "New Command",
+        icon: <Plus size={12} />,
+        onClick: () => {
+          setEditing({
+            id: "",
+            label: "",
+            command: "",
+            category: cat,
+            pinned: false,
+            last_used: null,
+            icon: null,
+            description: null,
+          });
+          setEditingNew(true);
+        },
+      },
+      {
+        label: "Rename Group",
+        icon: <Edit3 size={12} />,
+        onClick: () => {
+          const newName = prompt("Rename group:", cat);
+          if (newName && newName.trim() && newName.trim() !== cat) {
+            // Rename: update all commands in this category
+            entries
+              .filter((e) => (e.category.trim() || "Uncategorized") === cat)
+              .forEach((e) => upsert({ ...e, category: newName.trim() }));
+          }
+        },
+      },
+      null,
+      {
+        label: "Delete Group",
+        icon: <Trash2 size={12} />,
+        onClick: () => {
+          if (confirm(`Delete group "${cat}" and all its commands?`)) {
+            entries
+              .filter((e) => (e.category.trim() || "Uncategorized") === cat)
+              .forEach((e) => remove(e.id));
+          }
+        },
+        danger: true,
+      },
+    ],
+    [entries, upsert, remove],
+  );
+
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
@@ -124,12 +255,78 @@ export default function CommandPanel() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Filter commands..."
-          className="w-full h-7 pl-8 pr-2 text-[11px] bg-[#151c22] border-2 border-transparent rounded-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] transition-[border-color,background]"
+          className="w-full h-7 pl-8 pr-2 text-[11px] bg-[var(--bg-surface)] border-2 border-transparent rounded-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] transition-[border-color,background]"
         />
       </div>
 
       {/* Command groups */}
-      <div className="flex-1 overflow-y-auto px-1">
+      <div
+        className="flex-1 overflow-y-auto px-1"
+        onContextMenu={(e) =>
+          showCtx(e, [
+            {
+              label: "New Command",
+              icon: <Plus size={12} />,
+              onClick: () => {
+                setEditing({
+                  id: "",
+                  label: "",
+                  command: "",
+                  category: "",
+                  pinned: false,
+                  last_used: null,
+                  icon: null,
+                  description: null,
+                });
+                setEditingNew(true);
+              },
+            },
+            {
+              label: "New Group",
+              icon: <FolderPlus size={12} />,
+              onClick: () => {
+                const name = prompt("Group name:");
+                if (name?.trim()) {
+                  upsert({
+                    id: crypto.randomUUID(),
+                    label: "",
+                    command: "# placeholder",
+                    category: name.trim(),
+                    pinned: false,
+                    last_used: null,
+                    icon: null,
+                    description: null,
+                  });
+                }
+              },
+            },
+            {
+              label: "Paste",
+              icon: <ClipboardPaste size={12} />,
+              onClick: async () => {
+                try {
+                  const text = await navigator.clipboard.readText();
+                  if (text.trim()) {
+                    setEditing({
+                      id: "",
+                      label: "",
+                      command: text.trim(),
+                      category: "",
+                      pinned: false,
+                      last_used: null,
+                      icon: null,
+                      description: null,
+                    });
+                    setEditingNew(true);
+                  }
+                } catch {
+                  // clipboard not available
+                }
+              },
+            },
+          ])
+        }
+      >
         {grouped.length === 0 && (
           <div className="flex items-center justify-center h-20 text-[11px] text-[var(--text-muted)]">
             {search ? "No matches" : "No saved commands"}
@@ -143,6 +340,7 @@ export default function CommandPanel() {
               {/* Category header */}
               <button
                 onClick={() => toggleCollapse(cat)}
+                onContextMenu={(e) => showCtx(e, categoryCtx(cat))}
                 className="flex items-center gap-1 w-full px-2 py-0.5 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors"
               >
                 {isCollapsed ? (
@@ -162,66 +360,42 @@ export default function CommandPanel() {
                 cmds.map((cmd) => (
                   <div
                     key={cmd.id}
-                    className="group flex items-center gap-0.5 pl-5 pr-1 py-0.5 hover:bg-[var(--surface-hover)] rounded-sm transition-colors"
+                    onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
+                    className={`group flex items-center gap-1.5 pl-5 pr-1.5 py-1 cursor-pointer rounded-sm transition-colors
+                      ${cmd.pinned ? "border-l-2 border-[var(--accent)] pl-[18px]" : ""}
+                      hover:bg-[var(--surface-hover)]`}
                   >
-                    {/* Pin */}
-                    <button
-                      onClick={() => handleTogglePin(cmd)}
-                      className="flex-shrink-0 p-0.5 opacity-0 group-hover:opacity-100 text-[var(--text-secondary)] hover:text-[var(--color-warning)] transition-opacity"
-                      title={cmd.pinned ? "Unpin" : "Pin to top"}
-                    >
-                      {cmd.pinned ? (
-                        <PinOff size={10} className="text-[var(--color-warning)]" />
-                      ) : (
-                        <Pin size={10} />
-                      )}
-                    </button>
+                    {/* Icon */}
+                    <span className="flex-shrink-0 text-xs leading-none w-4 text-center select-none">
+                      {cmd.icon || <GripVertical size={10} className="text-[var(--text-muted)] opacity-0 group-hover:opacity-30 transition-opacity" />}
+                    </span>
 
-                    {/* Label + preview */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[11px] text-[var(--text-primary)] leading-tight truncate">
-                          {cmd.label || cmd.command}
+                    {/* Label + description */}
+                    <div
+                      className="flex-1 min-w-0"
+                      onDoubleClick={() => handleSend(cmd)}
+                    >
+                      <span className="text-[11px] text-[var(--text-primary)] leading-tight truncate block">
+                        {cmd.label || cmd.command}
+                      </span>
+                      {cmd.description && (
+                        <span className="text-[10px] text-[var(--text-muted)] leading-tight truncate block">
+                          {cmd.description}
                         </span>
-                        {cmd.label && cmd.command !== cmd.label && (
-                          <span className="text-[10px] text-[var(--text-muted)] truncate leading-tight hidden group-hover:inline">
-                            {cmd.command.length > 40
-                              ? cmd.command.slice(0, 40) + "…"
-                              : cmd.command}
-                          </span>
-                        )}
-                      </div>
+                      )}
                     </div>
 
                     {/* Send — always visible */}
                     <button
-                      onClick={() => handleSend(cmd)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSend(cmd);
+                      }}
                       disabled={!activeTabId}
                       className="flex-shrink-0 p-0.5 text-[var(--color-success)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                       title="Send to terminal"
                     >
-                      <Send size={12} />
-                    </button>
-
-                    {/* Edit — visible on hover */}
-                    <button
-                      onClick={() => {
-                        setEditing(cmd);
-                        setEditingNew(false);
-                      }}
-                      className="flex-shrink-0 p-0.5 opacity-0 group-hover:opacity-100 text-[var(--text-secondary)] hover:text-[var(--accent)] transition-opacity"
-                      title="Edit"
-                    >
-                      <Pencil size={10} />
-                    </button>
-
-                    {/* Delete — visible on hover */}
-                    <button
-                      onClick={() => handleDelete(cmd.id)}
-                      className="flex-shrink-0 p-0.5 opacity-0 group-hover:opacity-100 text-[var(--text-secondary)] hover:text-[var(--color-danger)] transition-opacity"
-                      title="Delete"
-                    >
-                      <Trash2 size={10} />
+                      <Send size={14} />
                     </button>
                   </div>
                 ))}
@@ -241,15 +415,27 @@ export default function CommandPanel() {
               category: "",
               pinned: false,
               last_used: null,
+              icon: null,
+              description: null,
             });
             setEditingNew(true);
           }}
-          className="flex items-center justify-center gap-1 w-full py-1 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors"
+          className="flex items-center justify-center gap-1.5 w-full py-1.5 text-[11px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors"
         >
-          <Plus size={12} />
+          <Plus size={13} />
           <span>New Command</span>
         </button>
       </div>
+
+      {/* Context menu portal */}
+      {ctx && (
+        <ContextMenu
+          items={ctx.items}
+          x={ctx.x}
+          y={ctx.y}
+          onClose={() => setCtx(null)}
+        />
+      )}
 
       {/* Edit Dialog */}
       <CommandEditDialog
@@ -295,12 +481,16 @@ function CommandEditDialog({
   const [label, setLabel] = useState("");
   const [command, setCommand] = useState("");
   const [category, setCategory] = useState("");
+  const [icon, setIcon] = useState("");
+  const [description, setDescription] = useState("");
 
   useEffect(() => {
     if (entry) {
       setLabel(entry.label);
       setCommand(entry.command);
       setCategory(entry.category);
+      setIcon(entry.icon ?? "");
+      setDescription(entry.description ?? "");
     }
   }, [entry?.id]);
 
@@ -314,6 +504,8 @@ function CommandEditDialog({
       label: label.trim(),
       command: command.trim(),
       category: category.trim(),
+      icon: icon.trim() || null,
+      description: description.trim() || null,
     });
   };
 
@@ -327,18 +519,33 @@ function CommandEditDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-3 mt-2">
+          {/* Icon */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-[var(--text-secondary)]">
+              Icon (emoji)
+            </label>
+            <Input
+              value={icon}
+              onChange={(e) => setIcon(e.target.value.slice(0, 2))}
+              placeholder="e.g. 🐳"
+              className="h-8 text-sm text-center w-14"
+            />
+          </div>
+
+          {/* Label */}
           <div className="flex flex-col gap-1">
             <label className="text-[11px] text-[var(--text-secondary)]">Label</label>
             <Input
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-              placeholder="Friendly name (optional)"
+              placeholder="Friendly name"
               className="h-8 text-[12px]"
               autoFocus
             />
           </div>
 
+          {/* Command */}
           <div className="flex flex-col gap-1">
             <label className="text-[11px] text-[var(--text-secondary)]">
               Command
@@ -352,6 +559,21 @@ function CommandEditDialog({
             />
           </div>
 
+          {/* Description */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-[var(--text-secondary)]">
+              Description (optional)
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What does this command do?"
+              rows={2}
+              className="w-full rounded-sm border-2 border-transparent bg-[var(--bg-surface)] px-3 py-1.5 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] resize-none transition-[border-color]"
+            />
+          </div>
+
+          {/* Category */}
           <div className="flex flex-col gap-1">
             <label className="text-[11px] text-[var(--text-secondary)]">
               Category

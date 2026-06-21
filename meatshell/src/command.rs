@@ -26,6 +26,12 @@ pub struct CommandEntry {
     /// ISO-8601 instant of last use (updated by the frontend on send).
     #[serde(default)]
     pub last_used: Option<String>,
+    /// Unicode emoji icon, e.g. "🐳".  Single character.
+    #[serde(default)]
+    pub icon: Option<String>,
+    /// Short description shown below the label in the panel.
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 /// In-memory state backed by `commands.json`.
@@ -108,6 +114,8 @@ impl CommandStore {
             category: String::new(),
             pinned: false,
             last_used: None,
+            icon: None,
+            description: None,
         }
     }
 

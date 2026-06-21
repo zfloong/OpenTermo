@@ -47,6 +47,8 @@ export interface CommandEntry {
   category: string;
   pinned: boolean;
   last_used: string | null;
+  icon?: string | null;
+  description?: string | null;
 }
 
 // ── Prompt event payloads ─────────────────────────────────────────────────
