@@ -42,10 +42,11 @@ pub fn list_commands() -> Result<Vec<CommandEntry>, String> {
 
 #[tauri::command]
 pub fn save_command(entry: CommandEntry) -> Result<CommandEntry, String> {
+    let id = entry.id.clone();
     let mut store = CommandStore::load().map_err(|e| e.to_string())?;
-    let existing = store.entries().iter().any(|e| e.id == entry.id);
+    let existing = store.entries().iter().any(|e| e.id == id);
     if existing {
-        store.update(&entry.id, entry).map_err(|e| e.to_string())?;
+        store.update(&id, entry).map_err(|e| e.to_string())?;
     } else {
         store.add(entry);
     }
@@ -53,9 +54,16 @@ pub fn save_command(entry: CommandEntry) -> Result<CommandEntry, String> {
     // Reload so the returned entry is canonical
     let store2 = CommandStore::load().map_err(|e| e.to_string())?;
     Ok(store2.entries().iter()
-        .find(|e| e.id == entry.id)
+        .find(|e| e.id == id)
         .cloned()
-        .unwrap_or(entry))
+        .unwrap_or_else(|| CommandEntry {
+            id: String::new(),
+            label: String::new(),
+            command: String::new(),
+            category: String::new(),
+            pinned: false,
+            last_used: None,
+        }))
 }
 
 #[tauri::command]
