@@ -1,4 +1,4 @@
-mod commands;
+﻿mod commands;
 mod prompts;
 mod session;
 
@@ -61,6 +61,7 @@ pub fn run() {
             commands::port_forward_start,
             commands::port_forward_stop,
             commands::port_forward_list,
+            commands::write_text_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,4 +1,4 @@
-//! Tauri IPC commands exposed to the frontend.
+﻿//! Tauri IPC commands exposed to the frontend.
 
 use std::sync::Arc;
 
@@ -339,4 +339,9 @@ pub fn port_forward_list(
     tab_id: String,
 ) -> Vec<PortForwardInfo> {
     mgr.list_forwards(&tab_id)
+}
+
+#[tauri::command]
+pub fn write_text_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, &content).map_err(|e| e.to_string())
 }

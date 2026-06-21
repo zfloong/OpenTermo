@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { useCommandStore } from "@/stores/commandStore";
 import { useSessionStore } from "@/stores/sessionStore";
+import { save } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import type { CommandEntry } from "@/lib/tauriCommands";
 import {
   Dialog,
@@ -82,7 +84,6 @@ export default function CommandPanel() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<CommandEntry | null>(null);
   const [editingNew, setEditingNew] = useState(false);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [expandedInit, setExpandedInit] = useState(false);
   const [ctx, setCtx] = useState<CtxState | null>(null);
@@ -234,10 +235,10 @@ export default function CommandPanel() {
       if (!lower) folderPaths.add(p);
     }
 
-    // Top-level entries: Uncategorized + root folders
+    // Top-level entries: ??? + root folders
     const rootNodes: TreeNode[] = [];
 
-    // Uncategorized
+    // ???
     const uncategorized = cmdByPath.get("未分类");
     if (uncategorized && uncategorized.length > 0) {
       rootNodes.push({
@@ -301,7 +302,7 @@ export default function CommandPanel() {
       return children;
     };
 
-    // In search mode, only show Uncategorized if it has matches
+    // In search mode, only show ??? if it has matches
     if (!lower || uncategorized?.length) {
       const roots = buildChildren("", 0);
       rootNodes.push(...roots);
@@ -320,14 +321,6 @@ export default function CommandPanel() {
 
   // ── Actions ───────────────────────────────────────────────────────────
 
-  const toggleCollapse = useCallback((path: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
-  }, []);
 
   const handleSend = useCallback(
     async (cmd: CommandEntry) => {
@@ -539,7 +532,7 @@ export default function CommandPanel() {
         onClick: () => setNewFolderPrompt({ parentPath: "" }),
       },
       {
-        label: "Paste",
+        label: "??",
         icon: <ClipboardPaste size={12} />,
         onClick: async () => {
           try {
@@ -552,7 +545,7 @@ export default function CommandPanel() {
       },
       null,
       {
-        label: sortMode === "name" ? "Sort: Name ✓" : "Sort: Name",
+        label: sortMode === "name" ? "Sort: Name ✓" : "??: ??",
         icon: <ArrowDownAZ size={12} />,
         onClick: () => {
           localStorage.setItem("cmd-sort", "name");
@@ -560,7 +553,7 @@ export default function CommandPanel() {
         },
       },
       {
-        label: sortMode === "recent" ? "Sort: Last Used ✓" : "Sort: Last Used",
+        label: sortMode === "recent" ? "Sort: Last Used ✓" : "??: ????",
         icon: <Clock size={12} />,
         onClick: () => {
           localStorage.setItem("cmd-sort", "recent");
@@ -574,7 +567,7 @@ export default function CommandPanel() {
   // ── Collect folder paths for move-to dropdown ─────────────────────────
 
   const folderPathsForMove = useMemo(() => {
-    const paths: string[] = [""]; // Uncategorized
+    const paths: string[] = [""]; // ???
     for (const p of allFolderPaths) {
       if (p !== "未分类") paths.push(p);
     }
@@ -588,7 +581,7 @@ export default function CommandPanel() {
       <div key={cmd.id}
         onDoubleClick={() => handleSend(cmd)}
         onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
-        className={`group flex items-center gap-1.5 pr-2 py-1 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer ${
+        className={`group flex items-center gap-1.5 pr-2 py-1.5 border-b border-[var(--border-subtle)] last:border-b-0 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer ${
           cmd.pinned ? "border-l-2 border-[var(--accent)]" : ""
         }`}
         style={{ paddingLeft: leftPad }}
@@ -603,7 +596,7 @@ export default function CommandPanel() {
           {selectedIds.has(cmd.id) ? <CheckSquare size={15} /> : <Square size={15} />}
         </button>
 
-        {/* Icon (emoji) */}
+        {/* ?? (emoji) */}
         {cmd.icon && (
           <span className="shrink-0 w-4 text-center text-xs leading-none">{cmd.icon}</span>
         )}
@@ -640,122 +633,7 @@ export default function CommandPanel() {
     ),
     [activeTabId, selectedIds, usageCounts, handleSend, toggleSelect, showCtx, cmdCtx]
   );
-
-const renderNode = useCallback(
-    (node: TreeNode): React.ReactNode => {
-      const isCollapsed = collapsed.has(node.path);
-      const hasChildren = node.children.length > 0;
-      const hasContent = node.commands.length > 0 || hasChildren;
-      const indent = node.depth * 16;
-
-      return (
-        <div key={node.path}>
-          {/* Folder header */}
-          {node.path !== "未分类" && (
-            <button
-              onClick={() => toggleCollapse(node.path)}
-              onContextMenu={(e) => showCtx(e, folderCtx(node))}
-              className="flex items-center gap-2 w-full pr-2 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-md transition-colors"
-              style={{ paddingLeft: 8 + indent }}
-            >
-              {hasContent ? (
-                isCollapsed ? (
-                  <ChevronRight size={15} className="flex-shrink-0" />
-                ) : (
-                  <ChevronDown size={15} className="flex-shrink-0" />
-                )
-              ) : (
-                <span className="w-[15px] flex-shrink-0" />
-              )}
-              {isCollapsed ? (
-                <FolderClosed size={15} className="flex-shrink-0" />
-              ) : (
-                <FolderOpen size={15} className="flex-shrink-0" />
-              )}
-              <span className="flex-1 text-left truncate">{node.name}</span>
-              {node.isEmpty ? (
-                <span className="text-xs tabular-nums opacity-50 italic">
-                  empty
-                </span>
-              ) : (
-                <span className="text-xs tabular-nums opacity-60">
-                  {node.commands.length}
-                </span>
-              )}
-            </button>
-          )}
-
-          {/* Command items */}
-          {!isCollapsed &&
-            node.commands.map((cmd) => (
-              <div key={cmd.id}>
-                <div
-                  onDoubleClick={() => handleSend(cmd)}
-                  onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
-                  title="双击发送"
-                  className={`group flex items-center gap-1.5 pr-1.5 py-1.5 hover:bg-[var(--surface-hover)] transition-colors rounded-sm
-                    ${cmd.pinned ? "border-l-2 border-[var(--accent)]" : ""}`}
-                  style={{
-                    paddingLeft: node.path === "未分类" ? 20 : 24 + indent,
-                  }}
-                >
-                  {/* Select checkbox */}
-                  <button
-                    onClick={(e2) => { e2.stopPropagation(); toggleSelect(cmd.id); }}
-                    className={"shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded transition-opacity " + (selectedIds.has(cmd.id) ? "opacity-100 text-[var(--accent)]" : "opacity-0 group-hover:opacity-40 hover:!opacity-70 text-[var(--text-muted)]")}
-                  >
-                    {selectedIds.has(cmd.id) ? <CheckSquare size={12} /> : <Square size={12} />}
-                  </button>
-                  <span className="flex-shrink-0 text-xs leading-none w-4 text-center">
-                    {cmd.icon || ""}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm text-[var(--text-primary)] leading-tight truncate block">
-                      {cmd.label || cmd.command}
-                    </span>
-                    {cmd.description && (
-                      <span className="text-xs text-[var(--text-muted)] leading-tight truncate block">
-                        {cmd.description}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSend(cmd);
-                    }}
-                    disabled={!activeTabId}
-                    className="flex-shrink-0 p-0.5 text-[var(--color-success)] hover:bg-[var(--surface-hover)] rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="发送到终端"
-                  >
-                    <Send size={14} />
-                  </button>
-                  {usageCounts[cmd.id] > 0 && (
-                    <span className="shrink-0 text-xs text-[var(--text-muted)] tabular-nums opacity-0 group-hover:opacity-100 transition-opacity" title={"已使用 " + String(usageCounts[cmd.id]) + " 次"}>
-                      {usageCounts[cmd.id]}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-
-          {/* Child folders */}
-          {!isCollapsed && hasChildren && (
-            <>{node.children.map(renderNode)}</>
-          )}
-        </div>
-      );
-    },
-    [
-      collapsed,
-      toggleCollapse,
-      showCtx,
-      folderCtx,
-      handleSend,
-      cmdCtx,
-      activeTabId,
-    ],
-  );
+;
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -806,12 +684,14 @@ const renderNode = useCallback(
             </button>
             <div className="w-px h-4 bg-[var(--border-subtle)] mx-0.5" />
             <button
-              onClick={() => {
-                const blob = new Blob([exportAll()], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url; a.download = "meatshell-commands.json"; a.click();
-                URL.revokeObjectURL(url);
+              onClick={async () => {
+                const filePath = await save({
+                  filters: [{ name: "JSON", extensions: ["json"] }],
+                  defaultPath: "meatshell-commands.json",
+                });
+                if (filePath) {
+                  await invoke("write_text_file", { path: filePath, content: exportAll() });
+                }
               }}
               className="flex items-center gap-1 px-3 py-2 text-sm rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
               title="导出全部命令"
@@ -867,7 +747,7 @@ const renderNode = useCallback(
                     {node.commands.map((cmd) => renderCmd(cmd, 16))}
                     {node.children.map((child) => (
                       <div key={child.path}>
-                        <div className="px-4 py-1.5 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider bg-[var(--bg-base)]/30">
+                        <div className="mx-2 mt-1.5 px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] bg-[var(--bg-surface)] rounded-lg border border-[var(--border-subtle)]">
                           {child.name}
                         </div>
                         {child.commands.map((cmd) => renderCmd(cmd, 24))}
@@ -996,7 +876,7 @@ function CommandEditDialog({
         <div className="flex flex-col gap-3 mt-2">
           <div className="flex flex-col gap-1">
             <label className="text-sm text-[var(--text-secondary)]">
-              Icon (emoji)
+              ?? (emoji)
             </label>
             <Input
               value={icon}
@@ -1012,7 +892,7 @@ function CommandEditDialog({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-              placeholder="Friendly name"
+              placeholder="????"
               className="h-8 text-sm"
               autoFocus
             />
@@ -1020,25 +900,25 @@ function CommandEditDialog({
 
           <div className="flex flex-col gap-1">
             <label className="text-sm text-[var(--text-secondary)]">
-              Command
+              ??
             </label>
             <Input
               value={command}
               onChange={(e) => setCommand(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-              placeholder="e.g. docker compose up -d"
+              placeholder="??: docker compose up -d"
               className="h-8 text-sm font-mono"
             />
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-sm text-[var(--text-secondary)]">
-              Description (optional)
+              ??????
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What does this command do?"
+              placeholder="??????"
               rows={2}
               className="w-full rounded-sm border-2 border-transparent bg-[var(--bg-surface)] px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] resize-none transition-[border-color]"
             />
@@ -1046,7 +926,7 @@ function CommandEditDialog({
 
           <div className="flex flex-col gap-1">
             <label className="text-sm text-[var(--text-secondary)]">
-              Category
+              ??
             </label>
             <Input
               value={category}
@@ -1067,7 +947,7 @@ function CommandEditDialog({
 
           <div className="flex justify-end gap-2 mt-1">
             <Button variant="ghost" size="sm" onClick={onClose} className="text-sm h-7">
-              Cancel
+              ??
             </Button>
             <Button
               variant="primary"
@@ -1076,7 +956,7 @@ function CommandEditDialog({
               disabled={!isValid}
               className="text-sm h-7"
             >
-              Save
+              ??
             </Button>
           </div>
         </div>
@@ -1113,7 +993,7 @@ function MoveDialog({
             className="w-full h-8 rounded-sm border-2 border-transparent bg-[var(--bg-surface)] px-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-focus)]"
           >
             <option value="">-- 选择文件夹 --</option>
-            <option value="">Uncategorized</option>
+            <option value="">???</option>
             {folderPaths
               .filter((p) => p && p !== "未分类")
               .map((p) => (
@@ -1124,7 +1004,7 @@ function MoveDialog({
           </select>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={onClose} className="text-sm h-7">
-              Cancel
+              ??
             </Button>
             <Button
               variant="primary"
@@ -1132,7 +1012,7 @@ function MoveDialog({
               onClick={() => onMove(ids, selected)}
               className="text-sm h-7"
             >
-              Move
+              ??
             </Button>
           </div>
         </div>
@@ -1181,7 +1061,7 @@ function NewFolderDialog({
           />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={onClose} className="text-sm h-7">
-              Cancel
+              ??
             </Button>
             <Button
               variant="primary"
@@ -1190,7 +1070,7 @@ function NewFolderDialog({
               disabled={!name.trim()}
               className="text-sm h-7"
             >
-              Create
+              ??
             </Button>
           </div>
         </div>
