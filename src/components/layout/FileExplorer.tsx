@@ -249,7 +249,7 @@ export default function FileExplorer() {
   };
 
   const filterEntries = useMemo(() => {
-    return entries.filter(e => showHidden || !e.is_hidden);
+    return entries.filter(e => showHidden || e.name === ".." || !e.name.startsWith("."));
   }, [entries, showHidden]);
 
   const sortedEntries = useMemo(() => {
