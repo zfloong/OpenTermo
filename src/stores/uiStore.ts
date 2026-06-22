@@ -4,7 +4,6 @@ import { create } from "zustand";
  * Central UI state store.
  *
  * - `sidebarWidth` controls the sidebar's draggable width (0 = collapsed).
- * - `bottomPanelHeight` is the resizable bottom panel height.
  */
 interface UIState {
   isSidebarOpen: boolean;
@@ -14,17 +13,11 @@ interface UIState {
   savedSidebarWidth: number;
   setSidebarWidth: (width: number) => void;
 
-  bottomPanelHeight: number;
-  setBottomPanelHeight: (height: number) => void;
 }
 
 export const MIN_SIDEBAR_WIDTH = 160;
 export const MAX_SIDEBAR_WIDTH = 400;
 const DEFAULT_SIDEBAR_WIDTH = 260;
-
-export const MIN_PANEL_HEIGHT = 100;
-export const MAX_PANEL_HEIGHT = 500;
-const DEFAULT_PANEL_HEIGHT = 200;
 
 export const useUIStore = create<UIState>((set) => ({
   isSidebarOpen: true,
@@ -58,12 +51,4 @@ export const useUIStore = create<UIState>((set) => ({
       };
     }),
 
-  bottomPanelHeight: DEFAULT_PANEL_HEIGHT,
-  setBottomPanelHeight: (height) =>
-    set({
-      bottomPanelHeight: Math.max(
-        MIN_PANEL_HEIGHT,
-        Math.min(MAX_PANEL_HEIGHT, Math.round(height)),
-      ),
-    }),
 }));

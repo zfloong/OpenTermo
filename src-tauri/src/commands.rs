@@ -177,34 +177,9 @@ pub fn get_system_stats(
     sampler: State<'_, std::sync::Mutex<SystemSampler>>,
 ) -> SystemSnapshot {
     sampler.lock().unwrap().sample()
+
 }
 
-#[tauri::command]
-pub fn get_download_dir() -> String {
-    dirs::download_dir()
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_default()
-}
-
-#[tauri::command]
-pub fn reveal_in_explorer(path: String) -> Result<(), String> {
-    Command::new("explorer")
-        .args(["/select,", &path])
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-#[tauri::command]
-pub fn open_in_editor(path: String) -> Result<(), String> {
-    Command::new("cmd")
-        .args(["/c", "start", "", &path])
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-// -- Rclone remote filesystem mount ------------------------------------------
 
 /// Find the first free drive letter from M: through Z:.
 fn find_free_drive(mounts: &HashMap<String, MountInfo>) -> Result<String, String> {

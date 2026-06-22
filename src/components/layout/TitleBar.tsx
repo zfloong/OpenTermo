@@ -1,7 +1,6 @@
 ﻿import { useCallback, useState, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Minus, Square, X, Plus, HardDrive, HardDriveUpload } from "lucide-react";
-import { useWindowDrag } from "@/hooks/useWindowDrag";
 import { useSessionStore } from "@/stores/sessionStore";
 import { rclone_mount, rclone_unmount, rclone_list } from "@/lib/tauriCommands";
 
@@ -10,7 +9,6 @@ interface TitleBarProps {
 }
 
 export default function TitleBar({ onConnect }: TitleBarProps) {
-  const startDrag = useWindowDrag();
   const tabs = useSessionStore((s) => s.tabs);
   const activeTabId = useSessionStore((s) => s.activeTabId);
   const setActiveTab = useSessionStore((s) => s.setActiveTab);
@@ -67,7 +65,6 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
   return (
     <header
       data-tauri-drag-region
-      onMouseDown={startDrag}
       className="flex h-11 items-center bg-[var(--bg-glass)] backdrop-blur-lg border-b border-[var(--border-subtle)] select-none flex-shrink-0"
     >
       {/* Logo + app name */}
@@ -81,7 +78,7 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
       </div>
 
       {/* Tabs — pill style */}
-      <div className="flex items-center flex-1 overflow-hidden h-full gap-1 px-1">
+      <div className="flex items-center flex-1 overflow-hidden h-full gap-1.5 px-1">
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
           return (
@@ -89,15 +86,21 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
               key={tab.id}
               onClick={(e) => { e.stopPropagation(); setActiveTab(tab.id); }}
               onMouseDown={(e) => e.stopPropagation()}
-              className={`no-drag group relative flex items-center gap-1.5 h-8 px-3 text-xs cursor-pointer rounded-md transition-all duration-150
-                ${isActive
-                  ? "bg-[var(--surface-selected)] text-[var(--text-primary)] font-semibold shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
-                }`}
+              className={`no-drag group relative flex items-center gap-1.5 h-8 px-3 text-xs cursor-pointer rounded-md transition-all duration-200 ${
+                tab.status === "connecting"
+                  ? "bg-[var(--color-warning)]/8 border border-[var(--color-warning)]/30 text-[var(--color-warning)]"
+                  : isActive
+                    ? "bg-[var(--surface-selected)] border border-[var(--color-success)] text-[var(--color-success)] font-semibold shadow-[0_0_6px_var(--color-success)]/20"
+                    : "border border-transparent hover:border-[var(--accent-border)]/50 hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] text-[var(--accent)]/70"
+              }`}
             >
-              {/* Active indicator dot */}
-              {isActive && (
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] flex-shrink-0 shadow-[0_0_6px_var(--accent)]" />
+              {/* Status dot */}
+              {tab.status === "connecting" ? (
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-warning)] flex-shrink-0 shadow-[0_0_6px_var(--color-warning)] animate-pulse" />
+              ) : isActive ? (
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] flex-shrink-0 shadow-[0_0_6px_var(--color-success)]" />
+              ) : (
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]/40 flex-shrink-0" />
               )}
               <span className="truncate max-w-[130px]">
                 {tab.session.name || tab.session.host}
@@ -110,7 +113,11 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
                   disconnect(tab.id);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                className="shrink-0 w-4 h-4 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-50 hover:!opacity-100 hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/15 transition-all"
+                className={`shrink-0 w-4 h-4 flex items-center justify-center rounded-full transition-all hover:!opacity-100 hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/15 ${
+                  isActive
+                    ? "opacity-40 hover:opacity-100"
+                    : "opacity-0 group-hover:opacity-50"
+                }`}
               >
                 <X size={10} />
               </button>

@@ -64,6 +64,9 @@ export default function CommandPalette() {
       sendInput(activeTabId, resolved + "\n");
       recordUsage(entry.id);
       setOpen(false);
+      setTimeout(() => {
+        document.querySelector<HTMLElement>('.xterm-helper-textarea')?.focus();
+      }, 50);
     },
     [activeTabId, activeTab, sendInput, recordUsage],
   );

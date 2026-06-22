@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   ChevronDown,
@@ -330,6 +330,9 @@ export default function CommandPanel() {
       await upsert(updated);
       await sendInput(activeTabId, resolved);
       recordUsage(cmd.id);
+      setTimeout(() => {
+        document.querySelector<HTMLElement>('.xterm-helper-textarea')?.focus();
+      }, 50);
     },
     [activeTabId, activeTab, upsert, sendInput, recordUsage],
   );
@@ -545,7 +548,7 @@ export default function CommandPanel() {
       },
       null,
       {
-        label: sortMode === "name" ? "Sort: Name ✓" : "??: ??",
+        label: sortMode === "name" ? "Sort: Name ?" : "??: ??",
         icon: <ArrowDownAZ size={12} />,
         onClick: () => {
           localStorage.setItem("cmd-sort", "name");
@@ -553,7 +556,7 @@ export default function CommandPanel() {
         },
       },
       {
-        label: sortMode === "recent" ? "Sort: Last Used ✓" : "??: ????",
+        label: sortMode === "recent" ? "Sort: Last Used ?" : "??: ????",
         icon: <Clock size={12} />,
         onClick: () => {
           localStorage.setItem("cmd-sort", "recent");
@@ -579,7 +582,7 @@ export default function CommandPanel() {
       const renderCmd = useCallback(
     (cmd: CommandEntry, leftPad: number) => (
       <div key={cmd.id}
-        onDoubleClick={() => handleSend(cmd)}
+        onClick={() => handleSend(cmd)}
         onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
         className={`group flex items-center gap-1.5 pr-2 py-1.5 border-b border-[var(--border-subtle)] last:border-b-0 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer ${
           cmd.pinned ? "border-l-2 border-[var(--accent)]" : ""
@@ -881,7 +884,7 @@ function CommandEditDialog({
             <Input
               value={icon}
               onChange={(e) => setIcon(e.target.value.slice(0, 2))}
-              placeholder="e.g. 🐳"
+              placeholder="e.g. ??"
               className="h-8 text-sm text-center w-14"
             />
           </div>

@@ -4,7 +4,6 @@ import { FitAddon } from "xterm-addon-fit";
 import { SearchAddon } from "xterm-addon-search";
 import "xterm/css/xterm.css";
 import { useSessionStore } from "@/stores/sessionStore";
-import { useUIStore } from "@/stores/uiStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 
 function getTerminalTheme() {
@@ -51,7 +50,6 @@ export default function TerminalView({ tabId }: { tabId: string }) {
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const sendInput = useSessionStore((s) => s.sendInput);
   const onResize = useSessionStore((s) => s.resize);
-  const bottomPanelHeight = useUIStore((s) => s.bottomPanelHeight);
   const theme = useSettingsStore((s) => s.theme);
 
   // ── Search state ──────────────────────────────────────────────────────
@@ -347,19 +345,6 @@ export default function TerminalView({ tabId }: { tabId: string }) {
     };
   }, []);
 
-  // Force-fit when bottom panel height changes (grid row resize)
-  useEffect(() => {
-    const fitAddon = fitAddonRef.current;
-    const term = terminalRef.current;
-    if (!fitAddon || !term) return;
-    const raf = requestAnimationFrame(() => {
-      try {
-        fitAddon.fit();
-        onResize(tabId, term.cols, term.rows);
-      } catch {}
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [bottomPanelHeight, tabId, onResize]);
 
   // ── Search keyboard navigation in history dropdown ───────────────────
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

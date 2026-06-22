@@ -26,6 +26,8 @@ export default function SessionManager() {
   const remove = useSessionStore((s) => s.remove);
   const connect = useSessionStore((s) => s.connect);
   const tabs = useSessionStore((s) => s.tabs);
+  const activeTabId = useSessionStore((s) => s.activeTabId);
+  const setActiveTab = useSessionStore((s) => s.setActiveTab);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<SessionConfig>>({});
@@ -76,6 +78,11 @@ export default function SessionManager() {
   const isConnected = (id: string) =>
     tabs.some((t) => t.session.id === id && t.status === "connected");
 
+  const isActive = (id: string) => {
+    const tab = tabs.find((t) => t.session.id === id);
+    return tab ? tab.id === activeTabId : false;
+  };
+
   const kindIcon = (k: string) => {
     switch (k) {
       case "ssh": return <Terminal size={13} className="text-[var(--accent)]" />;
@@ -86,7 +93,12 @@ export default function SessionManager() {
   };
 
   const handleConnect = (s: SessionConfig) => {
-    connect(`tab-${s.id}-${Date.now()}`, s);
+    const existingTab = tabs.find((t) => t.session.id === s.id);
+    if (existingTab) {
+      setActiveTab(existingTab.id);
+    } else {
+      connect(`tab-${s.id}-${Date.now()}`, s);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -199,7 +211,7 @@ export default function SessionManager() {
 
                 {/* Expanded sessions */}
                 {isExpanded && group.sessions.length > 0 && (
-                  <div className="border-t border-[var(--border-subtle)]">
+                  <div className="border-t border-[var(--border-subtle)] py-1.5 px-1 flex flex-col gap-1">
                     {group.sessions.map((s) => (
                       <div key={s.id}>
                         {editingId === s.id ? (
@@ -222,51 +234,16 @@ export default function SessionManager() {
                             </div>
                           </div>
                         ) : (
-                          <div
-                            className={`flex items-center gap-3 px-4 py-2.5 transition-colors cursor-pointer group/srow ${
-                              isConnected(s.id)
-                                ? "bg-[var(--surface-selected)] hover:bg-[var(--surface-selected)]"
-                                : "hover:bg-[var(--surface-hover)]"
-                            }`}
-                            onClick={() => handleConnect(s)}
-                            onContextMenu={(e) => showCtx(e, sessionCtx(s))}
-                          >
-                            {/* Icon + connected indicator */}
-                            <div className="relative shrink-0">
-                              {kindIcon(s.kind)}
-                              {isConnected(s.id) && (
-                                <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-400 ring-1 ring-[var(--bg-surface)]" />
-                              )}
-                            </div>
-
-                            {/* Name + host */}
-                            <div className="flex-1 min-w-0">
-                              <div className={`text-sm truncate ${isConnected(s.id) ? "text-[var(--accent)] font-medium" : "text-[var(--text-primary)]"}`}>
-                                {s.name || s.host}
-                              </div>
-                              <div className="text-xs text-[var(--text-muted)] truncate mt-0.5">
-                                {s.user && `${s.user}@`}{s.host}{s.port !== 22 && s.port !== 23 ? `:${s.port}` : ""}
-                              </div>
-                            </div>
-
-                            {/* Hover actions */}
-                            <div className="flex items-center gap-0.5 opacity-0 group-hover/srow:opacity-100 transition-opacity">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); startEdit(s); }}
-                                className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-active)] transition-colors"
-                                title="编辑"
-                              >
-                                <Edit3 size={12} />
-                              </button>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
-                                className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 transition-colors"
-                                title="删除"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          </div>
+                          <SessionItemMerged
+                            session={s}
+                            icon={kindIcon(s.kind)}
+                            isConnected={isConnected(s.id)}
+                            isActive={isActive(s.id)}
+                            onConnect={() => handleConnect(s)}
+                            onEdit={() => startEdit(s)}
+                            onDelete={() => handleDelete(s.id)}
+                            onContextMenu={(e: React.MouseEvent) => showCtx(e, sessionCtx(s))}
+                          />
                         )}
                       </div>
                     ))}
@@ -292,3 +269,246 @@ export default function SessionManager() {
     </div>
   );
 }
+
+function SessionItem({
+  session,
+  icon,
+  isConnected,
+  onConnect,
+  onEdit,
+  onDelete,
+  onContextMenu,
+}: {
+  session: SessionConfig;
+  icon: React.ReactNode;
+  isConnected: boolean;
+  onConnect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <div
+      onClick={onConnect}
+      onContextMenu={onContextMenu}
+      className={`group/srow flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${
+        isConnected
+          ? "bg-[var(--surface-selected)] border border-[var(--accent-border)] shadow-sm"
+          : "border border-transparent hover:border-[var(--border-default)] hover:bg-[var(--surface-hover)] hover:shadow-sm hover:scale-[1.015]"
+      }`}
+    >
+      {/* Icon + connected indicator */}
+      <div className="relative shrink-0">
+        {icon}
+        {isConnected && (
+          <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-400 ring-1 ring-[var(--bg-surface)]" />
+        )}
+      </div>
+
+      {/* Name + host */}
+      <div className="flex-1 min-w-0">
+        <div className={`text-sm truncate ${
+          isConnected ? "text-[var(--accent)] font-medium" : "text-[var(--text-primary)]"
+        }`}>
+          {session.name || session.host}
+        </div>
+        <div className="text-xs text-[var(--text-muted)] truncate mt-0.5">
+          {session.user && `${session.user}@`}{session.host}{session.port !== 22 && session.port !== 23 ? `:${session.port}` : ""}
+        </div>
+      </div>
+
+      {/* Hover actions */}
+      <div className="flex items-center gap-0.5 opacity-0 group-hover/srow:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-active)] transition-colors"
+          title="编辑"
+        >
+          <Edit3 size={12} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 transition-colors"
+          title="删除"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ??? SessionItemB ? indented list with left color bar ???????????????????????
+
+function SessionItemB({
+  session,
+  icon,
+  isConnected,
+  onConnect,
+  onEdit,
+  onDelete,
+  onContextMenu,
+}: {
+  session: SessionConfig;
+  icon: React.ReactNode;
+  isConnected: boolean;
+  onConnect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <div
+      onClick={onConnect}
+      onContextMenu={onContextMenu}
+      className={`group/srow relative flex items-center gap-3 pl-4 pr-3 py-2 cursor-pointer transition-all duration-200 ${
+        isConnected
+          ? "bg-[var(--surface-selected)]"
+          : "hover:bg-[var(--surface-hover)] hover:pl-5"
+      }`}
+    >
+      {/* Left color bar */}
+      <span
+        className={`absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full transition-all duration-300 ${
+          isConnected
+            ? "bg-[var(--color-success)] opacity-100"
+            : "bg-[var(--border-subtle)] opacity-0 group-hover/srow:opacity-100"
+        }`}
+      />
+
+      {/* Icon + connected indicator */}
+      <div className="relative shrink-0">
+        {icon}
+        {isConnected && (
+          <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-400 ring-1 ring-[var(--bg-surface)]" />
+        )}
+      </div>
+
+      {/* Name + host */}
+      <div className="flex-1 min-w-0">
+        <div className={`text-sm truncate transition-colors duration-200 ${
+          isConnected ? "text-[var(--accent)] font-medium" : "text-[var(--text-primary)]"
+        }`}>
+          {session.name || session.host}
+        </div>
+        <div className="text-xs text-[var(--text-muted)] truncate mt-0.5">
+          {session.user && `${session.user}@`}{session.host}{session.port !== 22 && session.port !== 23 ? `:${session.port}` : ""}
+        </div>
+      </div>
+
+      {/* Hover actions */}
+      <div className="flex items-center gap-0.5 opacity-0 group-hover/srow:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-active)] transition-colors"
+          title="编辑"
+        >
+          <Edit3 size={12} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 transition-colors"
+          title="删除"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+
+// ??? SessionItemMerged ? card + left bar + active highlight ?????????????????
+
+function SessionItemMerged({
+  session,
+  icon,
+  isConnected,
+  isActive,
+  onConnect,
+  onEdit,
+  onDelete,
+  onContextMenu,
+}: {
+  session: SessionConfig;
+  icon: React.ReactNode;
+  isConnected: boolean;
+  isActive: boolean;
+  onConnect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <div
+      onClick={onConnect}
+      onContextMenu={onContextMenu}
+      className={`group/srow relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${
+        isActive
+          ? "bg-[var(--surface-selected)] border border-[var(--color-success)] shadow-[0_0_8px_var(--color-success)]/20"
+          : isConnected
+            ? "bg-[var(--surface-selected)]/60 border border-[var(--accent-border)]"
+            : "border border-transparent hover:border-[var(--border-default)] hover:bg-[var(--surface-hover)] hover:shadow-sm"
+      }`}
+    >
+      {/* Left color bar */}
+      <span
+        className={`absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full transition-all duration-300 ${
+          isActive
+            ? "bg-[var(--color-success)] opacity-100"
+            : isConnected
+              ? "bg-[var(--accent)] opacity-60"
+              : "bg-[var(--border-subtle)] opacity-0 group-hover/srow:opacity-100"
+        }`}
+      />
+
+      {/* Icon + connected indicator */}
+      <div className="relative shrink-0 ml-0.5">
+        {icon}
+        {(isConnected || isActive) && (
+          <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-[var(--bg-surface)] transition-all ${
+            isActive ? "bg-[var(--color-success)] shadow-[0_0_4px_var(--color-success)]" : "bg-[var(--accent)]"
+          }`} />
+        )}
+      </div>
+
+      {/* Name + host */}
+      <div className="flex-1 min-w-0">
+        <div className={`text-sm truncate transition-colors duration-200 ${
+          isActive
+            ? "text-[var(--color-success)] font-semibold"
+            : isConnected
+              ? "text-[var(--accent)]/80 font-medium"
+              : "text-[var(--text-primary)]"
+        }`}>
+          {session.name || session.host}
+        </div>
+        <div className="text-xs text-[var(--text-muted)] truncate mt-0.5">
+          {session.user && `${session.user}@`}{session.host}{session.port !== 22 && session.port !== 23 ? `:${session.port}` : ""}
+        </div>
+      </div>
+
+      {/* Hover actions */}
+      <div className="flex items-center gap-0.5 opacity-0 group-hover/srow:opacity-100 transition-opacity">
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-active)] transition-colors"
+          title="编辑"
+        >
+          <Edit3 size={12} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 transition-colors"
+          title="删除"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
+

@@ -155,19 +155,6 @@ export async function reorderCommands(ids: string[]): Promise<void> {
 export async function reorderSessions(ids: string[]): Promise<void> {
   return invoke("reorder_sessions", { ids });
 }
-
-
-export async function getDownloadDir(): Promise<string> {
-  return invoke<string>("get_download_dir");
-}
-
-export async function revealInExplorer(path: string): Promise<void> {
-  return invoke("reveal_in_explorer", { path });
-}
-
-export async function openInEditor(path: string): Promise<void> {
-  return invoke("open_in_editor", { path });
-}
 // 鈹€鈹€ SSHFS remote filesystem 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 export async function rclone_mount(tabId: string): Promise<string> {
