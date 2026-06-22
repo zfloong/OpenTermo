@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import { SearchAddon } from "xterm-addon-search";
@@ -325,6 +325,10 @@ export default function TerminalView({ tabId }: { tabId: string }) {
 
           try {
             fitAddon.fit();
+            // Leave 2 rows of breathing room at bottom
+            if (term.rows > 2) {
+              term.resize(term.cols, term.rows - 2);
+            }
             onResize(tabId, term.cols, term.rows);
           } catch {
             // Terminal may not be ready yet

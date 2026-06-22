@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   ChevronDown,
@@ -11,6 +11,7 @@ import {
   Copy,
   Pin,
   PinOff,
+  Star,
   Trash2,
   FolderPlus,
   ClipboardPaste,
@@ -92,6 +93,10 @@ export default function CommandPanel() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+
+  // Click-delay discrimination: single-click = send, double-click = send+execute
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingCmdRef = useRef<CommandEntry | null>(null);
 
   useEffect(() => {
     load();
@@ -335,6 +340,44 @@ export default function CommandPanel() {
       }, 50);
     },
     [activeTabId, activeTab, upsert, sendInput, recordUsage],
+  );
+
+  const handleExecute = useCallback(
+    async (cmd: CommandEntry) => {
+      if (!activeTabId) return;
+      const resolved = resolveCommandTemplate(cmd.command, activeTab?.session ?? null);
+      const updated = { ...cmd, last_used: new Date().toISOString() };
+      await upsert(updated);
+      // Send command + Enter to execute immediately
+      await sendInput(activeTabId, resolved + "\r");
+      recordUsage(cmd.id);
+      setTimeout(() => {
+        document.querySelector<HTMLElement>('.xterm-helper-textarea')?.focus();
+      }, 50);
+    },
+    [activeTabId, activeTab, upsert, sendInput, recordUsage],
+  );
+
+  const handleCmdClick = useCallback(
+    (cmd: CommandEntry) => {
+      if (clickTimerRef.current) {
+        // Second click within 300ms -> double-click: execute immediately
+        clearTimeout(clickTimerRef.current);
+        clickTimerRef.current = null;
+        pendingCmdRef.current = null;
+        handleExecute(cmd);
+      } else {
+        // First click -> wait 300ms for possible second click
+        pendingCmdRef.current = cmd;
+        clickTimerRef.current = setTimeout(() => {
+          clickTimerRef.current = null;
+          const pending = pendingCmdRef.current;
+          pendingCmdRef.current = null;
+          if (pending) handleSend(pending);
+        }, 300);
+      }
+    },
+    [activeTabId, activeTab, handleSend, handleExecute],
   );
 
   const handleTogglePin = useCallback(
@@ -582,61 +625,48 @@ export default function CommandPanel() {
       const renderCmd = useCallback(
     (cmd: CommandEntry, leftPad: number) => (
       <div key={cmd.id}
-        onClick={() => handleSend(cmd)}
+        onClick={() => handleCmdClick(cmd)}
         onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
-        className={`group flex items-center gap-1.5 pr-2 py-1.5 border-b border-[var(--border-subtle)] last:border-b-0 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer ${
-          cmd.pinned ? "border-l-2 border-[var(--accent)]" : ""
+        className={`group flex items-center gap-2 pr-3 py-1.5 hover:bg-[var(--surface-hover)]/50 transition-colors cursor-pointer ${
+          cmd.pinned ? "bg-[var(--color-warning)]/[0.04]" : ""
         }`}
         style={{ paddingLeft: leftPad }}
       >
-        {/* Select checkbox */}
+        {/* Checkbox */}
         <button
           onClick={(e2) => { e2.stopPropagation(); toggleSelect(cmd.id); }}
-          className={`shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded transition-opacity ${
-            selectedIds.has(cmd.id) ? "opacity-100 text-[var(--accent)]" : "opacity-0 group-hover:opacity-50 text-[var(--text-muted)]"
+          className={`shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded-[3px] border transition-all ${
+            selectedIds.has(cmd.id)
+              ? "bg-[var(--accent)] border-[var(--accent)] text-white"
+              : "border-[var(--border-default)] hover:border-[var(--border-strong)]"
           }`}
         >
-          {selectedIds.has(cmd.id) ? <CheckSquare size={15} /> : <Square size={15} />}
+          {selectedIds.has(cmd.id) && (
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20,6 9,17 4,12" />
+            </svg>
+          )}
         </button>
 
-        {/* ?? (emoji) */}
+        {/* Icon */}
         {cmd.icon && (
           <span className="shrink-0 w-4 text-center text-xs leading-none">{cmd.icon}</span>
         )}
 
-        {/* Name + sub info */}
-        <div className="flex-1 min-w-0">
-          <div className="text-sm text-[var(--text-primary)] truncate">
-            {cmd.label || cmd.command}
-          </div>
-          {(cmd.label && cmd.label !== cmd.command) && (
-            <div className="text-[11px] text-[var(--text-muted)] truncate font-mono opacity-0 group-hover:opacity-50 transition-opacity leading-tight">
-              {cmd.command}
-            </div>
-          )}
-        </div>
+        {/* Label */}
+        <span className="flex-1 text-[12px] text-[var(--text-primary)] truncate">{cmd.label || cmd.command}</span>
 
-        {/* Right side: usage + send */}
-        <div className="flex items-center gap-1 shrink-0">
-          {usageCounts[cmd.id] > 0 && (
-            <span className="text-xs text-[var(--text-muted)] tabular-nums opacity-0 group-hover:opacity-100 transition-opacity">
-              {usageCounts[cmd.id]}x
-            </span>
-          )}
-          <button
-            onClick={(e) => { e.stopPropagation(); handleSend(cmd); }}
-            disabled={!activeTabId}
-            className="p-1.5 rounded-md text-[var(--color-success)] hover:bg-[var(--color-success)]/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            title="发送到终端"
-          >
-            <Send size={14} />
-          </button>
-        </div>
+        {/* Pinned star */}
+        {cmd.pinned && <Star size={10} className="text-[var(--color-warning)] shrink-0" />}
+
+        {/* Usage count */}
+        {usageCounts[cmd.id] > 0 && (
+          <span className="text-[10px] text-[var(--text-muted)]/40 tabular-nums shrink-0">{usageCounts[cmd.id]}x</span>
+        )}
       </div>
     ),
     [activeTabId, selectedIds, usageCounts, handleSend, toggleSelect, showCtx, cmdCtx]
   );
-;
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -733,27 +763,32 @@ export default function CommandPanel() {
           tree.map((node) => {
             const isExpanded = expandedCards.has(node.path);
             return (
-              <div key={node.path} className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]/50">
+              <div key={node.path} className="mb-2">
                 <button
                   onClick={() => setExpandedCards((prev) => { const n = new Set(prev); if (n.has(node.path)) n.delete(node.path); else n.add(node.path); return n; })}
                   onContextMenu={(e) => showCtx(e, folderCtx(node))}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--surface-hover)] transition-colors "
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors border border-[var(--border-subtle)] bg-[var(--bg-surface)] ${
+                    isExpanded ? "rounded-t-lg" : "rounded-lg"
+                  } hover:bg-[var(--surface-hover)]/50`}
                 >
-                  <ChevronDown size={16} className={`shrink-0 text-[var(--text-muted)] transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
-                  <span className="text-sm font-semibold text-[var(--text-primary)] flex-1">{node.name}</span>
-                  <span className="text-xs tabular-nums text-[var(--text-muted)] bg-[var(--bg-elevated)] px-2 py-0.5 rounded-full">
-                    {node.commands.length + node.children.reduce((acc, c) => acc + c.commands.length, 0)}
-                  </span>
+                  <ChevronDown size={14} className={`shrink-0 text-[var(--text-muted)] transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
+                  {isExpanded
+                    ? <FolderOpen size={15} className="shrink-0 text-[var(--color-warning)]" />
+                    : <FolderClosed size={15} className="shrink-0 text-[var(--color-warning)]" />
+                  }
+                  <span className="text-sm font-medium text-[var(--text-primary)]">{node.name}</span>
+                  <span className="text-[10px] tabular-nums text-[var(--text-muted)]/50 ml-auto bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded-full">{node.commands.length + node.children.reduce((acc, c) => acc + c.commands.length, 0)}</span>
                 </button>
                 {isExpanded && (
-                  <div className="border-t border-[var(--border-subtle)]">
-                    {node.commands.map((cmd) => renderCmd(cmd, 16))}
+                  <div className="border-l border-r border-b border-[var(--border-subtle)] rounded-b-lg overflow-hidden">
+                    {node.commands.map((cmd) => renderCmd(cmd, 24))}
                     {node.children.map((child) => (
                       <div key={child.path}>
-                        <div className="mx-2 mt-1.5 px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] bg-[var(--bg-surface)] rounded-lg border border-[var(--border-subtle)]">
+                        <div className="pl-8 pr-3 py-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-muted)]/60">
+                          <FolderClosed size={11} className="shrink-0 text-[var(--color-warning)]/60" />
                           {child.name}
                         </div>
-                        {child.commands.map((cmd) => renderCmd(cmd, 24))}
+                        {child.commands.map((cmd) => renderCmd(cmd, 44))}
                       </div>
                     ))}
                   </div>
@@ -841,6 +876,7 @@ function CommandEditDialog({
   const [category, setCategory] = useState("");
   const [icon, setIcon] = useState("");
   const [description, setDescription] = useState("");
+  const [pinned, setPinned] = useState(false);
 
   useEffect(() => {
     if (entry) {
@@ -849,6 +885,7 @@ function CommandEditDialog({
       setCategory(entry.category);
       setIcon(entry.icon ?? "");
       setDescription(entry.description ?? "");
+      setPinned(entry.pinned);
     }
   }, [entry?.id]);
 
@@ -864,112 +901,53 @@ function CommandEditDialog({
       category: category.trim(),
       icon: icon.trim() || null,
       description: description.trim() || null,
+      pinned,
     });
   };
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm p-5">
         <DialogHeader>
           <DialogTitle>
             {isNew ? "新建命令" : "编辑命令"}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3 mt-2">
+        <div className="flex flex-col gap-3 mt-3">
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-[var(--text-secondary)]">
-              ?? (emoji)
-            </label>
-            <Input
-              value={icon}
-              onChange={(e) => setIcon(e.target.value.slice(0, 2))}
-              placeholder="e.g. ??"
-              className="h-8 text-sm text-center w-14"
-            />
+            <label className="text-sm text-[var(--text-secondary)]">图标</label>
+            <Input value={icon} onChange={(e) => setIcon(e.target.value.slice(0, 2))} placeholder="e.g. :)" className="h-8 text-sm text-center w-14" />
           </div>
-
           <div className="flex flex-col gap-1">
             <label className="text-sm text-[var(--text-secondary)]">标签</label>
-            <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-              placeholder="????"
-              className="h-8 text-sm"
-              autoFocus
-            />
+            <Input value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }} placeholder="显示名称" className="h-8 text-sm" autoFocus />
           </div>
-
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-[var(--text-secondary)]">
-              ??
-            </label>
-            <Input
-              value={command}
-              onChange={(e) => setCommand(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-              placeholder="??: docker compose up -d"
-              className="h-8 text-sm font-mono"
-            />
+            <label className="text-sm text-[var(--text-secondary)]">命令</label>
+            <Input value={command} onChange={(e) => setCommand(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }} placeholder="例如: docker compose up -d" className="h-8 text-sm font-mono" />
           </div>
-
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-[var(--text-secondary)]">
-              ??????
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="??????"
-              rows={2}
-              className="w-full rounded-sm border-2 border-transparent bg-[var(--bg-surface)] px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] resize-none transition-[border-color]"
-            />
+            <label className="text-sm text-[var(--text-secondary)]">描述</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="可选描述" rows={2} className="w-full rounded-sm border-2 border-transparent bg-[var(--bg-surface)] px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] resize-none transition-[border-color]" />
           </div>
-
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-[var(--text-secondary)]">
-              ??
-            </label>
-            <Input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
-              placeholder="文件夹/子文件夹（如 数据库/MySQL）"
-              className="h-8 text-sm"
-              list="cmd-categories"
-            />
-            <datalist id="cmd-categories">
-              {folderPaths
-                .filter((c) => c !== "未分类")
-                .map((c) => (
-                  <option key={c} value={c} />
-                ))}
-            </datalist>
+            <label className="text-sm text-[var(--text-secondary)]">分类</label>
+            <Input value={category} onChange={(e) => setCategory(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }} placeholder="文件夹/子文件夹（如 数据库/MySQL）" className="h-8 text-sm" list="cmd-categories" />
+            <datalist id="cmd-categories">{folderPaths.filter((c) => c !== "未分类").map((c) => (<option key={c} value={c} />))}</datalist>
           </div>
-
+          <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer">
+            <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} className="rounded accent-[var(--accent)]" />固定到顶部
+          </label>
           <div className="flex justify-end gap-2 mt-1">
-            <Button variant="ghost" size="sm" onClick={onClose} className="text-sm h-7">
-              ??
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleSave}
-              disabled={!isValid}
-              className="text-sm h-7"
-            >
-              ??
-            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose} className="text-sm h-7">取消</Button>
+            <Button variant="primary" size="sm" onClick={handleSave} disabled={!isValid} className="text-sm h-7">保存</Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
-
-// ── Move dialog ────────────────────────────────────────────────────────────
-
 function MoveDialog({
   ids,
   folderPaths,
@@ -985,7 +963,7 @@ function MoveDialog({
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-xs">
+      <DialogContent className="max-w-xs p-4">
         <DialogHeader>
           <DialogTitle>移动到文件夹</DialogTitle>
         </DialogHeader>
@@ -1044,7 +1022,7 @@ function NewFolderDialog({
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-xs">
+      <DialogContent className="max-w-xs p-4">
         <DialogHeader>
           <DialogTitle>新建文件夹</DialogTitle>
         </DialogHeader>
