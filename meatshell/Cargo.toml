@@ -2,10 +2,10 @@
 name = "meatshell"
 version = "0.4.12"
 edition = "2021"
-authors = ["meatshell contributors"]
+authors = ["一坨肉 (jeff141) and meatshell contributors"]
 description = "A lightweight SSH/terminal client backend library written in Rust"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/zfloong/meatshell-app"
+repository = "https://github.com/jeff141/meatshell"
 readme = "README.md"
 rust-version = "1.75"
 
