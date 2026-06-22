@@ -32,11 +32,6 @@ export interface ActiveTab {
   remoteStats: RemoteStats | null;
 }
 
-interface SftpStats {
-  folders: number;
-  files: number;
-  selected: number;
-}
 
 interface SessionState {
   /** Saved sessions (loaded from config store). */
@@ -54,10 +49,13 @@ interface SessionState {
   /** Last connection error message (auto-clears). */
   lastError: string | null;
   /** File explorer stats for status bar. */
-  sftpStats: SftpStats | null;
 
   // Actions
   loadSessions: () => Promise<void>;
+  /** Set a persistent error message (for mount errors etc). Call clearError to dismiss. */
+  setError: (msg: string) => void;
+  /** Copy the current error to clipboard. */
+  copyError: () => void;
   save: (session: SessionConfig) => Promise<void>;
   remove: (id: string) => Promise<void>;
   reorder: (ids: string[]) => void;
@@ -66,7 +64,6 @@ interface SessionState {
   sendInput: (tabId: string, data: string) => Promise<void>;
   resize: (tabId: string, cols: number, rows: number) => Promise<void>;
   setActiveTab: (tabId: string) => void;
-  setSftpStats: (stats: SftpStats | null) => void;
   clearError: () => void;
 
   // Dialog controls
@@ -90,10 +87,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   hostKeyPrompt: null,
   credentialPrompt: null,
   lastError: null,
-  sftpStats: null,
   _unlisteners: new Map(),
 
   // ── Session CRUD ───────────────────────────────────────────────────────
+
+  setError(msg: string) {
+    set({ lastError: msg });
+  },
+
+  copyError() {
+    const err = get().lastError;
+    if (err) {
+      navigator.clipboard.writeText(err).catch(console.error);
+    }
+  },
 
   async loadSessions() {
     const sessions = await listSessions();
@@ -175,10 +182,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   setActiveTab(tabId) {
     set({ activeTabId: tabId });
-  },
-
-  setSftpStats(stats) {
-    set({ sftpStats: stats });
   },
 
   clearError() {

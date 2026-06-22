@@ -14,7 +14,6 @@ pub mod i18n;
 pub mod known_hosts;
 pub mod proxy;
 pub mod serial;
-pub mod sftp;
 pub mod ssh;
 pub mod system;
 pub mod telnet;

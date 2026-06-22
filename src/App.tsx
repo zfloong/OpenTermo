@@ -2,7 +2,6 @@
 import TitleBar from "@/components/layout/TitleBar";
 import Sidebar from "@/components/layout/Sidebar";
 import TerminalView from "@/components/layout/TerminalView";
-import ResizablePanel from "@/components/layout/ResizablePanel";
 import StatusBar from "@/components/layout/StatusBar";
 import ConnectDialog from "@/components/ConnectDialog";
 import HostKeyDialog from "@/components/HostKeyDialog";
@@ -12,6 +11,7 @@ import { useSessionStore } from "@/stores/sessionStore";
 
 export default function App() {
   const activeTabId = useSessionStore((s) => s.activeTabId);
+  const tabs = useSessionStore((s) => s.tabs);
   const sessions = useSessionStore((s) => s.sessions);
   const connectDialogOpen = useSessionStore((s) => s.connectDialogOpen);
   const hostKeyPrompt = useSessionStore((s) => s.hostKeyPrompt);
@@ -41,11 +41,19 @@ export default function App() {
 
         <div className="flex flex-col flex-1 overflow-hidden">
           <main className="flex-1 bg-[var(--bg-base)] overflow-hidden relative">
-            {activeTabId ? (
-              <TerminalView key={activeTabId} tabId={activeTabId} />
+            {tabs.length > 0 ? (
+              tabs.map((tab) => (
+                <div
+                  key={tab.id}
+                  className="absolute inset-0"
+                  style={{ display: tab.id === activeTabId ? "flex" : "none" }}
+                >
+                  <TerminalView tabId={tab.id} />
+                </div>
+              ))
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-3">
-                <span className="text-2xl opacity-20">⌨</span>
+                <span className="text-2xl opacity-20">{'\u2328'}</span>
                 <span className="text-sm text-[var(--text-muted)] select-none">
                   按 <kbd className="px-1.5 py-0.5 text-[11px] bg-[var(--surface-hover)] rounded font-mono">Ctrl+K</kbd> 搜索命令
                 </span>
@@ -53,13 +61,11 @@ export default function App() {
             )}
           </main>
 
-          <ResizablePanel />
         </div>
       </div>
 
       <StatusBar />
 
-      {/* Dialogs */}
       {connectDialogOpen && (
         <ConnectDialog
           sessions={sessions}
@@ -78,7 +84,6 @@ export default function App() {
         <CredentialDialog prompt={credentialPrompt} onClose={dismissCredential} />
       )}
 
-      {/* Global command palette */}
       <CommandPalette />
     </div>
   );

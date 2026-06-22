@@ -1,8 +1,9 @@
-﻿import { useCallback } from "react";
+﻿import { useCallback, useState, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Minus, Square, X, Plus } from "lucide-react";
+import { Minus, Square, X, Plus, HardDrive, HardDriveUpload } from "lucide-react";
 import { useWindowDrag } from "@/hooks/useWindowDrag";
 import { useSessionStore } from "@/stores/sessionStore";
+import { rclone_mount, rclone_unmount, rclone_list } from "@/lib/tauriCommands";
 
 interface TitleBarProps {
   onConnect: () => void;
@@ -14,10 +15,54 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
   const activeTabId = useSessionStore((s) => s.activeTabId);
   const setActiveTab = useSessionStore((s) => s.setActiveTab);
   const disconnect = useSessionStore((s) => s.disconnect);
+  const setError = useSessionStore((s) => s.setError);
+  const clearError = useSessionStore((s) => s.clearError);
+  // tabId -> drive letter (e.g. "M:")
+  const [mounts, setMounts] = useState<Record<string, string>>({});
+
+  // Poll mounts from backend
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const list = await rclone_list();
+        const map: Record<string, string> = {};
+        for (const m of list) map[m.tabId] = m.drive;
+        setMounts(map);
+      } catch {}
+    };
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const isSSH = activeTab?.session?.kind === "ssh" && activeTab?.status === "connected";
 
   const minimize = useCallback(() => getCurrentWindow().minimize(), []);
   const toggleMaximize = useCallback(() => getCurrentWindow().toggleMaximize(), []);
   const close = useCallback(() => getCurrentWindow().close(), []);
+
+  const currentDrive = activeTabId ? mounts[activeTabId] : null;
+
+  const handleMount = useCallback(async () => {
+    if (!activeTabId) return;
+    clearError();
+    try {
+      await rclone_mount(activeTabId);
+    } catch (e: any) {
+      setError("[SSHFS 挂载] " + (e?.toString?.() || String(e)));
+    }
+  }, [activeTabId, clearError, setError]);
+
+  const handleUnmount = useCallback(async () => {
+    if (!activeTabId) return;
+    clearError();
+    try {
+      await rclone_unmount(activeTabId);
+    } catch (e: any) {
+      setError("[SSHFS 卸载] " + (e?.toString?.() || String(e)));
+    }
+  }, [activeTabId, clearError, setError]);
 
   return (
     <header
@@ -83,6 +128,32 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
           <span className="hidden sm:inline font-semibold">连接</span>
         </button>
       </div>
+
+      {/* SSHFS mount button — per session */}
+      {isSSH && (
+        <div className="no-drag flex items-center flex-shrink-0 ml-2">
+          {currentDrive ? (
+            <button
+              onClick={handleUnmount}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="flex items-center gap-1.5 px-2.5 h-8 text-xs text-[var(--color-success)] hover:bg-[var(--color-success)]/10 rounded-md transition-all"
+            >
+              <HardDriveUpload size={14} />
+              <span className="hidden sm:inline">卸载 {currentDrive}</span>
+              <span className="sm:hidden">{currentDrive}</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleMount}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="flex items-center gap-1.5 px-2.5 h-8 text-xs text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-dim)] rounded-md transition-all"
+            >
+              <HardDrive size={14} />
+              <span className="hidden sm:inline">挂载</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Window controls */}
       <div className="no-drag flex h-full flex-shrink-0 ml-1">

@@ -1,7 +1,7 @@
-//! Typed wrappers around Tauri IPC invoke().
+﻿//! Typed wrappers around Tauri IPC invoke().
 import { invoke } from "@tauri-apps/api/core";
 
-// ── Types matching meatshell::config::Session ─────────────────────────────
+// 鈹€鈹€ Types matching meatshell::config::Session 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 /** Rust uses `#[serde(rename_all = "lowercase")]` so these are lowercase. */
 type AuthMethod = "password" | "key";
@@ -23,7 +23,7 @@ export interface SessionConfig {
   kind: SessionKind;
 }
 
-// ── Types matching meatshell::system::SystemSnapshot ──────────────────────
+// 鈹€鈹€ Types matching meatshell::system::SystemSnapshot 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 export interface SystemSnapshot {
   cpuPercent: number;
@@ -38,7 +38,7 @@ export interface SystemSnapshot {
   netTxPerSec: number;
 }
 
-// ── Command snippets ─────────────────────────────────────────────────────
+// 鈹€鈹€ Command snippets 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 export interface CommandEntry {
   id: string;
@@ -52,7 +52,7 @@ export interface CommandEntry {
   order?: number | null;
 }
 
-// ── Prompt event payloads ─────────────────────────────────────────────────
+// 鈹€鈹€ Prompt event payloads 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 export interface HostKeyPromptPayload {
   tab_id: string;
@@ -74,7 +74,7 @@ export interface CredentialPromptPayload {
   need_password: boolean;
 }
 
-// ── Command wrappers ──────────────────────────────────────────────────────
+// 鈹€鈹€ Command wrappers 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 export async function listSessions(): Promise<SessionConfig[]> {
   return invoke<SessionConfig[]>("list_sessions");
@@ -156,60 +156,6 @@ export async function reorderSessions(ids: string[]): Promise<void> {
   return invoke("reorder_sessions", { ids });
 }
 
-// ── SFTP ──────────────────────────────────────────────────────────────────
-
-/** Matches meatshell::ssh::RemoteEntry (serde camelCase on Rust side → snake_case in JSON). */
-export interface RemoteEntry {
-  name: string;
-  full_path: string;
-  is_dir: boolean;
-  size: number;
-  modified: number;
-  mode: number;
-}
-
-export interface SftpEntriesPayload {
-  path: string;
-  entries: RemoteEntry[];
-}
-
-export interface SftpTransferPayload {
-  id: string;
-  name: string;
-  is_upload: boolean;
-  transferred: number;
-  total: number;
-  state: number; // 0=active, 1=done, 2=error
-  msg: string;
-}
-
-export async function sftpSpawn(tabId: string, session: SessionConfig): Promise<void> {
-  return invoke("sftp_spawn", { tabId, session });
-}
-
-export async function sftpListDir(tabId: string, path: string): Promise<void> {
-  return invoke("sftp_list_dir", { tabId, path });
-}
-
-export async function sftpDownload(tabId: string, remote: string, localDir: string): Promise<void> {
-  return invoke("sftp_download", { tabId, remote, localDir });
-}
-
-export async function sftpUpload(tabId: string, local: string, remoteDir: string): Promise<void> {
-  return invoke("sftp_upload", { tabId, local, remoteDir });
-}
-
-export async function sftpMkdir(tabId: string, path: string): Promise<void> {
-  return invoke("sftp_mkdir", { tabId, path });
-}
-
-export async function sftpDelete(tabId: string, path: string): Promise<void> {
-  return invoke("sftp_delete", { tabId, path });
-}
-
-export async function sftpRename(tabId: string, from: string, to: string): Promise<void> {
-  return invoke("sftp_rename", { tabId, from, to });
-}
 
 export async function getDownloadDir(): Promise<string> {
   return invoke<string>("get_download_dir");
@@ -222,44 +168,17 @@ export async function revealInExplorer(path: string): Promise<void> {
 export async function openInEditor(path: string): Promise<void> {
   return invoke("open_in_editor", { path });
 }
+// 鈹€鈹€ SSHFS remote filesystem 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
-// ── Port forwarding ───────────────────────────────────────────────────────
-
-export interface PortForwardConfig {
-  kind: string;   // "local" | "remote" | "dynamic"
-  name: string;
-  bind_addr: string;
-  bind_port: number;
-  host: string;
-  host_port: number;
+export async function rclone_mount(tabId: string): Promise<string> {
+  return invoke<string>("rclone_mount", { tabId });
 }
 
-export interface PortForwardInfo {
-  id: string;
-  kind: string;
-  name: string;
-  bind_addr: string;
-  bind_port: number;
-  host: string;
-  host_port: number;
+
+export async function rclone_list(): Promise<{ tabId: string; drive: string }[]> {
+  return invoke<{ tabId: string; drive: string }[]>("rclone_list");
+}
+export async function rclone_unmount(tabId: string): Promise<string> {
+  return invoke<string>("rclone_unmount", { tabId });
 }
 
-export async function portForwardStart(
-  tabId: string,
-  forward: PortForwardConfig,
-): Promise<PortForwardInfo> {
-  return invoke<PortForwardInfo>("port_forward_start", { tabId, forward });
-}
-
-export async function portForwardStop(
-  tabId: string,
-  forwardId: string,
-): Promise<void> {
-  return invoke("port_forward_stop", { tabId, forwardId });
-}
-
-export async function portForwardList(
-  tabId: string,
-): Promise<PortForwardInfo[]> {
-  return invoke<PortForwardInfo[]>("port_forward_list", { tabId });
-}
