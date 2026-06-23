@@ -14,7 +14,6 @@ export default function App() {
   const tabs = useSessionStore((s) => s.tabs);
   const sessions = useSessionStore((s) => s.sessions);
   const connectDialogOpen = useSessionStore((s) => s.connectDialogOpen);
-  const editingSession = useSessionStore((s) => s.editingSession);
   const hostKeyPrompt = useSessionStore((s) => s.hostKeyPrompt);
   const credentialPrompt = useSessionStore((s) => s.credentialPrompt);
 
@@ -67,7 +66,6 @@ export default function App() {
       {connectDialogOpen && (
         <ConnectDialog
           sessions={sessions}
-          editSession={editingSession}
           onClose={closeConnect}
           onConnect={(s) => connect(s.id, s)}
           onSave={save}

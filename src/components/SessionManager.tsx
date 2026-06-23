@@ -3,7 +3,7 @@ import {
   Trash2, Edit3, Monitor, Cable, Terminal,
   ChevronDown, ChevronRight, Plus
 } from "lucide-react";
-import { useSessionStore } from "@/stores/sessionStore";
+import { useSessionStore, openConnectForEdit } from "@/stores/sessionStore";
 import type { SessionConfig } from "@/lib/tauriCommands";
 import ContextMenu, { type ContextMenuItem } from "@/components/ui/context-menu";
 
@@ -101,7 +101,7 @@ export default function SessionManager() {
     loadSessions();
   };
   const startEdit = (s: SessionConfig) => {
-    openConnectDialog(s);
+    openConnectForEdit(s);
   };
 
 

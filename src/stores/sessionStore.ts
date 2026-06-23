@@ -42,8 +42,6 @@ interface SessionState {
   activeTabId: string | null;
   /** Whether the connect dialog is open. */
   connectDialogOpen: boolean;
-  /** Session being edited (null = creating new). */
-  editingSession: SessionConfig | null;
   /** Pending host-key confirmation prompt. */
   hostKeyPrompt: HostKeyPromptPayload | null;
   /** Pending credential prompt. */
@@ -72,7 +70,7 @@ interface SessionState {
   triggerScroll: (tabId: string) => void;
 
   // Dialog controls
-  openConnectDialog: (editSession?: SessionConfig | null) => void;
+  openConnectDialog: () => void;
   closeConnectDialog: () => void;
   dismissHostKey: () => void;
   dismissCredential: () => void;
@@ -89,7 +87,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   tabs: [],
   activeTabId: null,
   connectDialogOpen: false,
-  editingSession: null,
   hostKeyPrompt: null,
   credentialPrompt: null,
   lastError: null,
@@ -201,8 +198,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // ── Dialog controls ────────────────────────────────────────────────────
 
-  openConnectDialog: (editSession = null) => set({ connectDialogOpen: true, editingSession: editSession ?? null }),
-  closeConnectDialog: () => set({ connectDialogOpen: false, editingSession: null }),
+  openConnectDialog: () => set({ connectDialogOpen: true }),
+  closeConnectDialog: () => set({ connectDialogOpen: false }),
   dismissHostKey: () => set({ hostKeyPrompt: null }),
   dismissCredential: () => set({ credentialPrompt: null }),
 
@@ -309,3 +306,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     ul.set("global-credential", unlistenCredential);
   },
 }));
+
+// ── Module-level helpers for ConnectDialog edit mode ──────────────────
+// Avoids Zustand state complexity that can cause dialog rendering issues.
+
+let _pendingEdit: SessionConfig | null = null;
+
+export function openConnectForEdit(session: SessionConfig) {
+  _pendingEdit = session;
+  useSessionStore.getState().openConnectDialog();
+}
+
+export function consumePendingEdit(): SessionConfig | null {
+  const s = _pendingEdit;
+  _pendingEdit = null;
+  return s;
+}
