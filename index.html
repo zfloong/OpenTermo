@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenTermo</title>
+    <style>
+      /* Kill the white flash: match the dark theme bg-base before CSS loads */
+      html, body, #root {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #000000;
+        color: #e4e4e4;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

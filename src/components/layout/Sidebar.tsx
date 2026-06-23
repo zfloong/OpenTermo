@@ -39,7 +39,7 @@ export default function Sidebar() {
         <button onClick={toggleSidebar} title="收起侧栏" className="no-drag w-7 h-8 flex items-center justify-center rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-all ml-1"><PanelLeftClose size={14} /></button>
       </div>
       <div className="flex-1 overflow-y-auto">{tab === "sessions" ? <SessionManager /> : <div className="h-full flex flex-col px-2"><CommandPanel /></div>}</div>
-      <div onMouseDown={onDragStart} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[var(--accent)]/40 transition-colors z-10" />
+      <div onMouseDown={onDragStart} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[rgb(var(--accent-rgb)/0.40)] transition-colors z-10" />
     </aside>
   </>);
 }

@@ -1,11 +1,13 @@
-﻿mod commands;
-mod icon_data;
+mod commands;
 mod prompts;
 mod session;
 
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::Manager;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 use meatshell::system::SystemSampler;
 use prompts::PromptManager;
@@ -14,7 +16,7 @@ use session::SessionManager;
 /// Find rclone.exe on the system.
 fn discover_rclone() -> String {
     // 1. Check PATH first
-    if let Ok(path) = std::process::Command::new("where")
+    if let Ok(path) = std::process::Command::new("where").creation_flags(0x08000000)
         .arg("rclone")
         .output()
     {
@@ -83,9 +85,13 @@ fn find_exe_recursive(dir: &std::path::Path, exe_name: &str) -> Option<String> {
 pub fn run() {
     let rclone_path = discover_rclone();
     // Kill any stale rclone processes from previous runs
-    let _ = std::process::Command::new("taskkill")
+    let _ = std::process::Command::new("taskkill").creation_flags(0x08000000)
         .args(["/F", "/IM", "rclone.exe"])
         .output();
+
+    // Prevent re-entrant close (the cleanup thread calls window.close()
+    // which re-fires CloseRequested; the flag breaks the cycle).
+    let is_closing = Arc::new(AtomicBool::new(false));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -93,29 +99,57 @@ pub fn run() {
         .manage(Mutex::new(SystemSampler::new()))
         .manage(Arc::new(PromptManager::new()))
         .setup(|app| {
-            // Set window icon from embedded raw RGBA
-            let icon = tauri::image::Image::new_owned(
-                icon_data::ICON_RGBA.to_vec(),
-                icon_data::ICON_WIDTH,
-                icon_data::ICON_HEIGHT,
-            );
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_icon(icon);
+            // Set window icon from the icon PNG so the taskbar shows the real icon.
+            let icon_bytes = include_bytes!("../icons/icon.png");
+            if let Ok(img) = image::load_from_memory(icon_bytes) {
+                let rgba = img.into_rgba8();
+                let (w, h) = rgba.dimensions();
+                let tauri_icon = tauri::image::Image::new_owned(rgba.into_raw(), w, h);
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_icon(tauri_icon);
+                }
             }
+            // Delay showing the window so WebView2 internal init finishes first.
+            // This prevents the multiple black-box flickering on startup.
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
+                if let Some(w) = handle.get_webview_window("main") {
+                    let _ = w.show();
+                }
+            });
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // Gracefully disconnect all active sessions and unmount rclone
-                api.prevent_close();
-                let mgr = window.state::<SessionManager>();
-                mgr.unmount_all();
-                let ids: Vec<String> = mgr.sessions.lock().keys().cloned().collect();
-                for id in &ids {
-                    let _ = mgr.disconnect(id);
+        .on_window_event({
+            let is_closing = is_closing.clone();
+            move |window, event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    if is_closing.swap(true, Ordering::SeqCst) {
+                        // Second invocation: cleanup already done, let it close
+                        return;
+                    }
+                    api.prevent_close();
+
+                    // Clone handles before moving into the thread.
+                    let window_for_state = window.clone();
+                    let window_for_close = window.clone();
+                    let app_handle = window.app_handle().clone();
+
+                    std::thread::spawn(move || {
+                        // Blocking cleanup (rclone unmount, SSH disconnect)
+                        let mgr = window_for_state.state::<SessionManager>();
+                        mgr.unmount_all();
+                        let ids: Vec<String> =
+                            mgr.sessions.lock().keys().cloned().collect();
+                        for id in &ids {
+                            let _ = mgr.disconnect(id);
+                        }
+                        // Close must happen on the main thread (WebView2 requirement)
+                        let _ = app_handle.run_on_main_thread(move || {
+                            let _ = window_for_close.destroy();
+                        });
+                    });
                 }
-                std::thread::sleep(std::time::Duration::from_millis(250));
-                window.close().ok();
             }
         })
         .invoke_handler(tauri::generate_handler![

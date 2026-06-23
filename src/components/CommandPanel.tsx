@@ -582,7 +582,7 @@ export default function CommandPanel() {
         onClick: () => setNewFolderPrompt({ parentPath: "" }),
       },
       {
-        label: "??",
+        label: "粘贴命令",
         icon: <ClipboardPaste size={12} />,
         onClick: async () => {
           try {
@@ -594,17 +594,22 @@ export default function CommandPanel() {
         },
       },
       null,
+      // Sort header (non-clickable)
       {
-        label: sortMode === "name" ? "Sort: Name ?" : "??: ??",
-        icon: <ArrowDownAZ size={12} />,
+        label: "排序方式",
+        disabled: true,
+      },
+      {
+        label: "名称",
+        icon: sortMode === "name" ? <CheckSquare size={12} /> : <Square size={12} />,
         onClick: () => {
           localStorage.setItem("cmd-sort", "name");
           setSortMode("name");
         },
       },
       {
-        label: sortMode === "recent" ? "Sort: Last Used ?" : "??: ????",
-        icon: <Clock size={12} />,
+        label: "最近使用",
+        icon: sortMode === "recent" ? <CheckSquare size={12} /> : <Square size={12} />,
         onClick: () => {
           localStorage.setItem("cmd-sort", "recent");
           setSortMode("recent");
@@ -878,7 +883,6 @@ function CommandEditDialog({
   const [label, setLabel] = useState("");
   const [command, setCommand] = useState("");
   const [category, setCategory] = useState("");
-  const [icon, setIcon] = useState("");
   const [description, setDescription] = useState("");
   const [pinned, setPinned] = useState(false);
 
@@ -887,7 +891,6 @@ function CommandEditDialog({
       setLabel(entry.label);
       setCommand(entry.command);
       setCategory(entry.category);
-      setIcon(entry.icon ?? "");
       setDescription(entry.description ?? "");
       setPinned(entry.pinned);
     }
@@ -903,7 +906,6 @@ function CommandEditDialog({
       label: label.trim(),
       command: command.trim(),
       category: category.trim(),
-      icon: icon.trim() || null,
       description: description.trim() || null,
       pinned,
     });
@@ -920,15 +922,11 @@ function CommandEditDialog({
 
         <div className="flex flex-col gap-3 mt-3">
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-[var(--text-secondary)]">图标</label>
-            <Input value={icon} onChange={(e) => setIcon(e.target.value.slice(0, 2))} placeholder="e.g. :)" className="h-8 text-sm text-center w-14" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm text-[var(--text-secondary)]">标签</label>
+            <label className="text-sm text-[var(--text-secondary)]">名称</label>
             <Input value={label} onChange={(e) => setLabel(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }} placeholder="显示名称" className="h-8 text-sm" autoFocus />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-[var(--text-secondary)]">命令</label>
+            <label className="text-sm text-[var(--text-secondary)]">指令</label>
             <Input value={command} onChange={(e) => setCommand(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }} placeholder="例如: docker compose up -d" className="h-8 text-sm font-mono" />
           </div>
           <div className="flex flex-col gap-1">

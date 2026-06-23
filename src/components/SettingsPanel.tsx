@@ -149,7 +149,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
                     }}
                     className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl border transition-all text-left
                       ${isActive
-                        ? "border-[var(--accent)] bg-[var(--accent-dim)] ring-1 ring-[var(--accent)]/20"
+                        ? "border-[var(--accent)] bg-[var(--accent-dim)] ring-1 ring-[rgb(var(--accent-rgb)/0.20)]"
                         : "border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:bg-[var(--surface-hover)]"
                       }`}
                   >

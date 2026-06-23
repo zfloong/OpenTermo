@@ -107,7 +107,7 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
               <select
                 value={form.auth}
                 onChange={(e) => setForm({ ...form, auth: e.target.value as SessionConfig["auth"] })}
-                className="h-9 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[var(--accent)]/60 transition-all"
+                className="h-9 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all"
               >
                 <option value="password">密码</option>
                 <option value="key">密钥</option>
@@ -149,13 +149,13 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
 
           {/* Actions */}
           <div className="flex items-center gap-3 pt-4 border-t border-[var(--border-subtle)]">
-            <button onClick={handleSaveAndConnect} disabled={!isValid} className="flex-1 flex items-center justify-center gap-2 h-10 rounded-lg bg-[var(--accent)]/90 text-white text-sm font-medium hover:bg-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97]">
+            <button onClick={handleSaveAndConnect} disabled={!isValid} className="flex-1 flex items-center justify-center gap-2 h-10 rounded-lg bg-[rgb(var(--accent-rgb)/0.90)] text-white text-sm font-medium hover:bg-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97]">
               保存并连接
             </button>
-            <button onClick={handleSave} disabled={!isValid || saving} className="flex-1 h-10 rounded-lg border border-[var(--border-strong)] text-[var(--text-secondary)] text-sm font-medium hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+            <button onClick={handleSave} disabled={!isValid || saving} className="flex-1 h-10 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-hover)] text-[var(--text-primary)] text-sm font-medium hover:bg-[var(--surface-active)] disabled:opacity-50 disabled:cursor-not-allowed transition-all">
               保存
             </button>
-            <button onClick={onClose} className="h-10 px-4 rounded-lg text-[var(--text-muted)] text-sm hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-all">
+            <button onClick={onClose} className="h-10 px-4 rounded-lg bg-[var(--surface-hover)] text-[var(--text-primary)] text-sm hover:bg-[var(--surface-active)] transition-all">
               取消
             </button>
           </div>

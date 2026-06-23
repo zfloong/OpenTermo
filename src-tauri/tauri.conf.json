@@ -16,12 +16,15 @@
         "title": "OpenTermo",
         "width": 1200,
         "height": 800,
+        
         "decorations": false,
         "resizable": true,
         "minWidth": 800,
         "minHeight": 600,
         "dragDropEnabled": false,
-        "devtools": false
+        "devtools": false,
+        "visible": false,
+        "backgroundColor": "#000000"
       }
     ],
     "security": {
@@ -32,11 +35,21 @@
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/icon.ico"
+      "icons/32x32.png",
+      "icons/64x64.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.png"
     ],
     "windows": {
-      "wix": {},
-      "nsis": {}
+      "wix": {
+        "language": "zh-CN"
+      },
+      "nsis": {
+        "languages": ["SimpChinese", "English"],
+        "displayLanguageSelector": true
+      }
     }
   }
 }

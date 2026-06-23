@@ -166,7 +166,7 @@ export default function ConnectDialog({
                 <select
                   value={form.kind}
                   onChange={(e) => setForm({ ...form, kind: e.target.value as SessionConfig["kind"], port: e.target.value === "ssh" ? 22 : e.target.value === "telnet" ? 23 : 0 })}
-                  className="h-9 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[var(--accent)]/60 transition-all"
+                  className="h-9 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all"
                 >
                   <option value="ssh">SSH</option>
                   <option value="telnet">Telnet</option>
@@ -198,7 +198,7 @@ export default function ConnectDialog({
                 <select
                   value={form.auth}
                   onChange={(e) => setForm({ ...form, auth: e.target.value as SessionConfig["auth"] })}
-                  className="h-9 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[var(--accent)]/60 transition-all"
+                  className="h-9 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all"
                 >
                   <option value="password">密码</option>
                   <option value="key">密钥</option>
@@ -246,7 +246,7 @@ export default function ConnectDialog({
               <button
                 onClick={handleConnect}
                 disabled={!isValid}
-                className="flex-1 flex items-center justify-center gap-2 h-10 rounded-lg bg-[var(--accent)]/90 text-white text-sm font-medium hover:bg-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97]"
+                className="flex-1 flex items-center justify-center gap-2 h-10 rounded-lg bg-[rgb(var(--accent-rgb)/0.90)] text-white text-sm font-medium hover:bg-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97]"
               >
                 <Plus size={15} />
                 连接并保存
@@ -254,7 +254,7 @@ export default function ConnectDialog({
               <button
                 onClick={handleSave}
                 disabled={!isValid || saving}
-                className="flex-1 h-10 rounded-lg border border-[var(--border-strong)] text-[var(--text-secondary)] text-sm font-medium hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="flex-1 h-10 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-hover)] text-[var(--text-primary)] text-sm font-medium hover:bg-[var(--surface-active)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 仅保存
               </button>

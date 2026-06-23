@@ -4,12 +4,12 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/40 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--bg-base)] disabled:pointer-events-none disabled:opacity-50 active:scale-[0.97] hover:scale-[1.02]",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--accent-rgb)/0.40)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--bg-base)] disabled:pointer-events-none disabled:opacity-50 active:scale-[0.97] hover:scale-[1.02]",
   {
     variants: {
       variant: {
         primary:
-          "bg-[var(--accent)]/90 text-white hover:bg-[var(--accent)] shadow-sm shadow-[var(--accent)]/20 hover:shadow-md hover:shadow-[var(--accent)]/25",
+          "bg-[rgb(var(--accent-rgb)/0.90)] text-white hover:bg-[var(--accent)] shadow-sm shadow-[rgb(var(--accent-rgb)/0.20)] hover:shadow-md hover:shadow-[rgb(var(--accent-rgb)/0.25)]",
         destructive:
           "bg-[var(--color-danger)]/15 text-[var(--color-danger)] border border-[var(--color-danger)]/20 hover:bg-[var(--color-danger)]/25 hover:border-[var(--color-danger)]/35",
         outline:

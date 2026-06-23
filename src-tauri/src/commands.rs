@@ -1,7 +1,9 @@
-﻿//! Tauri IPC commands exposed to the frontend.
+//! Tauri IPC commands exposed to the frontend.
 
 use std::collections::HashMap;
 use std::process::{Command, Stdio};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::sync::Arc;
 
 use meatshell::command::{CommandEntry, CommandStore};
@@ -204,7 +206,7 @@ fn find_free_drive(mounts: &HashMap<String, MountInfo>) -> Result<String, String
 /// Query Windows for all occupied drive letters via WMI.
 fn get_occupied_drives() -> std::collections::HashSet<String> {
     let mut set = std::collections::HashSet::new();
-    if let Ok(out) = Command::new("powershell")
+    if let Ok(out) = Command::new("powershell").creation_flags(0x08000000)
         .args(["-NoProfile", "-Command",
             "(Get-CimInstance Win32_LogicalDisk).DeviceID -join ' '"])
         .output()
@@ -231,6 +233,7 @@ fn create_rclone_config(
     key_path: Option<&str>,
 ) -> Result<(), String> {
     let mut cmd = Command::new(rclone_path);
+    cmd.creation_flags(0x08000000);
     cmd.args(["config", "create", config_name, "sftp"])
         .arg("host").arg(host)
         .arg("port").arg(port.to_string())
@@ -312,6 +315,7 @@ pub fn rclone_mount(
 
     // Spawn rclone mount as background process
     let mut cmd = Command::new(&mgr.rclone_path);
+    cmd.creation_flags(0x08000000);
     cmd.args(["mount", &format!("{}:/", config_name), &drive_letter])
         .arg("--volname")
         .arg(format!("ms_{}", &host))
@@ -333,7 +337,7 @@ pub fn rclone_mount(
             if let Some(ref mut s) = child.stderr {
                 let _ = s.read_to_string(&mut stderr_str);
             }
-            let _ = Command::new(&mgr.rclone_path)
+            let _ = Command::new(&mgr.rclone_path).creation_flags(0x08000000)
                 .args(["config", "delete", &config_name])
                 .output();
             return Err(format!(
@@ -349,7 +353,7 @@ pub fn rclone_mount(
                 Err(_) => {
                     // Drive not accessible, kill and clean up
                     let _ = child.kill();
-                    let _ = Command::new(&mgr.rclone_path)
+                    let _ = Command::new(&mgr.rclone_path).creation_flags(0x08000000)
                         .args(["config", "delete", &config_name])
                         .output();
                     return Err(format!(
@@ -360,7 +364,7 @@ pub fn rclone_mount(
             }
         }
         Err(e) => {
-            let _ = Command::new(&mgr.rclone_path)
+            let _ = Command::new(&mgr.rclone_path).creation_flags(0x08000000)
                 .args(["config", "delete", &config_name])
                 .output();
             return Err(format!("[rclone] 进程异常: {}", e));
@@ -389,13 +393,13 @@ pub fn rclone_unmount(
 
     let drive = mount.drive_letter.clone();
 
-    let _ = Command::new("taskkill")
+    let _ = Command::new("taskkill").creation_flags(0x08000000)
         .args(["/F", "/PID", &mount.pid.to_string()])
         .output();
 
     std::thread::sleep(std::time::Duration::from_millis(300));
 
-    let _ = Command::new(&mgr.rclone_path)
+    let _ = Command::new(&mgr.rclone_path).creation_flags(0x08000000)
         .args(["config", "delete", &mount.config_name])
         .output();
 

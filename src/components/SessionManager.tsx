@@ -204,7 +204,7 @@ export default function SessionManager() {
     <div className="flex flex-col h-full">
       {/* Search */}
       <div className="px-3 py-2 border-b border-[var(--border-subtle)] flex-shrink-0">
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus-within:border-[var(--accent)]/50 transition-colors">
+        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus-within:border-[rgb(var(--accent-rgb)/0.50)] transition-colors">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="text-[var(--text-muted)] shrink-0">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
@@ -541,7 +541,7 @@ function SessionItemMerged({
           isActive
             ? "text-[var(--color-success)] font-semibold"
             : isConnected
-              ? "text-[var(--accent)]/80 font-medium"
+              ? "text-[rgb(var(--accent-rgb)/0.80)] font-medium"
               : "text-[var(--text-primary)]"
         }`}>
           {session.name || session.host}

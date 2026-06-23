@@ -1,8 +1,10 @@
-﻿//! Session manager — bridges meatshell backend sessions with the Tauri
+//! Session manager — bridges meatshell backend sessions with the Tauri
 //! frontend via event emissions.
 
 use std::collections::HashMap;
 use std::process::Command;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -137,13 +139,13 @@ impl SessionManager {
     pub fn disconnect(&self, tab_id: &str) -> Result<(), String> {
         // Unmount rclone if mounted for this tab
         if let Some(mount) = self.mounts.lock().remove(tab_id) {
-            let _ = Command::new("taskkill")
+            let _ = Command::new("taskkill").creation_flags(0x08000000)
                 .args(["/F", "/PID", &mount.pid.to_string()])
                 .output();
             // Brief wait for WinFsp to release
             std::thread::sleep(std::time::Duration::from_millis(500));
             // Clean up rclone config entry
-            let _ = Command::new(&self.rclone_path)
+            let _ = Command::new(&self.rclone_path).creation_flags(0x08000000)
                 .args(["config", "delete", &mount.config_name])
                 .output();
         }
@@ -160,10 +162,10 @@ impl SessionManager {
     pub fn unmount_all(&self) {
         let mounts: Vec<MountInfo> = self.mounts.lock().drain().map(|(_, m)| m).collect();
         for mount in &mounts {
-            let _ = Command::new("taskkill")
+            let _ = Command::new("taskkill").creation_flags(0x08000000)
                 .args(["/F", "/PID", &mount.pid.to_string()])
                 .output();
-            let _ = Command::new(&self.rclone_path)
+            let _ = Command::new(&self.rclone_path).creation_flags(0x08000000)
                 .args(["config", "delete", &mount.config_name])
                 .output();
         }
