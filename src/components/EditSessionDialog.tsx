@@ -80,7 +80,7 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-[var(--text-secondary)]">分组</span>
-              <Input value={form.group || ""} onChange={(e) => setForm({ ...form, group: e.target.value })} placeholder="Default" className="h-9 text-sm" />
+              <Input value={form.group || ""} onChange={(e) => setForm({ ...form, group: e.target.value })} placeholder="终端列表" className="h-9 text-sm" />
             </label>
           </div>
 

@@ -23,7 +23,7 @@
         "minHeight": 600,
         "dragDropEnabled": false,
         "devtools": false,
-        "visible": false,
+        "visible": true,
         "backgroundColor": "#000000"
       }
     ],

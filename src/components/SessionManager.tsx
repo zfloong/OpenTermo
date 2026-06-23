@@ -7,6 +7,8 @@ import { useSessionStore } from "@/stores/sessionStore";
 import type { SessionConfig } from "@/lib/tauriCommands";
 import ContextMenu, { type ContextMenuItem } from "@/components/ui/context-menu";
 
+const DEFAULT_GROUP = "终端列表";
+
 interface CtxState {
   items: (ContextMenuItem | null)[];
   x: number;
@@ -31,7 +33,7 @@ export default function SessionManager() {
   const activeTabId = useSessionStore((s) => s.activeTabId);
   const setActiveTab = useSessionStore((s) => s.setActiveTab);
 
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(["Default"]));
+  const [expanded, setExpanded] = useState<Set<string>>(new Set([DEFAULT_GROUP]));
   const [ctx, setCtx] = useState<CtxState | null>(null);
   const [search, setSearch] = useState("");
   const [knownGroups, setKnownGroups] = useState<Set<string>>(new Set());
@@ -52,7 +54,7 @@ export default function SessionManager() {
 
     const map: Record<string, SessionConfig[]> = {};
     for (const s of filtered) {
-      const g = s.group || "Default";
+      const g = s.group || DEFAULT_GROUP;
       if (!map[g]) map[g] = [];
       map[g].push(s);
     }
@@ -67,10 +69,10 @@ export default function SessionManager() {
       map[g].sort((a, b) => (a.name || a.host).localeCompare(b.name || b.host));
     }
 
-    // Sort: Default first, then alphabetical
+    // Sort: 终端列表 first, then alphabetical
     const keys = Object.keys(map).sort((a, b) => {
-      if (a === "Default") return -1;
-      if (b === "Default") return 1;
+      if (a === DEFAULT_GROUP) return -1;
+      if (b === DEFAULT_GROUP) return 1;
       return a.localeCompare(b);
     });
 
@@ -144,15 +146,15 @@ export default function SessionManager() {
     if (!newName || !newName.trim() || newName.trim() === oldName) return;
     const target = newName.trim();
     // Rename all sessions in this group
-    const targets = sessions.filter((s) => (s.group || "Default") === oldName);
+    const targets = sessions.filter((s) => (s.group || DEFAULT_GROUP) === oldName);
     for (const s of targets) {
-      await save({ ...s, group: target === "Default" ? "" : target });
+      await save({ ...s, group: target === DEFAULT_GROUP ? "" : target });
     }
     // Update known groups
     setKnownGroups((prev) => {
       const next = new Set(prev);
       next.delete(oldName);
-      if (target !== "Default") next.add(target);
+      if (target !== DEFAULT_GROUP) next.add(target);
       return next;
     });
     setExpanded((prev) => {
@@ -167,18 +169,18 @@ export default function SessionManager() {
 
   const sessionCtx = (s: SessionConfig): (ContextMenuItem | null)[] => {
     // Gather all groups for move-to submenu
-    const groupNames = [...new Set(sessions.map((x) => x.group || "Default"))];
+    const groupNames = [...new Set(sessions.map((x) => x.group || DEFAULT_GROUP))];
     groupNames.sort((a, b) => {
-      if (a === "Default") return -1;
-      if (b === "Default") return 1;
+      if (a === DEFAULT_GROUP) return -1;
+      if (b === DEFAULT_GROUP) return 1;
       return a.localeCompare(b);
     });
-    const cur = s.group || "Default";
+    const cur = s.group || DEFAULT_GROUP;
     const moveItems: ContextMenuItem[] = groupNames
       .filter((g) => g !== cur)
       .map((g) => ({
         label: g,
-        onClick: () => handleMoveToGroup(s, g === "Default" ? "" : g),
+        onClick: () => handleMoveToGroup(s, g === DEFAULT_GROUP ? "" : g),
       }));
     moveItems.push({
       label: "新建分组...",

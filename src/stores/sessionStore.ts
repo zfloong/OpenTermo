@@ -257,7 +257,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       (event) => {
         set((s) => ({
           tabs: s.tabs.map((t) =>
-            t.id === tabId ? { ...t, status: "connected", statusText: event.payload } : t,
+            t.id === tabId ? { ...t, statusText: event.payload } : t,
           ),
         }));
       },
