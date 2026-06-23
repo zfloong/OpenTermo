@@ -23,6 +23,7 @@ export default function SessionManager() {
   const sessions = useSessionStore((s) => s.sessions);
   const loadSessions = useSessionStore((s) => s.loadSessions);
   const save = useSessionStore((s) => s.save);
+  const openEditDialog = useSessionStore((s) => s.openEditDialog);
   const openConnectDialog = useSessionStore((s) => s.openConnectDialog);
   const remove = useSessionStore((s) => s.remove);
   const connect = useSessionStore((s) => s.connect);
@@ -101,8 +102,7 @@ export default function SessionManager() {
     loadSessions();
   };
   const startEdit = (s: SessionConfig) => {
-    (window as any).__opentermo_edit = s;
-    openConnectDialog();
+    openEditDialog(s.id);
   };
 
 

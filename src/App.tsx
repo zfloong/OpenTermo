@@ -4,6 +4,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import TerminalView from "@/components/layout/TerminalView";
 import StatusBar from "@/components/layout/StatusBar";
 import ConnectDialog from "@/components/ConnectDialog";
+import EditSessionDialog from "@/components/EditSessionDialog";
 import HostKeyDialog from "@/components/HostKeyDialog";
 import CredentialDialog from "@/components/CredentialDialog";
 import CommandPalette from "@/components/CommandPalette";
@@ -14,6 +15,7 @@ export default function App() {
   const tabs = useSessionStore((s) => s.tabs);
   const sessions = useSessionStore((s) => s.sessions);
   const connectDialogOpen = useSessionStore((s) => s.connectDialogOpen);
+  const editingSessionId = useSessionStore((s) => s.editingSessionId);
   const hostKeyPrompt = useSessionStore((s) => s.hostKeyPrompt);
   const credentialPrompt = useSessionStore((s) => s.credentialPrompt);
 
@@ -23,6 +25,7 @@ export default function App() {
   const remove = useSessionStore((s) => s.remove);
   const openConnect = useSessionStore((s) => s.openConnectDialog);
   const closeConnect = useSessionStore((s) => s.closeConnectDialog);
+  const closeEdit = useSessionStore((s) => s.closeEditDialog);
   const dismissHostKey = useSessionStore((s) => s.dismissHostKey);
   const dismissCredential = useSessionStore((s) => s.dismissCredential);
   const setupGlobal = useSessionStore((s) => s._setupGlobalListeners);
@@ -72,6 +75,16 @@ export default function App() {
           onDelete={remove}
         />
       )}
+
+      {editingSessionId && (() => {
+        const session = sessions.find((s) => s.id === editingSessionId);
+        return session ? (
+          <EditSessionDialog
+            session={session}
+            onClose={closeEdit}
+          />
+        ) : null;
+      })()}
 
       {hostKeyPrompt && (
         <HostKeyDialog prompt={hostKeyPrompt} onClose={dismissHostKey} />

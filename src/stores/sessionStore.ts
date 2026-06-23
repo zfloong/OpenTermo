@@ -42,6 +42,8 @@ interface SessionState {
   activeTabId: string | null;
   /** Whether the connect dialog is open. */
   connectDialogOpen: boolean;
+  /** ID of session being edited (null = no edit dialog open). */
+  editingSessionId: string | null;
   /** Pending host-key confirmation prompt. */
   hostKeyPrompt: HostKeyPromptPayload | null;
   /** Pending credential prompt. */
@@ -72,6 +74,8 @@ interface SessionState {
   // Dialog controls
   openConnectDialog: () => void;
   closeConnectDialog: () => void;
+  openEditDialog: (id: string) => void;
+  closeEditDialog: () => void;
   dismissHostKey: () => void;
   dismissCredential: () => void;
 
@@ -87,6 +91,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   tabs: [],
   activeTabId: null,
   connectDialogOpen: false,
+  editingSessionId: null,
   hostKeyPrompt: null,
   credentialPrompt: null,
   lastError: null,
@@ -198,14 +203,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // ── Dialog controls ────────────────────────────────────────────────────
 
-  openConnectDialog: () => {
-    (window as any).__opentermo_edit = null;
-    set({ connectDialogOpen: true });
-  },
-  closeConnectDialog: () => {
-    (window as any).__opentermo_edit = null;
-    set({ connectDialogOpen: false });
-  },
+  openConnectDialog: () => set({ connectDialogOpen: true }),
+  closeConnectDialog: () => set({ connectDialogOpen: false }),
+
+  openEditDialog: (id) => set({ editingSessionId: id }),
+  closeEditDialog: () => set({ editingSessionId: null }),
   dismissHostKey: () => set({ hostKeyPrompt: null }),
   dismissCredential: () => set({ credentialPrompt: null }),
 

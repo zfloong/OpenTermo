@@ -42,14 +42,14 @@ export default function ConnectDialog({
   onSave,
   onDelete,
 }: ConnectDialogProps) {
-  const editSession = (window as any).__opentermo_edit as SessionConfig | null;
+  // Edit mode is handled by EditSessionDialog — ConnectDialog is always new connection
   const [form, setForm] = useState<SessionConfig>(() =>
-    editSession ? { ...editSession } : emptySession()
+    emptySession()
   );
   const [keyPassphrase, setKeyPassphrase] = useState(() =>
-    editSession?.auth === "key" ? editSession.password || "" : ""
+    ""
   );
-  const isEditing = !!editSession;
+  // EditSessionDialog handles editing separately
   const [saving, setSaving] = useState(false);
 
   const isValid = form.host.trim().length > 0;
@@ -72,12 +72,8 @@ export default function ConnectDialog({
         ? { ...form, password: keyPassphrase }
         : form;
       onSave(session);
-      if (isEditing) {
-        onClose();
-      } else {
-        setForm(emptySession());
-        setKeyPassphrase("");
-      }
+      setForm(emptySession());
+      setKeyPassphrase("");
     } finally {
       setSaving(false);
     }
@@ -114,7 +110,7 @@ export default function ConnectDialog({
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-[820px] max-h-[85vh] p-0">
         <DialogHeader className="px-6 py-4 border-b border-[var(--border-subtle)]">
-          <DialogTitle className="text-lg">{isEditing ? "编辑连接" : "新建连接"}</DialogTitle>
+          <DialogTitle className="text-lg">新建连接</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-1 overflow-hidden" style={{ maxHeight: "calc(85vh - 60px)" }}>
@@ -253,14 +249,14 @@ export default function ConnectDialog({
                 className="flex-1 flex items-center justify-center gap-2 h-10 rounded-lg bg-[var(--accent)]/90 text-white text-sm font-medium hover:bg-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.97]"
               >
                 <Plus size={15} />
-                {isEditing ? "保存并连接" : "连接并保存"}
+                连接并保存
               </button>
               <button
                 onClick={handleSave}
                 disabled={!isValid || saving}
                 className="flex-1 h-10 rounded-lg border border-[var(--border-strong)] text-[var(--text-secondary)] text-sm font-medium hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {isEditing ? "保存" : "仅保存"}
+                仅保存
               </button>
             </div>
           </div>
