@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -59,8 +59,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.toml', 'meatshell/Cargo.toml') }}
-          restore-keys: ${{ runner.os }}-cargo-
+          key: ${{ runner.os }}-cargo-v2-${{ hashFiles('src-tauri/Cargo.toml', 'meatshell/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-v2-
 
       - name: cargo check (Tauri + meatshell, with retry)
         shell: pwsh
