@@ -201,7 +201,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // ── Dialog controls ────────────────────────────────────────────────────
 
-  openConnectDialog: (editSession = null) => set({ connectDialogOpen: true, editingSession: editSession }),
+  openConnectDialog: (editSession = null) => {
+    const state = get();
+    // If dialog is already open, close first to avoid Radix animation conflict
+    if (state.connectDialogOpen) {
+      set({ connectDialogOpen: false, editingSession: null });
+    }
+    // Use setTimeout to let React process the close before re-opening
+    setTimeout(() => {
+      set({ connectDialogOpen: true, editingSession: editSession ?? null });
+    }, 0);
+  },
   closeConnectDialog: () => set({ connectDialogOpen: false, editingSession: null }),
   dismissHostKey: () => set({ hostKeyPrompt: null }),
   dismissCredential: () => set({ credentialPrompt: null }),
