@@ -941,6 +941,13 @@ async fn run_session(
         task.abort();
     }
 
+    // Explicitly close the monitor channel so the server-side
+    // monitoring loop is terminated cleanly.
+    if let Some(mut mon_ch) = mon_channel.take() {
+        let _ = mon_ch.eof().await;
+        let _ = mon_ch.close().await;
+    }
+
     let _ = handle
         .disconnect(Disconnect::ByApplication, "bye", "")
         .await;
