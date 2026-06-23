@@ -1,14 +1,15 @@
 ﻿import { useCallback, useState, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Minus, Square, X, Cable, HardDrive, HardDriveUpload } from "lucide-react";
+import { Minus, Square, X, Cable, HardDrive, HardDriveUpload, Settings } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { rclone_mount, rclone_unmount, rclone_list } from "@/lib/tauriCommands";
 
 interface TitleBarProps {
   onConnect: () => void;
+  onSettings: () => void;
 }
 
-export default function TitleBar({ onConnect }: TitleBarProps) {
+export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
   const tabs = useSessionStore((s) => s.tabs);
   const activeTabId = useSessionStore((s) => s.activeTabId);
   const setActiveTab = useSessionStore((s) => s.setActiveTab);
@@ -65,7 +66,7 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
   return (
     <header
       data-tauri-drag-region
-      className="flex h-11 items-center bg-[var(--bg-glass)] backdrop-blur-lg border-b border-[var(--border-subtle)] select-none flex-shrink-0"
+      className="flex h-11 items-center bg-[var(--bg-glass)] backdrop-blur-[var(--glass-blur,18px)] border-b border-[var(--border-subtle)] select-none flex-shrink-0"
     >
       {/* Logo + app name */}
       <div className="flex items-center gap-2.5 pl-4 pr-3 flex-shrink-0">
@@ -101,7 +102,7 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
                   ? "bg-[var(--color-warning)]/8 border border-[var(--color-warning)]/30 text-[var(--color-warning)]"
                   : isActive
                     ? "bg-[var(--surface-selected)] border border-[var(--color-success)] text-[var(--color-success)] font-semibold shadow-[0_0_6px_var(--color-success)]/20"
-                    : "border border-transparent hover:border-[var(--accent-border)]/50 hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] text-[var(--accent)]/70"
+                    : "border border-[var(--accent-border)]/40 bg-[var(--accent-dim)]/40 text-[var(--accent)]"
               }`}
             >
               {/* Status dot */}
@@ -110,7 +111,7 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
               ) : isActive ? (
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] flex-shrink-0 shadow-[0_0_6px_var(--color-success)]" />
               ) : (
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]/40 flex-shrink-0" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] flex-shrink-0 shadow-[0_0_4px_var(--accent)]" />
               )}
               <span className="truncate max-w-[130px]">
                 {tab.session.name || tab.session.host}
@@ -171,6 +172,16 @@ export default function TitleBar({ onConnect }: TitleBarProps) {
           )}
         </div>
       )}
+
+      {/* Settings */}
+      <button
+        onClick={onSettings}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="no-drag flex items-center justify-center w-9 h-8 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors flex-shrink-0 ml-1"
+        aria-label="Settings"
+      >
+        <Settings size={15} />
+      </button>
 
       {/* Window controls */}
       <div className="no-drag flex h-full flex-shrink-0 ml-1">

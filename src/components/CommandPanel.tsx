@@ -631,7 +631,7 @@ export default function CommandPanel() {
       <div key={cmd.id}
         onClick={() => handleCmdClick(cmd)}
         onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
-        className={`group flex items-center gap-2 pr-3 py-1.5 hover:bg-[var(--surface-hover)]/50 transition-colors cursor-pointer ${
+        className={`group flex items-center gap-2 pr-3 py-1.5 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer ${
           cmd.pinned ? "bg-[var(--color-warning)]/[0.04]" : ""
         }`}
         style={{ paddingLeft: leftPad }}
@@ -773,7 +773,7 @@ export default function CommandPanel() {
                   onContextMenu={(e) => showCtx(e, folderCtx(node))}
                   className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors border border-[var(--border-subtle)] bg-[var(--bg-surface)] ${
                     isExpanded ? "rounded-t-lg" : "rounded-lg"
-                  } hover:bg-[var(--surface-hover)]/50`}
+                  } hover:bg-[var(--surface-hover)]`}
                 >
                   <ChevronDown size={14} className={`shrink-0 text-[var(--text-muted)] transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
                   {isExpanded

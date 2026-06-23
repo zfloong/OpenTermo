@@ -6,32 +6,84 @@ import "xterm/css/xterm.css";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 
-function getTerminalTheme() {
-  const s = getComputedStyle(document.documentElement);
-  return {
-    background: s.getPropertyValue("--bg-base").trim() || "#080c12",
-    foreground: s.getPropertyValue("--text-primary").trim() || "#e9eef5",
-    cursor: "#ffffff",
-    cursorAccent: s.getPropertyValue("--bg-base").trim() || "#080c12",
-    selectionBackground: s.getPropertyValue("--accent-dim").trim() || "rgba(91,156,245,0.28)",
-    selectionForeground: s.getPropertyValue("--text-inverse").trim() || "#ffffff",
-    black: s.getPropertyValue("--bg-base").trim() || "#080c12",
-    red: s.getPropertyValue("--color-danger").trim() || "#f87171",
-    green: s.getPropertyValue("--color-success").trim() || "#4ade80",
-    yellow: s.getPropertyValue("--color-warning").trim() || "#fbbf24",
-    blue: s.getPropertyValue("--accent").trim() || "#5b9cf5",
+// Terminal themes keyed by ThemeId — avoids getComputedStyle timing issues
+const TERMINAL_THEMES: Record<string, Record<string, string>> = {
+  "deep-blue": {
+    background: "#000000",
+    foreground: "#e4e4e4",
+    cursor: "#e4e4e4",
+    cursorAccent: "#000000",
+    selectionBackground: "rgba(139,157,195,0.28)",
+    selectionForeground: "#ffffff",
+    black: "#000000",
+    red: "#f87171",
+    green: "#4ade80",
+    yellow: "#fbbf24",
+    blue: "#8b9dc3",
     magenta: "#c084fc",
     cyan: "#22d3ee",
-    white: s.getPropertyValue("--text-primary").trim() || "#e9eef5",
+    white: "#e4e4e4",
     brightBlack: "#4a5568",
     brightRed: "#fca5a5",
     brightGreen: "#86efac",
     brightYellow: "#fde68a",
-    brightBlue: "#93c5fd",
+    brightBlue: "#b3c5e0",
     brightMagenta: "#d8b4fe",
     brightCyan: "#67e8f9",
-    brightWhite: s.getPropertyValue("--text-inverse").trim() || "#ffffff",
-  };
+    brightWhite: "#ffffff",
+  },
+  "light": {
+    background: "#f8f9fb",
+    foreground: "#1a1d23",
+    cursor: "#1a1d23",
+    cursorAccent: "#f8f9fb",
+    selectionBackground: "rgba(59,130,246,0.22)",
+    selectionForeground: "#ffffff",
+    black: "#f8f9fb",
+    red: "#ef4444",
+    green: "#22c55e",
+    yellow: "#f59e0b",
+    blue: "#3b82f6",
+    magenta: "#a855f7",
+    cyan: "#06b6d4",
+    white: "#1a1d23",
+    brightBlack: "#9ca3af",
+    brightRed: "#fca5a5",
+    brightGreen: "#86efac",
+    brightYellow: "#fde68a",
+    brightBlue: "#b3c5e0",
+    brightMagenta: "#d8b4fe",
+    brightCyan: "#67e8f9",
+    brightWhite: "#374151",
+  },
+  "tabby": {
+    background: "#13171d",
+    foreground: "#e2e6ed",
+    cursor: "#e2e6ed",
+    cursorAccent: "#13171d",
+    selectionBackground: "rgba(123,104,238,0.28)",
+    selectionForeground: "#ffffff",
+    black: "#13171d",
+    red: "#f06278",
+    green: "#50d890",
+    yellow: "#f0c060",
+    blue: "#7b68ee",
+    magenta: "#c084fc",
+    cyan: "#22d3ee",
+    white: "#e2e6ed",
+    brightBlack: "#4a5568",
+    brightRed: "#fca5a5",
+    brightGreen: "#86efac",
+    brightYellow: "#fde68a",
+    brightBlue: "#9b8cf0",
+    brightMagenta: "#d8b4fe",
+    brightCyan: "#67e8f9",
+    brightWhite: "#ffffff",
+  },
+};
+
+function getTerminalTheme(themeId: string) {
+  return TERMINAL_THEMES[themeId] || TERMINAL_THEMES["deep-blue"];
 }
 
 /** Duration (ms) of the green selection flash after copy. */
@@ -51,6 +103,9 @@ export default function TerminalView({ tabId }: { tabId: string }) {
   const sendInput = useSessionStore((s) => s.sendInput);
   const onResize = useSessionStore((s) => s.resize);
   const theme = useSettingsStore((s) => s.theme);
+  const fontSize = useSettingsStore((s) => s.fontSize);
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
 
   // ── Search state ──────────────────────────────────────────────────────
   const [searchOpen, setSearchOpen] = useState(false);
@@ -165,9 +220,9 @@ export default function TerminalView({ tabId }: { tabId: string }) {
     const container = containerRef.current;
 
     const term = new Terminal({
-      theme: getTerminalTheme(),
+      theme: getTerminalTheme(theme),
       fontFamily: "'Meatshell Mono', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace",
-      fontSize: 14,
+      fontSize,
       lineHeight: 1.2,
       cursorBlink: true,
       cursorStyle: "bar",
@@ -256,11 +311,11 @@ export default function TerminalView({ tabId }: { tabId: string }) {
 
       // Brief green flash to distinguish from normal blue selection
       term.options.theme = {
-        ...getTerminalTheme(),
+        ...getTerminalTheme(themeRef.current),
         selectionBackground: "rgba(34, 197, 94, 0.40)",
       };
       setTimeout(() => {
-        term.options.theme = getTerminalTheme();
+        term.options.theme = getTerminalTheme(themeRef.current);
       }, COPY_FLASH_MS);
     };
 
@@ -334,9 +389,18 @@ export default function TerminalView({ tabId }: { tabId: string }) {
   // ── Watch theme changes and update terminal colors ───────
   useEffect(() => {
     if (terminalRef.current) {
-      terminalRef.current.options.theme = getTerminalTheme();
+      terminalRef.current.options.theme = getTerminalTheme(theme);
     }
   }, [theme]);
+
+  // ── Watch font size changes ──────────────────────────
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (term && term.options.fontSize !== fontSize) {
+      term.options.fontSize = fontSize;
+      fitAddonRef.current?.fit();
+    }
+  }, [fontSize]);
 
   // ── Scroll to bottom when command panel triggers ───────────────
   const triggerScroll = useSessionStore((s) => s.triggerScroll);

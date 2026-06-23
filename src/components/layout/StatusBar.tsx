@@ -21,7 +21,7 @@ export default function StatusBar() {
   }, []);
 
   return (
-    <footer className="flex h-8 items-center bg-[var(--bg-glass)] backdrop-blur-lg border-t border-[var(--border-strong)] px-3 flex-shrink-0 gap-3">
+    <footer className="flex h-8 items-center bg-[var(--bg-glass)] backdrop-blur-[var(--glass-blur,18px)] border-t border-[var(--border-strong)] px-3 flex-shrink-0 gap-3">
       {lastError && (
         <ErrorBanner error={lastError} onDismiss={clearError} />
       )}

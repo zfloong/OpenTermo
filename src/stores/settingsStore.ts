@@ -1,65 +1,92 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 
-export type ThemeId = "deep-blue" | "classic" | "light";
+export type ThemeId = "deep-blue" | "light" | "tabby";
+
+export interface ThemeOverride {
+  accentHue: number;
+  glassAlpha: number;
+  borderAlpha: number;
+}
+
+const DEFAULT_OVERRIDES: Record<ThemeId, ThemeOverride> = {
+  "deep-blue": { accentHue: 210, glassAlpha: 0.88, borderAlpha: 0.13 },
+  "light":     { accentHue: 217, glassAlpha: 0.82, borderAlpha: 0.14 },
+  "tabby":     { accentHue: 255, glassAlpha: 0.82, borderAlpha: 0.13 },
+};
 
 interface SettingsState {
   theme: ThemeId;
   fontSize: number;
-  accentHue: number;         // 210 = blue, 260 = purple, 160 = green, 30 = orange
-  glassOpacity: number;      // 0.5 - 0.95
-  borderVisibility: number;  // 0.08 - 0.30 (multiplier for border alpha)
+  overrides: Partial<Record<ThemeId, ThemeOverride>>;
+
   setTheme: (t: ThemeId) => void;
   setFontSize: (s: number) => void;
-  setAccentHue: (h: number) => void;
-  setGlassOpacity: (o: number) => void;
-  setBorderVisibility: (v: number) => void;
+  saveOverride: (themeId: ThemeId, o: ThemeOverride) => void;
+  resetOverride: (themeId: ThemeId) => void;
+  resetAllOverrides: () => void;
+  getEffectiveOverride: (themeId: ThemeId) => ThemeOverride;
 }
 
 function loadTheme(): ThemeId {
   try {
     const v = localStorage.getItem("opentermo-theme");
-    if (v === "classic" || v === "light") return v;
+    if (v === "light" || v === "tabby" || v === "deep-blue") return v as ThemeId;
   } catch {}
   return "deep-blue";
 }
 
-function loadNumber(key: string, fallback: number): number {
+function loadOverrideKey(key: string) {
   try {
-    const v = localStorage.getItem(key);
-    if (v !== null) return Number(v);
-  } catch {}
-  return fallback;
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
 }
 
-export const useSettingsStore = create<SettingsState>((set) => ({
+function loadAllOverrides(): Partial<Record<ThemeId, ThemeOverride>> {
+  const result: Partial<Record<ThemeId, ThemeOverride>> = {};
+  for (const tid of ["deep-blue", "light", "tabby"] as ThemeId[]) {
+    const o = loadOverrideKey(`opentermo-override-${tid}`);
+    if (o) result[tid] = o;
+  }
+  return result;
+}
+
+export const useSettingsStore = create<SettingsState>((set, get) => ({
   theme: loadTheme(),
-  fontSize: loadNumber("opentermo-fontsize", 18),
-  accentHue: loadNumber("opentermo-accent-hue", 210),
-  glassOpacity: loadNumber("opentermo-glass-opacity", 0.78),
-  borderVisibility: loadNumber("opentermo-border-visibility", 0.16),
+  fontSize: (() => {
+    try { const v = localStorage.getItem("opentermo-fontsize"); if (v) return Number(v); } catch {}
+    return 14;
+  })(),
+  overrides: loadAllOverrides(),
 
   setTheme: (t) => {
     localStorage.setItem("opentermo-theme", t);
     set({ theme: t });
   },
   setFontSize: (s) => {
-    const clamped = Math.max(12, Math.min(28, Math.round(s)));
+    const clamped = Math.max(10, Math.min(28, Math.round(s)));
     localStorage.setItem("opentermo-fontsize", String(clamped));
     set({ fontSize: clamped });
   },
-  setAccentHue: (h) => {
-    const clamped = Math.max(0, Math.min(360, Math.round(h)));
-    localStorage.setItem("opentermo-accent-hue", String(clamped));
-    set({ accentHue: clamped });
+  saveOverride: (themeId, o) => {
+    localStorage.setItem(`opentermo-override-${themeId}`, JSON.stringify(o));
+    set((s) => ({ overrides: { ...s.overrides, [themeId]: o } }));
   },
-  setGlassOpacity: (o) => {
-    const clamped = Math.round(o * 100) / 100;
-    localStorage.setItem("opentermo-glass-opacity", String(clamped));
-    set({ glassOpacity: clamped });
+  resetOverride: (themeId) => {
+    localStorage.removeItem(`opentermo-override-${themeId}`);
+    set((s) => {
+      const copy = { ...s.overrides };
+      delete copy[themeId];
+      return { overrides: copy };
+    });
   },
-  setBorderVisibility: (v) => {
-    const clamped = Math.round(v * 100) / 100;
-    localStorage.setItem("opentermo-border-visibility", String(clamped));
-    set({ borderVisibility: clamped });
+  resetAllOverrides: () => {
+    for (const tid of ["deep-blue", "light", "tabby"] as ThemeId[]) {
+      localStorage.removeItem(`opentermo-override-${tid}`);
+    }
+    set({ overrides: {} });
+  },
+  getEffectiveOverride: (themeId) => {
+    return get().overrides[themeId] || DEFAULT_OVERRIDES[themeId];
   },
 }));
