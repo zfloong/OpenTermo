@@ -1,0 +1,13 @@
+﻿{
+  "name": "flyloong-start",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FlyLoong 个人导航起始页",
+  "type": "module",
+  "scripts": {
+    "fetch-icons": "node scripts/fetch-icons.mjs"
+  },
+  "dependencies": {
+    "sharp": "^0.33.0"
+  }
+}

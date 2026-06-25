@@ -1,9 +1,7 @@
-/**
+﻿/**
  * 渲染模块
  * 处理DOM渲染功能
  */
-
-import { getCachedIcon, cacheIcon } from './data-service.js';
 
 /**
  * 渲染搜索区
@@ -14,14 +12,12 @@ function renderSearch(searchData) {
   const searchContainer = document.getElementById('search-container');
   if (!searchContainer) return;
 
-  // 创建文档片段，减少DOM操作次数
   const fragment = document.createDocumentFragment();
 
   // A. 创建搜索引擎按钮容器
   const searchEnginesDiv = document.createElement('div');
   searchEnginesDiv.className = 'search-engines';
 
-  // 添加搜索引擎按钮
   searchData.engines.forEach((engine, index) => {
     const engineBtn = document.createElement('button');
     engineBtn.className = `engine-btn ${index === 0 ? 'active' : ''}`;
@@ -31,12 +27,10 @@ function renderSearch(searchData) {
     searchEnginesDiv.appendChild(engineBtn);
   });
 
-  // 添加分隔线
   const divider = document.createElement('div');
   divider.className = 'divider';
   searchEnginesDiv.appendChild(divider);
 
-  // 添加快捷小图标
   searchData.quickLinks.forEach(link => {
     const linkElement = document.createElement('a');
     linkElement.href = link.url;
@@ -46,18 +40,7 @@ function renderSearch(searchData) {
 
     const imgElement = document.createElement('img');
     imgElement.alt = link.title;
-
-    // 尝试从缓存获取图标
-    const cachedIcon = getCachedIcon(link.icon);
-    if (cachedIcon) {
-      imgElement.src = cachedIcon;
-    } else {
-      // 先使用原始 URL 显示，然后在后台缓存
-      imgElement.src = link.icon;
-      cacheIcon(link.icon).then(cachedUrl => {
-        imgElement.src = cachedUrl;
-      });
-    }
+    imgElement.src = link.icon;
 
     linkElement.appendChild(imgElement);
     searchEnginesDiv.appendChild(linkElement);
@@ -92,14 +75,12 @@ function renderSearch(searchData) {
   searchForm.appendChild(searchBox);
   fragment.appendChild(searchForm);
 
-  // 清空容器并添加新内容
   searchContainer.innerHTML = '';
   searchContainer.appendChild(fragment);
 }
 
 /**
  * 渲染导航栏和主内容区
- * 创建导航标签页和对应的内容板块
  * @param {Array} categories - 分类数据数组
  */
 function renderNavAndContent(categories) {
@@ -108,19 +89,16 @@ function renderNavAndContent(categories) {
   
   if (!navTabsContainer || !mainContentContainer) return;
 
-  // 创建文档片段，减少DOM操作次数
   const navFragment = document.createDocumentFragment();
   const contentFragment = document.createDocumentFragment();
 
   categories.forEach((cat, index) => {
-    // 1. 生成顶部导航按钮
     const tabBtn = document.createElement('button');
-    tabBtn.className = `tab-btn ${index === 0 ? 'active' : ''}`; // 第一个默认激活
+    tabBtn.className = `tab-btn ${index === 0 ? 'active' : ''}`;
     tabBtn.setAttribute('data-target', cat.id);
     tabBtn.innerHTML = `<i class="${cat.icon}"></i> ${cat.navTitle}`;
     navFragment.appendChild(tabBtn);
 
-    // 2. 生成内容板块
     const section = document.createElement('div');
     section.id = cat.id;
     section.className = `category-section ${index === 0 ? 'active' : ''}`;
@@ -171,7 +149,6 @@ function renderNavAndContent(categories) {
     contentFragment.appendChild(section);
   });
 
-  // 清空容器并添加新内容
   navTabsContainer.innerHTML = '';
   navTabsContainer.appendChild(navFragment);
   
@@ -181,29 +158,14 @@ function renderNavAndContent(categories) {
 
 /**
  * 生成卡片 HTML
- * 为每个项目创建一个卡片元素
  * @param {Array} items - 项目数据数组
  * @returns {string} 卡片HTML字符串
  */
 function renderCards(items) {
   return items.map(item => {
-    // 处理 GitHub 这种没有图片 icon 的情况
     let iconHtml = '';
     if (item.icon) {
-      // 尝试从缓存获取图标
-      const cachedIcon = getCachedIcon(item.icon);
-      if (cachedIcon) {
-        iconHtml = `<img src="${cachedIcon}" alt="${item.title}" onerror="this.style.display='none'">`;
-      } else {
-        // 先使用原始 URL 显示，然后在后台缓存
-        iconHtml = `<img src="${item.icon}" alt="${item.title}" onerror="this.style.display='none'">`;
-        cacheIcon(item.icon).then(cachedUrl => {
-          const imgElement = document.querySelector(`img[src="${item.icon}"][alt="${item.title}"]`);
-          if (imgElement) {
-            imgElement.src = cachedUrl;
-          }
-        });
-      }
+      iconHtml = `<img src="${item.icon}" alt="${item.title}" onerror="this.style.display='none'">`;
     } else if (item.iconSymbol) {
       iconHtml = `<i class="${item.iconSymbol}" style="font-size: 36px; color: ${item.iconColor}; background: ${item.iconBg || 'transparent'}; border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;"></i>`;
     }

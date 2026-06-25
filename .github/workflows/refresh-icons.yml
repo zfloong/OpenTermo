@@ -1,0 +1,43 @@
+﻿name: Refresh Icons
+
+on:
+  schedule:
+    # 每月1号 UTC 0:00 自动执行
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+    # 允许手动触发
+
+jobs:
+  refresh-icons:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch icons
+        run: node scripts/fetch-icons.mjs
+
+      - name: Commit and push if changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add icons/ data.json
+          if git diff --staged --quiet; then
+            echo "No icon changes detected"
+          else
+            git commit -m "chore: auto-refresh icons [skip ci]"
+            git push
+            echo "Icons updated and pushed"
+          fi
