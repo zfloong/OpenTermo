@@ -14,6 +14,18 @@ use tauri::State;
 use crate::prompts::PromptManager;
 use crate::session::{MountInfo, SessionManager};
 
+/// Log a command invocation with its result.
+macro_rules! log_command {
+    ($name:expr, $result:expr) => {{
+        let result = $result;
+        match &result {
+            Ok(_) => tracing::debug!("[命令] {} 成功", $name),
+            Err(e) => tracing::warn!("[命令] {} 失败: {}", $name, e),
+        }
+        result
+    }};
+}
+
 // -- Session CRUD -----------------------------------------------------------
 
 #[tauri::command]
@@ -118,7 +130,9 @@ pub fn connect_session(
     app: tauri::AppHandle,
     prompts: State<'_, Arc<PromptManager>>,
 ) -> Result<(), String> {
-    mgr.connect(app, &tab_id, session, prompts.inner().clone())
+    tracing::info!(tab_id, kind = ?session.kind, host = %session.host, "正在连接会话");
+    let r = mgr.connect(app, &tab_id, session, prompts.inner().clone());
+    log_command!("connect_session", r)
 }
 
 #[tauri::command]
@@ -127,7 +141,8 @@ pub fn send_input(
     tab_id: String,
     data: String,
 ) -> Result<(), String> {
-    mgr.send_input(&tab_id, data.into_bytes())
+    tracing::debug!(tab_id, len = data.len(), "发送输入");
+    log_command!("send_input", mgr.send_input(&tab_id, data.into_bytes()))
 }
 
 #[tauri::command]
@@ -137,7 +152,8 @@ pub fn resize_terminal(
     cols: u32,
     rows: u32,
 ) -> Result<(), String> {
-    mgr.resize(&tab_id, cols, rows)
+    tracing::debug!(tab_id, cols, rows, "调整终端大小");
+    log_command!("resize_terminal", mgr.resize(&tab_id, cols, rows))
 }
 
 #[tauri::command]
@@ -145,7 +161,8 @@ pub fn disconnect_session(
     mgr: State<'_, SessionManager>,
     tab_id: String,
 ) -> Result<(), String> {
-    mgr.disconnect(&tab_id)
+    tracing::info!(tab_id, "正在断开会话");
+    log_command!("disconnect_session", mgr.disconnect(&tab_id))
 }
 
 // -- System & interactions ---------------------------------------------------
@@ -156,7 +173,8 @@ pub fn reply_host_key(
     id: String,
     accept: bool,
 ) -> Result<(), String> {
-    prompts.reply_host_key(&id, accept)
+    tracing::info!(prompt_id = %id, accept, "回复主机密钥");
+    log_command!("reply_host_key", prompts.reply_host_key(&id, accept))
 }
 
 #[tauri::command]
@@ -171,7 +189,8 @@ pub fn reply_credential(
         (Some(u), Some(p)) => Some((u, p, remember.unwrap_or(false))),
         _ => None,
     };
-    prompts.reply_credential(&id, reply)
+    tracing::info!(prompt_id = %id, has_reply = reply.is_some(), "回复凭据");
+    log_command!("reply_credential", prompts.reply_credential(&id, reply))
 }
 
 #[tauri::command]
@@ -200,7 +219,7 @@ fn find_free_drive(mounts: &HashMap<String, MountInfo>) -> Result<String, String
         }
         return Ok(drive);
     }
-    Err("No free drive letter available (M:-Z:)".into())
+    Err("无可用的盘符 (M:-Z:)".into())
 }
 
 /// Query Windows for all occupied drive letters via WMI.
@@ -252,10 +271,10 @@ fn create_rclone_config(
         cmd.arg("pass").arg(pw);
     }
 
-    let output = cmd.output().map_err(|e| format!("Failed to run rclone config: {}", e))?;
+    let output = cmd.output().map_err(|e| format!("运行 rclone 配置失败: {}", e))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("rclone config failed: {}", stderr.trim()));
+        return Err(format!("rclone 配置失败: {}", stderr.trim()));
     }
     Ok(())
 }
@@ -265,10 +284,12 @@ pub fn rclone_mount(
     mgr: State<'_, SessionManager>,
     tab_id: String,
 ) -> Result<String, String> {
+    tracing::info!(tab_id, "rclone 挂载");
+    let r = (|| -> Result<String, String> {
     let configs = mgr.session_configs.lock();
     let config = configs
         .get(&tab_id)
-        .ok_or_else(|| format!("session {tab_id} not found"))?;
+        .ok_or_else(|| format!("会话 {tab_id} 未找到"))?;
 
     let host = config.host.clone();
     let port = config.port;
@@ -278,7 +299,7 @@ pub fn rclone_mount(
     {
         let mounts = mgr.mounts.lock();
         if let Some(existing) = mounts.get(&tab_id) {
-            return Err(format!("Already mounted at {}", existing.drive_letter));
+            return Err(format!("已在 {} 挂载", existing.drive_letter));
         }
     }
 
@@ -340,6 +361,7 @@ pub fn rclone_mount(
             let _ = Command::new(&mgr.rclone_path).creation_flags(0x08000000)
                 .args(["config", "delete", &config_name])
                 .output();
+            tracing::warn!(tab_id, host, exit = ?status, stderr = %stderr_str.trim(), "rclone 挂载失败（提前退出）");
             return Err(format!(
                 "[rclone] {} 挂载失败 (exit {})\n{}",
                 host, status, stderr_str.trim()
@@ -349,13 +371,16 @@ pub fn rclone_mount(
             // Process still running — verify the drive is accessible
             let test = std::fs::read_dir(&drive_letter);
             match test {
-                Ok(_) => {} // Success
+                Ok(_) => {
+                    tracing::info!(tab_id, host, drive = %drive_letter, "rclone 挂载成功");
+                }
                 Err(_) => {
                     // Drive not accessible, kill and clean up
                     let _ = child.kill();
                     let _ = Command::new(&mgr.rclone_path).creation_flags(0x08000000)
                         .args(["config", "delete", &config_name])
                         .output();
+                    tracing::warn!(tab_id, host, drive = %drive_letter, "rclone 盘符不可访问");
                     return Err(format!(
                         "[rclone] {} 挂载到 {} 但盘符不可访问，请检查密钥和网络",
                         host, drive_letter
@@ -367,17 +392,20 @@ pub fn rclone_mount(
             let _ = Command::new(&mgr.rclone_path).creation_flags(0x08000000)
                 .args(["config", "delete", &config_name])
                 .output();
+            tracing::error!(tab_id, host, error = %e, "rclone 挂载进程异常");
             return Err(format!("[rclone] 进程异常: {}", e));
         }
     }
 
-    mgr.mounts.lock().insert(tab_id, MountInfo {
+    mgr.mounts.lock().insert(tab_id.clone(), MountInfo {
         drive_letter: drive_letter.clone(),
         pid,
         config_name,
     });
 
     Ok(format!("{} -> {}", drive_letter, host))
+    })();
+    log_command!("rclone_mount", r)
 }
 
 #[tauri::command]
@@ -385,10 +413,12 @@ pub fn rclone_unmount(
     mgr: State<'_, SessionManager>,
     tab_id: String,
 ) -> Result<String, String> {
+    tracing::info!(tab_id, "rclone 卸载");
+    let r = (|| -> Result<String, String> {
     let mount = {
         let mut mounts = mgr.mounts.lock();
         mounts.remove(&tab_id)
-            .ok_or_else(|| "No active mount for this session".to_string())?
+            .ok_or_else(|| "该会话没有活跃的挂载".to_string())?
     };
 
     let drive = mount.drive_letter.clone();
@@ -403,7 +433,10 @@ pub fn rclone_unmount(
         .args(["config", "delete", &mount.config_name])
         .output();
 
+    tracing::info!(tab_id, drive, "rclone 已卸载");
     Ok(format!("Unmounted {}", drive))
+    })();
+    log_command!("rclone_unmount", r)
 }
 
 #[tauri::command]

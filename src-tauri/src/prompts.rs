@@ -27,6 +27,7 @@ impl PromptManager {
     /// Register a host-key responder and return its prompt id.
     pub fn register_host_key(&self, responder: HostKeyResponder) -> String {
         let id = self.next_id();
+        tracing::debug!(prompt_id = %id, "注册主机密钥提示");
         self.host_keys.lock().insert(id.clone(), responder);
         id
     }
@@ -34,6 +35,7 @@ impl PromptManager {
     /// Register a credential responder and return its prompt id.
     pub fn register_credential(&self, responder: CredentialResponder) -> String {
         let id = self.next_id();
+        tracing::debug!(prompt_id = %id, "注册凭据提示");
         self.credentials.lock().insert(id.clone(), responder);
         id
     }
@@ -44,7 +46,11 @@ impl PromptManager {
             .host_keys
             .lock()
             .remove(id)
-            .ok_or_else(|| "unknown prompt id".to_string())?;
+            .ok_or_else(|| {
+                tracing::warn!(prompt_id = %id, "主机密钥回复：未知 ID");
+                "未知的提示 ID".to_string()
+            })?;
+        tracing::info!(prompt_id = %id, accept, "主机密钥回复");
         responder.respond(accept);
         Ok(())
     }
@@ -59,7 +65,11 @@ impl PromptManager {
             .credentials
             .lock()
             .remove(id)
-            .ok_or_else(|| "unknown prompt id".to_string())?;
+            .ok_or_else(|| {
+                tracing::warn!(prompt_id = %id, "凭据回复：未知 ID");
+                "未知的提示 ID".to_string()
+            })?;
+        tracing::info!(prompt_id = %id, has_reply = reply.is_some(), "凭据回复");
         responder.respond(reply);
         Ok(())
     }

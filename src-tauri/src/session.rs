@@ -60,8 +60,12 @@ impl SessionManager {
         prompts: Arc<PromptManager>,
     ) -> Result<(), String> {
         if self.sessions.lock().contains_key(tab_id) {
-            return Err("session already exists".into());
+            tracing::warn!(tab_id, "连接失败：会话已存在");
+            return Err("会话已存在".into());
         }
+
+        let kind = format!("{:?}", session.kind);
+        tracing::info!(tab_id, kind, host = %session.host, "会话连接开始");
 
         let tab_id_owned = tab_id.to_string();
         let session_config = session.clone();
@@ -98,6 +102,7 @@ impl SessionManager {
         self.sessions
             .lock()
             .insert(tab_id_owned.clone(), handle);
+        tracing::info!(tab_id = %tab_id_owned, kind, host = %session_config.host, "会话已连接");
         self.session_configs
             .lock()
             .insert(tab_id_owned.clone(), session_config);
@@ -118,7 +123,7 @@ impl SessionManager {
         let sessions = self.sessions.lock();
         let handle = sessions
             .get(tab_id)
-            .ok_or_else(|| format!("session {tab_id} not found"))?;
+            .ok_or_else(|| format!("会话 {tab_id} 未找到"))?;
         handle.send_raw(data);
         Ok(())
     }
@@ -128,7 +133,7 @@ impl SessionManager {
         let sessions = self.sessions.lock();
         let handle = sessions
             .get(tab_id)
-            .ok_or_else(|| format!("session {tab_id} not found"))?;
+            .ok_or_else(|| format!("会话 {tab_id} 未找到"))?;
         let _ = handle
             .commands
             .send(SessionCommand::Resize(cols, rows));
@@ -137,8 +142,10 @@ impl SessionManager {
 
     /// Disconnect and remove a session.
     pub fn disconnect(&self, tab_id: &str) -> Result<(), String> {
+        tracing::info!(tab_id, "请求断开连接");
         // Unmount rclone if mounted for this tab
         if let Some(mount) = self.mounts.lock().remove(tab_id) {
+            tracing::info!(tab_id, drive = %mount.drive_letter, "断开时卸载 rclone");
             let _ = Command::new("taskkill").creation_flags(0x08000000)
                 .args(["/F", "/PID", &mount.pid.to_string()])
                 .output();
@@ -160,7 +167,9 @@ impl SessionManager {
 
     /// Kill all active rclone mounts. Called on app close.
     pub fn unmount_all(&self) {
+        tracing::info!("应用关闭，卸载所有 rclone 挂载");
         let mounts: Vec<MountInfo> = self.mounts.lock().drain().map(|(_, m)| m).collect();
+        tracing::info!(count = mounts.len(), "待卸载的挂载点");
         for mount in &mounts {
             let _ = Command::new("taskkill").creation_flags(0x08000000)
                 .args(["/F", "/PID", &mount.pid.to_string()])
@@ -172,6 +181,7 @@ impl SessionManager {
         if !mounts.is_empty() {
             std::thread::sleep(std::time::Duration::from_millis(300));
         }
+        tracing::info!("所有挂载已清理");
     }
 }
 
@@ -187,18 +197,22 @@ async fn forward_events(
     mut rx: tokio::sync::mpsc::UnboundedReceiver<SessionEvent>,
     prompts: Arc<PromptManager>,
 ) {
+    tracing::info!(tab_id, "事件转发器已启动");
     while let Some(event) = rx.recv().await {
         match event {
             SessionEvent::Output(text) => {
                 let _ = app.emit(&format!("terminal-output:{tab_id}"), text);
             }
             SessionEvent::Status(status) => {
+                tracing::debug!(tab_id, status, "会话状态");
                 let _ = app.emit(&format!("terminal-status:{tab_id}"), status);
             }
             SessionEvent::Connected => {
+                tracing::info!(tab_id, "会话已连接事件");
                 let _ = app.emit(&format!("terminal-connected:{tab_id}"), true);
             }
             SessionEvent::Closed(reason) => {
+                tracing::info!(tab_id, reason, "会话已关闭");
                 let _ = app.emit(&format!("terminal-closed:{tab_id}"), reason);
                 sessions.lock().remove(&tab_id);
                 break;

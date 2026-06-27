@@ -1,4 +1,5 @@
 mod commands;
+mod logger;
 mod prompts;
 mod session;
 
@@ -83,7 +84,11 @@ fn find_exe_recursive(dir: &std::path::Path, exe_name: &str) -> Option<String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    logger::init();
+    tracing::info!("OpenTermo 启动");
+
     let rclone_path = discover_rclone();
+    tracing::info!(rclone_path, "已发现 rclone");
     // Kill any stale rclone processes from previous runs
     let _ = std::process::Command::new("taskkill").creation_flags(0x08000000)
         .args(["/F", "/IM", "rclone.exe"])
@@ -99,6 +104,7 @@ pub fn run() {
         .manage(Mutex::new(SystemSampler::new()))
         .manage(Arc::new(PromptManager::new()))
         .setup(|app| {
+            let started = std::time::Instant::now();
             // Set window icon from the icon PNG so the taskbar shows the real icon.
             let icon_bytes = include_bytes!("../icons/icon.png");
             if let Ok(img) = image::load_from_memory(icon_bytes) {
@@ -109,15 +115,7 @@ pub fn run() {
                     let _ = window.set_icon(tauri_icon);
                 }
             }
-            // Delay showing the window so WebView2 internal init finishes first.
-            // This prevents the multiple black-box flickering on startup.
-            let handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
-                if let Some(w) = handle.get_webview_window("main") {
-                    let _ = w.show();
-                }
-            });
+            tracing::info!("启动耗时: {:?}", started.elapsed());
             Ok(())
         })
         .on_window_event({
@@ -128,6 +126,7 @@ pub fn run() {
                         // Second invocation: cleanup already done, let it close
                         return;
                     }
+                    tracing::info!("应用关闭，开始清理");
                     api.prevent_close();
 
                     // Clone handles before moving into the thread.
@@ -141,6 +140,7 @@ pub fn run() {
                         mgr.unmount_all();
                         let ids: Vec<String> =
                             mgr.sessions.lock().keys().cloned().collect();
+                        tracing::info!(count = ids.len(), "断开剩余会话");
                         for id in &ids {
                             let _ = mgr.disconnect(id);
                         }
