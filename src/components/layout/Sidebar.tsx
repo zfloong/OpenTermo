@@ -31,12 +31,33 @@ export default function Sidebar() {
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const dragging = useRef(false);
 
-  const executeScript = useCallback((entry: { command: string; id: string }) => {
+  const cmdClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cmdClickEntry = useRef<{ command: string; id: string } | null>(null);
+
+  const handleCmdClick = useCallback((entry: { command: string; id: string }) => {
     if (!activeTabId) return;
-    const resolved = resolveCommandTemplate(entry.command, activeTab?.session);
-    sendInput(activeTabId, resolved + "\n");
-    triggerScroll(activeTabId);
-    recordUsage(entry.id);
+    // If this is a second click within 300ms → treat as double-click
+    if (cmdClickEntry.current?.id === entry.id && cmdClickTimer.current) {
+      clearTimeout(cmdClickTimer.current);
+      cmdClickTimer.current = null;
+      cmdClickEntry.current = null;
+      // Double-click: execute immediately (send + newline)
+      const resolved = resolveCommandTemplate(entry.command, activeTab?.session);
+      sendInput(activeTabId, resolved + "\n");
+      triggerScroll(activeTabId);
+      recordUsage(entry.id);
+      return;
+    }
+    // First click: schedule send to terminal (without newline)
+    cmdClickEntry.current = entry;
+    cmdClickTimer.current = setTimeout(() => {
+      cmdClickTimer.current = null;
+      cmdClickEntry.current = null;
+      const resolved = resolveCommandTemplate(entry.command, activeTab?.session);
+      sendInput(activeTabId, resolved);
+      triggerScroll(activeTabId);
+      recordUsage(entry.id);
+    }, 250);
   }, [activeTabId, activeTab, sendInput, triggerScroll, recordUsage]);
 
   const showCmdCtx = (e: React.MouseEvent, entry: CommandEntry) => {
@@ -148,7 +169,7 @@ export default function Sidebar() {
                 </div>
               ) : (
                 commandEntries.slice(0, 20).map((entry) => (
-                  <button key={entry.id} onClick={() => executeScript(entry)} onContextMenu={(e) => showCmdCtx(e, entry)} className="w-full flex items-center gap-3 px-3 rounded text-on-surface-variant hover:bg-surface-variant/30 transition-all group border-l-2 border-transparent py-1">
+                  <button key={entry.id} onClick={() => handleCmdClick(entry)} onContextMenu={(e) => showCmdCtx(e, entry)} className="w-full flex items-center gap-3 px-3 rounded text-on-surface-variant hover:bg-surface-variant/30 transition-all group border-l-2 border-transparent py-1">
                     <span className="material-symbols-outlined text-[18px] text-outline group-hover:text-secondary">terminal</span>
                     <span className="text-label-sm font-label-sm truncate">{entry.label}</span>
                   </button>
