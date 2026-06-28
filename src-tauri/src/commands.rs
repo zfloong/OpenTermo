@@ -457,3 +457,14 @@ pub fn rclone_list(
 pub fn write_text_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, &content).map_err(|e| e.to_string())
 }
+
+/// 获取本机 Windows 用户名和计算机名
+#[tauri::command]
+pub fn get_local_user_info() -> serde_json::Value {
+    let username = std::env::var("USERNAME").unwrap_or_else(|_| "unknown".into());
+    let computer = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "localhost".into());
+    serde_json::json!({
+        "username": username,
+        "computer": computer
+    })
+}

@@ -13,3 +13,6 @@ vite.config.d.ts
 work/
 
 src-tauri/target/
+
+# AI assistant workspace metadata
+.reasonix/

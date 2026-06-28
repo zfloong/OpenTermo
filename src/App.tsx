@@ -13,15 +13,13 @@ import CommandPalette from "@/components/CommandPalette";
 import SettingsPanel from "@/components/SettingsPanel";
 import { useSessionStore } from "@/stores/sessionStore";
 
-
-
 export default function App() {
   const theme = useSettingsStore((s) => s.theme);
   const overrides = useSettingsStore((s) => s.overrides);
-  const getEffectiveOverride = useSettingsStore((s) => s.getEffectiveOverride);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const activeTabId = useSessionStore((s) => s.activeTabId);
+  const setActiveTab = useSessionStore((s) => s.setActiveTab);
   const tabs = useSessionStore((s) => s.tabs);
   const sessions = useSessionStore((s) => s.sessions);
   const connectDialogOpen = useSessionStore((s) => s.connectDialogOpen);
@@ -45,14 +43,12 @@ export default function App() {
     setupGlobal();
   }, [loadSessions, setupGlobal]);
 
-  // Apply theme + overrides to CSS
   const applyAll = useCallback(() => {
     document.documentElement.setAttribute("data-theme", theme);
     const saved = overrides[theme];
     if (saved) {
       applyOverride(theme, saved);
     } else {
-      // Clear JS overrides so static CSS takes full control
       const KEYS = [
         "--accent","--accent-soft","--accent-dim","--accent-border","--color-info",
         "--bg-glass","--glass-blur",
@@ -66,31 +62,75 @@ export default function App() {
   useEffect(() => { applyAll(); }, [applyAll]);
 
   return (
-    <div className="flex flex-col h-full w-full bg-[var(--bg-base)]">
+    <div className="flex flex-col h-full w-full bg-background">
       <TitleBar onConnect={openConnect} onSettings={() => setSettingsOpen(true)} />
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
 
-        <div id="terminal-area" className="flex-1 overflow-hidden relative bg-[var(--bg-base)]">
-            {tabs.length > 0 ? (
-              tabs.map((tab) => (
-                <div
-                  key={tab.id}
-                  className="absolute inset-0"
-                  style={{ display: tab.id === activeTabId ? "block" : "none" }}
-                >
-                  <TerminalView tabId={tab.id} />
-                </div>
-              ))
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full gap-3">
-                <span className="text-2xl opacity-20">{String.fromCharCode(0x2328)}</span>
-                <span className="text-sm text-[var(--text-muted)] select-none">
-                  按 <kbd className="px-1.5 py-0.5 text-[11px] bg-[var(--surface-hover)] rounded font-mono">Ctrl+K</kbd> 搜索命令
-                </span>
+        <div id="terminal-area" className="flex-1 overflow-hidden relative bg-[#090909]">
+          {/* Tab bar */}
+          {tabs.length > 0 && (
+            <div className="flex items-center bg-surface-container-low border-b border-outline-variant/20 h-10 px-2 overflow-x-auto">
+              {tabs.map((tab) => {
+                const isActive = tab.id === activeTabId;
+                return (
+                  <div
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-4 py-1.5 rounded-t cursor-pointer min-w-[150px] transition-colors ${
+                      isActive
+                        ? "bg-[#090909] border border-outline-variant/20 border-b-0 text-secondary"
+                        : "text-on-surface-variant hover:bg-surface-variant/30"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">terminal</span>
+                    <span className="font-terminal-mono text-terminal-mono text-sm truncate">
+                      {tab.session.name || tab.session.host}
+                    </span>
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        useSessionStore.getState().disconnect(tab.id);
+                      }}
+                      className="material-symbols-outlined text-[16px] ml-auto text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer"
+                    >
+                      close
+                    </span>
+                  </div>
+                );
+              })}
+              <button
+                onClick={openConnect}
+                className="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/50 transition-colors ml-1"
+              >
+                <span className="material-symbols-outlined text-[20px]">add</span>
+              </button>
+            </div>
+          )}
+
+          {/* Terminal content */}
+          {tabs.length > 0 ? (
+            tabs.map((tab) => (
+              <div
+                key={tab.id}
+                className="absolute inset-0"
+                style={{
+                  display: tab.id === activeTabId ? "block" : "none",
+                  top: 40,
+                }}
+              >
+                <TerminalView tabId={tab.id} />
               </div>
-            )}
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full gap-3">
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant/20">keyboard</span>
+              <span className="text-sm text-on-surface-variant select-none">
+                按 <kbd className="px-1.5 py-0.5 text-[11px] bg-surface-variant rounded font-terminal-mono">Ctrl+K</kbd> 搜索命令
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -109,10 +149,7 @@ export default function App() {
       {editingSessionId && (() => {
         const session = sessions.find((s) => s.id === editingSessionId);
         return session ? (
-          <EditSessionDialog
-            session={session}
-            onClose={closeEdit}
-          />
+          <EditSessionDialog session={session} onClose={closeEdit} />
         ) : null;
       })()}
 

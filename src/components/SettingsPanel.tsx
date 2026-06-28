@@ -1,12 +1,9 @@
 import { useState, useCallback } from "react";
-import { Settings, Palette, Type, Check, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 import { useSettingsStore, type ThemeId, type ThemeOverride } from "@/stores/settingsStore";
 import { applyOverride } from "@/lib/themeUtils";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 
 interface Props {
@@ -15,9 +12,9 @@ interface Props {
 }
 
 const THEME_META: { id: ThemeId; label: string; desc: string; colors: string[] }[] = [
-  { id: "deep-blue", label: "暗色", desc: "纯黑白灰层次", colors: ["#000000", "#8b9dc3", "#1a1a1a"] },
-  { id: "light",     label: "白天", desc: "明亮清爽",     colors: ["#f8f9fb", "#3b82f6", "#6366f1"] },
-  { id: "tabby",     label: "Tabby", desc: "蓝紫深灰风", colors: ["#13171d", "#7b68ee", "#9b8cf0"] },
+  { id: "deep-blue", label: "深色 (默认)", desc: "纯黑白灰层次 · Steel Lavender", colors: ["#131313", "#b5c7ef", "#4de082"] },
+  { id: "light",     label: "浅色", desc: "明亮清爽 · Classic Blue", colors: ["#f8f9fb", "#3b82f6", "#22c55e"] },
+  { id: "tabby",     label: "Tabby", desc: "蓝紫深灰风 · Neon Violet", colors: ["#13171d", "#7b68ee", "#50d890"] },
 ];
 
 const DEFAULT_OVERRIDES: Record<ThemeId, ThemeOverride> = {
@@ -30,8 +27,8 @@ function rangeSlider(label: string, min: number, max: number, step: number, valu
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex justify-between text-xs">
-        <span className="text-[var(--text-secondary)]">{label}</span>
-        <span className="text-[var(--accent)] tabular-nums font-medium">{fmt ? fmt(value) : value}</span>
+        <span className="text-on-surface-variant">{label}</span>
+        <span className="text-secondary tabular-nums font-medium font-terminal-mono">{fmt ? fmt(value) : value}</span>
       </div>
       <input
         type="range"
@@ -40,11 +37,10 @@ function rangeSlider(label: string, min: number, max: number, step: number, valu
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-[var(--border-strong)]
-          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
-          [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--accent)]
-          [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md
-          [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110"
+        className="w-full h-1 rounded-full appearance-none cursor-pointer"
+        style={{
+          background: "var(--surface-variant)",
+        }}
       />
     </div>
   );
@@ -60,9 +56,8 @@ export default function SettingsPanel({ open, onClose }: Props) {
   const resetOverride = useSettingsStore((s) => s.resetOverride);
   const resetAllOverrides = useSettingsStore((s) => s.resetAllOverrides);
 
+  const [activeTab, setActiveTab] = useState<"appearance" | "keyboard" | "terminal" | "security">("appearance");
   const [expanded, setExpanded] = useState<ThemeId | null>(null);
-
-  // Draft state for editing
   const [draft, setDraft] = useState<ThemeOverride | null>(null);
 
   const openEditor = useCallback((tid: ThemeId) => {
@@ -80,7 +75,6 @@ export default function SettingsPanel({ open, onClose }: Props) {
     setDraft((d) => {
       if (!d) return null;
       const next = { ...d, [key]: value };
-      // Real-time preview: apply draft to DOM
       const tid = expanded;
       if (tid) applyOverride(tid, next);
       return next;
@@ -114,145 +108,209 @@ export default function SettingsPanel({ open, onClose }: Props) {
 
   const hasAnyOverride = Object.keys(overrides).length > 0;
 
+  const tabs = [
+    { id: "appearance", label: "外观", icon: "palette" },
+    { id: "keyboard", label: "键盘", icon: "keyboard" },
+    { id: "terminal", label: "终端", icon: "terminal" },
+    { id: "security", label: "安全", icon: "shield_person" },
+  ] as const;
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-sm p-6 max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2.5 text-lg">
-            <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--accent-dim)]">
-              <Settings size={17} className="text-[var(--accent)]" />
-            </span>
-            设置
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="flex flex-col gap-4 mt-4">
-          {/* ── Themes ── */}
-          <section className="flex flex-col gap-2">
-            <div className="flex items-center gap-2.5 mb-1">
-              <Palette size={14} className="text-[var(--accent)]" />
-              <span className="text-sm font-medium text-[var(--text-heading)]">主题</span>
-            </div>
-
-            {THEME_META.map((tm) => {
-              const isActive = theme === tm.id;
-              const isExpanded = expanded === tm.id;
-              const cur = overrides[tm.id];
-              const hasOverride = !!cur;
-
+      <DialogContent className="max-w-2xl max-h-[75vh] p-0 overflow-hidden rounded-xl flex flex-row" style={{
+        background: "var(--surface-container-low)",
+        border: "1px solid var(--outline-variant)",
+        boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+      }}>
+        <aside className="w-36 flex-shrink-0 flex flex-col p-2.5 border-r border-outline-variant/20" style={{ background: "var(--surface-container)" }}>
+          <div className="mb-3 px-2">
+            <h2 className="text-[13px] font-semibold text-on-surface">设置</h2>
+          </div>
+          <nav className="flex flex-col gap-1">
+            {tabs.map((t) => {
+              const isActive = activeTab === t.id;
               return (
-                <div key={tm.id} className="flex flex-col">
-                  <button
-                    onClick={() => {
-                      if (!isActive) setTheme(tm.id);
-                      openEditor(tm.id);
-                    }}
-                    className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl border transition-all text-left
-                      ${isActive
-                        ? "border-[var(--accent)] bg-[var(--accent-dim)] ring-1 ring-[rgb(var(--accent-rgb)/0.20)]"
-                        : "border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:bg-[var(--surface-hover)]"
-                      }`}
-                  >
-                    <div className="flex rounded-md overflow-hidden border border-[var(--border-subtle)] shrink-0 shadow-sm">
-                      {tm.colors.map((c, i) => (
-                        <div key={i} className="w-5 h-7" style={{ background: c }} />
-                      ))}
-                    </div>
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-medium text-[var(--text-primary)]">{tm.label}</span>
-                        {hasOverride && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-warning)]" title="已自定义" />
-                        )}
-                      </div>
-                      <div className="text-xs text-[var(--text-muted)]">{tm.desc}</div>
-                    </div>
-                    {isActive && <Check size={16} className="text-[var(--accent)] shrink-0" strokeWidth={2.5} />}
-                    {isExpanded ? <ChevronUp size={14} className="text-[var(--text-muted)] shrink-0" /> : <ChevronDown size={14} className="text-[var(--text-muted)] shrink-0" />}
-                  </button>
-
-                  {/* Expanded editor */}
-                  {isExpanded && draft && (
-                    <div className="ml-2 mt-1.5 px-3.5 py-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] flex flex-col gap-3">
-                      <p className="text-xs text-[var(--text-muted)] mb-1">拖动滑块实时预览，满意后点保存</p>
-                      {rangeSlider("Accent 色相", 0, 360, 1, draft.accentHue, (v) => updateDraft("accentHue", v), (v) => `${v}°`)}
-                      <p className="text-[11px] text-[var(--text-muted)] -mt-1">→ 侧栏/标题栏/状态栏的高亮颜色</p>
-                      {rangeSlider("面板透明度", 20, 95, 1, Math.round(draft.glassAlpha * 100), (v) => updateDraft("glassAlpha", v / 100), (v) => `${v}%`)}
-                      <p className="text-[11px] text-[var(--text-muted)] -mt-1">→ 侧边栏、标题栏、状态栏的毛玻璃感</p>
-                      {rangeSlider("边框可见度", 5, 30, 1, Math.round(draft.borderAlpha * 100), (v) => updateDraft("borderAlpha", v / 100), (v) => `${v}%`)}
-                      <p className="text-[11px] text-[var(--text-muted)] -mt-1">→ 各区域分隔线的深浅</p>
-
-                      <div className="flex items-center gap-2 mt-1">
-                        <button
-                          onClick={handleSave}
-                          className="flex-1 py-1.5 text-xs font-semibold rounded-md bg-[var(--accent)] text-white hover:brightness-110 transition-all"
-                        >
-                          保存
-                        </button>
-                        <button
-                          onClick={handleCancel}
-                          className="flex-1 py-1.5 text-xs font-semibold rounded-md border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-all"
-                        >
-                          取消
-                        </button>
-                        <button
-                          onClick={handleResetTheme}
-                          className="px-2 py-1.5 text-xs rounded-md text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 transition-all"
-                          title="恢复此主题默认"
-                        >
-                          <RotateCcw size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-all border-l-2 ${
+                    isActive
+                      ? "border-l-secondary bg-secondary/10 text-secondary"
+                      : "border-l-transparent text-on-surface-variant hover:bg-surface-variant/30 hover:text-on-surface"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">{t.icon}</span>
+                  <span className="text-label-sm font-label-sm">{t.label}</span>
+                </button>
               );
             })}
-          </section>
+          </nav>
+        </aside>
 
-          <div className="h-px bg-[var(--border-subtle)]" />
+        <main className="flex-1 overflow-y-auto" style={{ background: "var(--surface-container-lowest)" }}>
+          <div className="p-5 space-y-6">
+            <div>
+              <h3 className="text-[14px] font-semibold text-on-surface mb-2.5 border-b border-outline-variant/20 pb-1.5">主题</h3>
+              <div className="grid grid-cols-3 gap-2.5">
+                {THEME_META.map((tm) => {
+                  const isActive = theme === tm.id;
+                  const cur = overrides[tm.id];
+                  const hasOverride = !!cur;
 
-          {/* ── Font size ── */}
-          <section className="flex flex-col gap-2">
-            <div className="flex items-center gap-2.5">
-              <Type size={14} className="text-[var(--accent)]" />
-              <span className="text-sm font-medium text-[var(--text-heading)]">字号</span>
-              <span className="text-sm font-bold text-[var(--accent)] ml-auto tabular-nums">{fontSize}px</span>
+                  return (
+                    <button
+                      key={tm.id}
+                      onClick={() => setTheme(tm.id)}
+                      className={`relative group p-2 rounded-xl border-2 text-left transition-all ${
+                        isActive
+                          ? "border-secondary"
+                          : "border-transparent hover:border-outline/50"
+                      }`}
+                      style={{ background: "var(--surface-container)" }}
+                    >
+                      <div className="bg-surface rounded h-[68px] mb-1.5 overflow-hidden flex flex-col">
+                        <div className="h-3 bg-surface-container-high border-b border-outline-variant/30 flex items-center px-2 gap-0.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-error"></div>
+                          <div className="w-1.5 h-1.5 rounded-full bg-secondary-container"></div>
+                          <div className="w-1.5 h-1.5 rounded-full bg-secondary"></div>
+                        </div>
+                        <div className="flex-1 p-1.5 bg-surface-dim">
+                          <div className="text-secondary text-[9px] font-terminal-mono">&gt; _</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-[11px] text-on-surface truncate">{tm.label}</span>
+                          {hasOverride && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-warning flex-shrink-0" title="已自定义" />
+                          )}
+                        </div>
+                        {isActive && (
+                          <span className="material-symbols-outlined text-secondary text-[14px]">check_circle</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <input
-              type="range"
-              min="10"
-              max="28"
-              step="1"
-              value={fontSize}
-              onChange={(e) => setFontSize(Number(e.target.value))}
-              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-[var(--border-strong)]
-                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
-                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--accent)]
-                [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md
-                [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110"
-            />
-            <div className="flex justify-between text-xs text-[var(--text-muted)] px-1">
-              <span>10</span><span>14</span><span>28</span>
-            </div>
-          </section>
 
-          {/* ── Reset all ── */}
-          <div className="h-px bg-[var(--border-subtle)]" />
-          <button
-            onClick={handleResetAll}
-            disabled={!hasAnyOverride}
-            className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all
-              ${hasAnyOverride
-                ? "text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/25"
-                : "text-[var(--text-muted)] border border-[var(--border-subtle)] cursor-not-allowed"
-              }`}
-          >
-            <RotateCcw size={14} />
-            全部恢复默认
-          </button>
-        </div>
+            <div>
+              <h3 className="text-[14px] font-semibold text-on-surface mb-2.5 border-b border-outline-variant/20 pb-1.5">排版</h3>
+              <div className="bg-surface-container-high rounded-xl p-3.5 border border-outline-variant/20 space-y-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] text-on-surface-variant">字体族</label>
+                  <div className="relative focus-glow rounded transition-shadow">
+                    <select className="w-full bg-surface text-on-surface border border-outline-variant/50 rounded p-2 appearance-none font-terminal-mono text-terminal-mono text-[12px] outline-none">
+                      <option>JetBrains Mono</option>
+                      <option>Fira Code</option>
+                      <option>Hack</option>
+                      <option>Source Code Pro</option>
+                    </select>
+                    <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]">expand_more</span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[11px] text-on-surface-variant">字体大小</label>
+                    <span className="text-terminal-mono font-terminal-mono text-primary font-medium bg-primary/10 px-1.5 py-0.5 rounded text-[11px]">{fontSize}px</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-on-surface-variant text-[12px] font-terminal-mono">A</span>
+                    <input
+                      type="range"
+                      min="10"
+                      max="24"
+                      step="1"
+                      value={fontSize}
+                      onChange={(e) => setFontSize(Number(e.target.value))}
+                      className="flex-1"
+                    />
+                    <span className="text-on-surface-variant text-[18px] font-terminal-mono">A</span>
+                  </div>
+                </div>
+                <div className="mt-3 p-3 bg-surface-dim rounded border border-outline-variant/30 font-terminal-mono text-terminal-mono text-[11px]">
+                  <div className="text-secondary mb-1">user@opentermo:~$ <span className="text-on-surface">ls -la</span></div>
+                  <div className="text-on-surface-variant opacity-80">drwxr-xr-x 2 user root  4096 Oct 12 10:00 configs</div>
+                  <div className="text-primary">.rw-r--r-- 1 user root   234 Oct 12 10:05 .zshrc</div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-[14px] font-semibold text-on-surface mb-2.5 border-b border-outline-variant/20 pb-1.5">窗口与渲染</h3>
+              <div className="space-y-4">
+                <div className="bg-surface-container-high rounded-xl p-3.5 border border-outline-variant/20">
+                  <div className="flex justify-between items-center mb-3">
+                    <div>
+                      <label className="text-[12px] text-on-surface">背景不透明度</label>
+                      <p className="text-[11px] text-on-surface-variant mt-0.5">调整亚克力模糊效果强度。</p>
+                    </div>
+                    <span className="text-terminal-mono font-terminal-mono text-primary font-medium bg-primary/10 px-2 py-0.5 rounded text-sm">90%</span>
+                  </div>
+                  <input className="w-full" max="100" min="0" type="range" value="90" />
+                </div>
+                <div className="space-y-3">
+                  <ToggleRow title="GPU 加速" desc="使用硬件渲染以获得更好性能" defaultChecked />
+                  <ToggleRow title="连字" desc="在终端输出中启用字体连字" />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-outline-variant/20 flex justify-end gap-2">
+              <button
+              onClick={handleResetAll}
+              disabled={!hasAnyOverride}
+              className="px-3 py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-variant/40 hover:text-on-surface transition-colors text-[12px]"
+            >
+              恢复默认
+            </button>
+              <button
+                className="px-4 py-1.5 rounded-lg bg-secondary/20 text-secondary hover:bg-secondary/30 transition-colors text-[12px] font-medium"
+                onClick={onClose}
+              >
+                应用更改
+              </button>
+            </div>
+          </div>
+
+          {/* 空标签页占位 */}
+          {activeTab !== "appearance" && (
+            <div className="flex flex-col items-center justify-center h-full text-center p-12">
+              <span className="material-symbols-outlined text-[48px] text-outline/30 mb-4">
+                {activeTab === "keyboard" ? "keyboard" : activeTab === "terminal" ? "terminal" : "shield_person"}
+              </span>
+              <p className="text-on-surface-variant text-sm">
+                {activeTab === "keyboard" ? "键盘快捷键设置开发中" :
+                 activeTab === "terminal" ? "终端高级设置开发中" :
+                 "安全与隐私设置开发中"}
+              </p>
+              <p className="text-outline text-xs mt-1">即将推出</p>
+            </div>
+          )}
+        </main>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ToggleRow({ title, desc, defaultChecked = false }: { title: string; desc: string; defaultChecked?: boolean }) {
+  const [checked, setChecked] = useState(defaultChecked);
+  return (
+    <label className="flex items-center justify-between p-2.5 rounded-xl hover:bg-surface-variant/30 transition-colors cursor-pointer border border-transparent hover:border-outline/20" style={{ background: "var(--surface-container)" }}>
+      <div>
+        <div className="text-[12px] text-on-surface font-medium">{title}</div>
+        <div className="text-[10px] text-on-surface-variant mt-0.5">{desc}</div>
+      </div>
+      <div className="relative inline-flex items-center cursor-pointer">
+        <input
+          checked={checked}
+          onChange={(e) => setChecked(e.target.checked)}
+          className="sr-only peer"
+          type="checkbox"
+        />
+        <div className="w-9 h-5 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-on-surface after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-secondary" />
+      </div>
+    </label>
   );
 }

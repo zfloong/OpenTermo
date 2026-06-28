@@ -168,6 +168,7 @@ pub fn run() {
             commands::reply_host_key,
             commands::reply_credential,
             commands::get_system_stats,
+            commands::get_local_user_info,
             commands::write_text_file,
             commands::rclone_mount,
             commands::rclone_unmount,

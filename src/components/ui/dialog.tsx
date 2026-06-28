@@ -1,4 +1,4 @@
-﻿import * as React from "react";
+import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +14,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 dialog-overlay",
+      "fixed inset-0 z-50 bg-black/60 animate-[fade-in_120ms_ease-out]",
       className,
     )}
     {...props}
@@ -32,8 +32,9 @@ const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         "fixed left-[50%] top-[50%] z-50 w-full max-w-lg translate-x-[-50%] translate-y-[-50%]",
-        "dialog-glass",
+        "rounded-xl border border-outline-variant/30 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]",
         "focus-visible:outline-none",
+        "bg-surface-container-low",
         className,
       )}
       {...props}
@@ -60,7 +61,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn("text-md font-semibold text-[var(--text-heading)]", className)}
+    className={cn("text-headline-md font-headline-md text-on-surface font-bold", className)}
     {...props}
   />
 ));
