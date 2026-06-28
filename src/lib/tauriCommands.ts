@@ -132,6 +132,11 @@ export async function replyCredential(
   });
 }
 
+/** ICMP ping via system ping command — returns microseconds, or -1 on failure. */
+export async function pingHost(host: string): Promise<number> {
+  return invoke("ping_host", { host });
+}
+
 export async function getSystemStats(): Promise<SystemSnapshot> {
   return invoke<SystemSnapshot>("get_system_stats");
 }

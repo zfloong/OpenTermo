@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PanelLeftOpen, Edit3, Trash2, ChevronRight, Plus } from "lucide-react";
+import { PanelLeftOpen, Edit3, Trash2, ChevronRight } from "lucide-react";
 import { useUIStore, MIN_SIDEBAR_WIDTH } from "@/stores/uiStore";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useCommandStore } from "@/stores/commandStore";
@@ -7,6 +7,7 @@ import { resolveCommandTemplate } from "@/lib/utils";
 import type { CommandEntry } from "@/lib/tauriCommands";
 import { invoke } from "@tauri-apps/api/core";
 import SessionManager from "@/components/SessionManager";
+import LogDialog from "@/components/LogDialog";
 import AddCommandDialog from "@/components/AddCommandDialog";
 import ContextMenu, { type ContextMenuItem } from "@/components/ui/context-menu";
 
@@ -17,8 +18,12 @@ export default function Sidebar() {
   const setSidebarWidth = useUIStore((s) => s.setSidebarWidth);
   const [userInfo, setUserInfo] = useState({ username: "...", computer: "..." });
   const [scriptsOpen, setScriptsOpen] = useState(true);
+  const [sessionsOpen, setSessionsOpen] = useState(true);
+  const [cmdExpanded, setCmdExpanded] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
   const [addCmdOpen, setAddCmdOpen] = useState(false);
   const [editCmdEntry, setEditCmdEntry] = useState<CommandEntry | undefined>(undefined);
+  const [logOpen, setLogOpen] = useState(false);
   const [cmdCtx, setCmdCtx] = useState<{ items: (ContextMenuItem | null)[]; x: number; y: number } | null>(null);
   const commandEntries = useCommandStore((s) => s.entries);
   const loadCommands = useCommandStore((s) => s.load);
@@ -66,16 +71,6 @@ export default function Sidebar() {
     const items: (ContextMenuItem | null)[] = [
       { label: "编辑", icon: <Edit3 size={13} />, onClick: () => setEditCmdEntry(entry) },
       null,
-      { label: "移动到分组", icon: <ChevronRight size={13} />, children: [
-        { label: "系统管理", onClick: async () => { await moveCmdToGroup(entry, "系统管理"); } },
-        { label: "数据库", onClick: async () => { await moveCmdToGroup(entry, "数据库"); } },
-        { label: "网络", onClick: async () => { await moveCmdToGroup(entry, "网络"); } },
-        { label: "新建分组...", icon: <Plus size={12} />, onClick: async () => {
-          const name = prompt("新分组名称：");
-          if (name?.trim()) await moveCmdToGroup(entry, name.trim());
-        }},
-      ]},
-      null,
       { label: "删除", icon: <Trash2 size={13} />, onClick: async () => {
         if (confirm(`删除脚本 "${entry.label}"?`)) {
           await removeCommand(entry.id);
@@ -86,11 +81,6 @@ export default function Sidebar() {
     setCmdCtx({ items, x: e.clientX, y: e.clientY });
   };
 
-  const moveCmdToGroup = async (entry: CommandEntry, newCategory: string) => {
-    const store = useCommandStore.getState();
-    await store.upsert({ ...entry, category: newCategory });
-    await loadCommands();
-  };
   const startX = useRef(0);
   const startWidth = useRef(0);
 
@@ -113,6 +103,17 @@ export default function Sidebar() {
   }, []);
 
   useEffect(() => { loadCommands(); }, []);
+
+  // Auto-expand all command categories when entries load
+  useEffect(() => {
+    const cats = [...new Set(commandEntries.map((e) => e.category).filter(Boolean))];
+    if (cats.length === 0) return;
+    setCmdExpanded((prev) => {
+      let changed = false;
+      for (const c of cats) { if (!prev.has(c)) { changed = true; prev = new Set(prev); prev.add(c); } }
+      return changed ? prev : prev;
+    });
+  }, [commandEntries]);
 
   return (<>
     {!isOpen && (
@@ -143,53 +144,115 @@ export default function Sidebar() {
 
       {/* 可滚动区域：已保存连接 + 脚本命令 */}
       <div className="flex-1 overflow-y-auto">
-        {/* 已保存的连接列表 */}
-        <div className="px-2 border-t border-outline-variant/10 mt-1 pt-2">
-          <SessionManager />
-        </div>
-
-        {/* 脚本命令 - 可折叠 */}
-        <div className="px-2 border-t border-outline-variant/10 mt-1 pt-2">
-        <div className="px-3 mb-2 flex items-center justify-between group cursor-pointer" onClick={() => setScriptsOpen(!scriptsOpen)}>
-          <div className="flex items-center gap-2">
-            <span className={`material-symbols-outlined text-[16px] text-outline transition-transform group-hover:text-on-surface ${scriptsOpen ? "" : "-rotate-90"}`}>expand_more</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-outline">脚本命令</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[16px] text-outline hover:text-secondary cursor-pointer transition-colors" onClick={(e) => { e.stopPropagation(); setAddCmdOpen(true); }}>add</span>
+        {/* 搜索栏 */}
+        <div className="px-3 pt-2 pb-1">
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-outline text-[14px]">search</span>
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-surface-container-lowest border border-outline-variant/20 text-terminal-mono font-terminal-mono text-on-surface rounded py-1 pl-7 pr-2 text-xs focus:outline-none focus:border-primary/50 placeholder:text-outline/30"
+              placeholder="搜索会话名称或主机..."
+              type="text"
+            />
           </div>
         </div>
+        {/* 已保存的连接列表 - 可折叠 */}
+        <div className="px-2">
+        <div className="w-full flex items-center justify-between px-3 py-2 mb-1 hover:bg-surface-variant/20 active:bg-transparent transition-colors rounded-lg group cursor-pointer" onClick={() => setSessionsOpen(!sessionsOpen)}>
+          <div className="flex items-center gap-2">
+            <span className={`material-symbols-outlined text-[16px] text-outline/50 transition-transform duration-200 group-hover:text-outline ${sessionsOpen ? "" : "-rotate-90"}`}>expand_more</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-outline/50 group-hover:text-outline">终端列表</span>
+          </div>
+        </div>
+        <div className={sessionsOpen ? "" : "hidden"}>
+          <SessionManager searchQuery={searchQuery} />
+        </div>
+        </div>
 
-        {scriptsOpen && (
-          <>
-            <div className="space-y-1">
-              {commandEntries.length === 0 ? (
-                <div className="px-3 py-4 text-center">
-                  <span className="text-[10px] text-outline/50">暂无脚本命令</span>
-                </div>
-              ) : (
-                commandEntries.slice(0, 20).map((entry) => (
-                  <button key={entry.id} onClick={() => handleCmdClick(entry)} onContextMenu={(e) => showCmdCtx(e, entry)} className="w-full flex items-center gap-3 px-3 rounded text-on-surface-variant hover:bg-surface-variant/30 transition-all group border-l-2 border-transparent py-1">
-                    <span className="material-symbols-outlined text-[18px] text-outline group-hover:text-secondary">terminal</span>
-                    <span className="text-label-sm font-label-sm truncate">{entry.label}</span>
-                  </button>
-                ))
-              )}
+        {/* 分割线 */}
+        <div className="mx-3 my-2 h-px bg-outline-variant/8" />
+
+        {/* 脚本命令 */}
+        <div className="px-2">
+        <div className="w-full flex items-center justify-between px-3 py-2 mb-1.5 hover:bg-surface-variant/20 active:bg-transparent transition-colors rounded-lg group cursor-pointer" onClick={() => setScriptsOpen(!scriptsOpen)}>
+          <div className="flex items-center gap-2">
+            <span className={`material-symbols-outlined text-[16px] text-outline/50 transition-transform duration-200 group-hover:text-outline ${scriptsOpen ? "" : "-rotate-90"}`}>expand_more</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-outline/50 group-hover:text-outline">脚本命令</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px] text-outline/40 hover:text-secondary cursor-pointer transition-colors" onClick={(e) => { e.stopPropagation(); setAddCmdOpen(true); }}>add</span>
+          </div>
+        </div>
+
+        <div className={scriptsOpen ? "" : "hidden"}>
+          {commandEntries.length === 0 ? (
+            <div className="py-6 text-center">
+              <span className="text-[11px] text-outline/30">暂无脚本命令</span>
             </div>
-          </>
-        )}
+          ) : (
+            (() => {
+              // Group commands by category
+              const ungrouped = commandEntries.filter((e) => !e.category || e.category === "uncategorized");
+              const grouped: Record<string, typeof commandEntries> = {};
+              for (const e of commandEntries) {
+                if (!e.category || e.category === "uncategorized") continue;
+                if (!grouped[e.category]) grouped[e.category] = [];
+                grouped[e.category].push(e);
+              }
+              const groupKeys = Object.keys(grouped).sort();
+              return (
+                <>
+                  {/* 无分类命令 — 直接显示 */}
+                  {ungrouped.length > 0 && (
+                    <div className="space-y-1 px-2 pb-2">
+                      {ungrouped.map((entry) => (
+                        <button key={entry.id} onClick={() => handleCmdClick(entry)} onContextMenu={(e) => showCmdCtx(e, entry)} className="group relative w-full flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all bg-surface-container-low/30 border border-transparent hover:bg-surface-variant/25 hover:border-outline-variant/10 select-none">
+                          <div className="flex items-center justify-center w-7 h-7 rounded-md bg-surface-variant/25 text-outline/60 group-hover:text-secondary group-hover:bg-secondary/8 flex-shrink-0 transition-all">
+                            <span className="material-symbols-outlined text-[16px]">terminal</span>
+                          </div>
+                          <span className="flex-1 text-left text-[12px] font-medium text-on-surface-variant group-hover:text-on-surface truncate transition-colors">{entry.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {/* 有分类命令 — 分组显示 */}
+                  {groupKeys.map((cat) => (
+                    <div key={cat}>
+                      <button
+                        onClick={() => setCmdExpanded((prev) => { const next = new Set(prev); if (next.has(cat)) next.delete(cat); else next.add(cat); return next; })}
+                        className="w-full flex items-center gap-2 px-4 py-1.5 text-left hover:bg-surface-variant/15 active:bg-transparent transition-colors rounded-md group/gh mb-0.5"
+                      >
+                        <span className={`material-symbols-outlined text-[14px] text-outline/40 transition-transform duration-200 group-hover/gh:text-outline/60 ${cmdExpanded.has(cat) ? "" : "-rotate-90"}`}>expand_more</span>
+                        <span className="flex-1 text-[10px] font-semibold uppercase tracking-wider text-outline/40 group-hover/gh:text-outline/60">{cat}</span>
+                      </button>
+                      {cmdExpanded.has(cat) && (
+                        <div className="space-y-1 px-2 pb-2">
+                          {grouped[cat].slice(0, 20).map((entry) => (
+                            <button key={entry.id} onClick={() => handleCmdClick(entry)} onContextMenu={(e) => showCmdCtx(e, entry)} className="group relative w-full flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all bg-surface-container-low/30 border border-transparent hover:bg-surface-variant/25 hover:border-outline-variant/10 select-none">
+                              <div className="flex items-center justify-center w-7 h-7 rounded-md bg-surface-variant/25 text-outline/60 group-hover:text-secondary group-hover:bg-secondary/8 flex-shrink-0 transition-all">
+                                <span className="material-symbols-outlined text-[16px]">terminal</span>
+                              </div>
+                              <span className="flex-1 text-left text-[12px] font-medium text-on-surface-variant group-hover:text-on-surface truncate transition-colors">{entry.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </>
+              );
+            })()
+          )}
+          </div>
       </div>
       </div>{/* end scrollable area */}
 
       <div className="px-2 mt-auto border-t border-outline-variant/10 pt-4 space-y-1">
-        <a className="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-variant/30 transition-all border-l-4 border-transparent active:translate-x-1 duration-200 cursor-pointer" href="#">
-          <span className="material-symbols-outlined text-[20px]">monitoring</span>
-          <span className="text-label-sm font-label-sm">运行健康</span>
-        </a>
-        <a className="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-variant/30 transition-all border-l-4 border-transparent active:translate-x-1 duration-200 cursor-pointer" href="#">
+        <button onClick={() => setLogOpen(true)} className="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant hover:bg-surface-variant/30 transition-all border-l-4 border-transparent active:translate-x-1 duration-200 cursor-pointer">
           <span className="material-symbols-outlined text-[20px]">list_alt</span>
           <span className="text-label-sm font-label-sm">日志</span>
-        </a>
+        </button>
       </div>
 
       <div
@@ -207,6 +270,7 @@ export default function Sidebar() {
     {cmdCtx && (
       <ContextMenu items={cmdCtx.items} x={cmdCtx.x} y={cmdCtx.y} onClose={() => setCmdCtx(null)} />
     )}
+    {logOpen && <LogDialog open={logOpen} onClose={() => setLogOpen(false)} />}
   </>);
 }
 

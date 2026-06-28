@@ -63,9 +63,6 @@ pub fn init() {
         .with_ansi(false)
         .with_writer(CappedWriter::new(cf))
         .with_env_filter(filter)
-        .with_timer(tracing_subscriber::fmt::time::ChronoLocal::new(
-            "%Y-%m-%dT%H:%M:%S%.3f%:z".to_string(),
-        ))
         .try_init();
 }
 

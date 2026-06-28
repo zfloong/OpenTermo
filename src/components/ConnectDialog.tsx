@@ -119,21 +119,41 @@ export default function ConnectDialog({
               <h3 className="text-[11px] font-semibold text-secondary uppercase tracking-widest mb-2.5 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[15px]">badge</span> 基本信息
               </h3>
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[13px] text-on-surface-variant mb-1.5">会话名称</label>
+                  <label className="block text-[13px] text-on-surface-variant mb-1.5">
+                    会话名称
+                  </label>
                   <div className="relative">
                     <input
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
                       className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] placeholder-[#8e9098] text-[14px] focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all"
-                      placeholder="例如：生产环境数据库、个人博客服务器..."
+                      placeholder="例如：生产环境数据库..."
                       type="text"
                     />
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-on-surface-variant/50">
                       <span className="material-symbols-outlined text-[18px]">edit</span>
                     </div>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-[13px] text-on-surface-variant mb-1.5">
+                    分组
+                  </label>
+                  <input
+                    value={form.group}
+                    onChange={(e) => setForm({ ...form, group: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] text-[14px] placeholder-[#8e9098] focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all"
+                    placeholder="输入或选择分组..."
+                    list="session-groups"
+                    type="text"
+                  />
+                  <datalist id="session-groups">
+                    {[...new Set(sessions.map((s) => s.group).filter(Boolean))].map((g) => (
+                      <option key={g} value={g} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
             </section>
@@ -289,7 +309,6 @@ export default function ConnectDialog({
                 )}
               </div>
             </section>
-
 
           </div>
         </div>

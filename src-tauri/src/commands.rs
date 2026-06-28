@@ -481,3 +481,140 @@ pub fn get_local_user_info() -> serde_json::Value {
         "computer": computer
     })
 }
+
+/// A single log entry.
+#[derive(serde::Serialize)]
+pub struct LogEntry {
+    pub timestamp: String,
+    pub level: String,
+    pub target: String,
+    pub message: String,
+}
+
+/// List available log files with metadata.
+#[derive(serde::Serialize)]
+pub struct LogFileInfo {
+    pub name: String,
+    pub path: String,
+    pub size: u64,
+    pub modified: String,
+}
+
+/// Read the latest log file and return parsed entries, plus available log files.
+#[tauri::command]
+pub fn read_logs() -> Result<serde_json::Value, String> {
+    let dir = dirs::config_dir()
+        .ok_or_else(|| "无法找到配置目录".to_string())?
+        .join("OpenTermo")
+        .join("logs");
+
+    if !dir.exists() {
+        return Ok(serde_json::json!({ "files": [], "entries": [] }));
+    }
+
+    // List log files sorted by modified time (newest first)
+    let mut files: Vec<LogFileInfo> = Vec::new();
+    let mut entries: Vec<LogEntry> = Vec::new();
+
+    if let Ok(read_dir) = fs::read_dir(&dir) {
+        for entry in read_dir.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("log") {
+                let meta = entry.metadata().ok();
+                files.push(LogFileInfo {
+                    name: entry.file_name().to_string_lossy().to_string(),
+                    path: path.to_string_lossy().to_string(),
+                    size: meta.as_ref().map(|m| m.len()).unwrap_or(0),
+                    modified: meta
+                        .and_then(|m| m.modified().ok())
+                        .map(|t| {
+                            let dur = t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+                            chrono::DateTime::from_timestamp(dur.as_secs() as i64, 0)
+                                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                                .unwrap_or_default()
+                        })
+                        .unwrap_or_default(),
+                });
+            }
+        }
+    }
+
+    // Sort newest first by name (which is YYYYMMDD-HHMMSS.log)
+    files.sort_by(|a, b| b.name.cmp(&a.name));
+
+    // Read the latest log file and parse entries
+    if let Some(latest) = files.first() {
+        if let Ok(content) = fs::read_to_string(&latest.path) {
+            for line in content.lines().rev().take(500) {
+                let line = line.trim();
+                if line.is_empty() { continue; }
+                // Parse tracing format: "2025-01-01T12:00:00.000+08:00  INFO target: message"
+                let level = if line.contains(" ERROR ") { "ERROR" }
+                    else if line.contains(" WARN ") { "WARN" }
+                    else if line.contains(" INFO ") { "INFO" }
+                    else if line.contains(" DEBUG ") { "DEBUG" }
+                    else if line.contains(" TRACE ") { "TRACE" }
+                    else { "INFO" };
+
+                // Extract timestamp (before first space after the timezone)
+                let timestamp = line.chars().take(28).collect::<String>().trim().to_string();
+
+                entries.push(LogEntry {
+                    timestamp,
+                    level: level.to_string(),
+                    target: String::new(),
+                    message: line.to_string(),
+                });
+            }
+            entries.reverse();
+        }
+    }
+
+    Ok(serde_json::json!({ "files": files, "entries": entries }))
+}
+
+/// Ping a host via the system `ping` command (ICMP echo) and return the
+/// round-trip time in milliseconds.  Returns `-1` if the host is unreachable
+/// or the ping timed out.
+#[tauri::command]
+pub fn ping_host(host: String) -> Result<i64, String> {
+    let output = std::process::Command::new("ping")
+        .arg("-n")
+        .arg("1")        // send 1 echo request
+        .arg("-w")
+        .arg("5000")     // 5s timeout
+        .arg(&host)
+        .output()
+        .map_err(|e| format!("启动 ping 失败: {e}"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Parse: "时间=47ms" (Chinese) or "time=47ms" (English) or "time<1ms"
+    // Also handles "time=47.5ms" (decimal)
+    for line in stdout.lines() {
+        // Try Chinese format: 时间=47ms
+        if let Some(ms) = extract_ping_time(line, "时间=") {
+            return Ok(ms);
+        }
+        // Try English format: time=47ms
+        if let Some(ms) = extract_ping_time(line, "time=") {
+            return Ok(ms);
+        }
+        // "time<1ms" or "时间<1ms"
+        if line.contains("time<1ms") || line.contains("时间<1ms") {
+            return Ok(1);
+        }
+    }
+
+    // No valid reply found
+    Ok(-1)
+}
+
+/// Extract the numeric milliseconds value from a ping reply line after `prefix`.
+/// Handles "time=47ms", "time=47.5ms", "time=47ms "
+fn extract_ping_time(line: &str, prefix: &str) -> Option<i64> {
+    let after = line.split(prefix).nth(1)?;
+    let num_str: String = after.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+    let ms: f64 = num_str.parse().ok()?;
+    Some((ms * 1000.0) as i64) // return microseconds for consistency
+}

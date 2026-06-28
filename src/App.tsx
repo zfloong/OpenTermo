@@ -13,6 +13,24 @@ import CommandPalette from "@/components/CommandPalette";
 import SettingsPanel from "@/components/SettingsPanel";
 import { useSessionStore } from "@/stores/sessionStore";
 
+function ErrorToast() {
+  const lastError = useSessionStore((s) => s.lastError);
+  const clearError = useSessionStore((s) => s.clearError);
+  if (!lastError) return null;
+
+  return (
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-[drop-in_200ms_ease-out] max-w-lg w-full px-4">
+      <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-error/10 border border-error/20 backdrop-blur-xl shadow-lg">
+        <span className="material-symbols-outlined text-[18px] text-error flex-shrink-0">error_outline</span>
+        <span className="flex-1 text-xs text-error font-medium truncate">{lastError}</span>
+        <button onClick={clearError} className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-error/50 hover:text-error hover:bg-error/10 transition-all">
+          <span className="material-symbols-outlined text-[14px]">close</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const theme = useSettingsStore((s) => s.theme);
   const overrides = useSettingsStore((s) => s.overrides);
@@ -63,6 +81,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
+      <ErrorToast />
       <TitleBar onConnect={openConnect} onSettings={() => setSettingsOpen(true)} />
 
       <div className="flex flex-1 overflow-hidden">

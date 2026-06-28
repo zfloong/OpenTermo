@@ -83,15 +83,6 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
       </nav>
 
       <div className="flex items-center gap-4 ml-auto">
-        <div className="relative hidden sm:block w-48 focus-glow rounded transition-all duration-200">
-          <span className="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[14px]">search</span>
-          <input
-            className="w-full bg-[#0d0d0d] border border-outline-variant/30 text-terminal-mono font-terminal-mono text-on-surface rounded py-0.5 pl-7 pr-2.5 text-[11px] focus:outline-none focus:border-primary placeholder:text-outline/50"
-            placeholder="搜索会话 (Ctrl+K)"
-            type="text"
-          />
-        </div>
-
         <div className="flex items-center gap-1">
           {tabs.length === 0 && (
             <button
