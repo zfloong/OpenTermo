@@ -75,13 +75,13 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
               <span className="material-symbols-outlined text-[20px]">edit_note</span>
             </div>
             <div>
-              <h2 className="text-[15px] font-semibold text-white">编辑连接</h2>
+              <h2 className="text-[15px] font-semibold text-on-surface">编辑连接</h2>
               <p className="text-[10px] text-on-surface-variant">{session.name || session.host}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-white hover:bg-white/10 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30 transition-colors"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
@@ -104,7 +104,7 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
                     <input
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] placeholder-[#8e9098] text-[14px] focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all"
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-on-surface placeholder:text-outline/60 text-[14px] focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all"
                       placeholder="例如：生产环境数据库..."
                       type="text"
                     />
@@ -120,7 +120,7 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
                   <input
                     value={form.group}
                     onChange={(e) => setForm({ ...form, group: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] text-[14px] placeholder-[#8e9098] focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all"
+                    className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-on-surface text-[14px] placeholder:text-outline/60 focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all"
                     placeholder="输入或选择分组..."
                     list="edit-session-groups"
                     type="text"
@@ -139,14 +139,14 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
               <h3 className="text-[11px] font-semibold text-secondary uppercase tracking-widest mb-2.5 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[15px]">language</span> 网络配置
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-white/[0.02] p-3.5 rounded-xl border border-white/5">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-surface-dim p-3.5 rounded-xl border border-outline-variant/30">
                 <div className="md:col-span-3">
                   <label className="block text-[12px] text-on-surface-variant mb-1.5">协议</label>
                   <div className="relative">
                     <select
                       value={form.kind}
                       onChange={(e) => setForm({ ...form, kind: e.target.value as SessionConfig["kind"], port: e.target.value === "ssh" ? 22 : e.target.value === "telnet" ? 23 : 0 })}
-                      className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] text-terminal-mono font-terminal-mono pl-9 appearance-none focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all text-[13px]"
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-on-surface text-terminal-mono font-terminal-mono pl-9 appearance-none focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all text-[13px]"
                       style={{
                         backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238e9098' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
                         backgroundPosition: "right 0.5rem center",
@@ -168,7 +168,7 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
                   <input
                     value={form.host}
                     onChange={(e) => setForm({ ...form, host: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-secondary text-terminal-mono font-terminal-mono placeholder-[#8e9098] focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all text-[13px]"
+                    className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-secondary text-terminal-mono font-terminal-mono placeholder:text-outline/60 focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all text-[13px]"
                     placeholder="192.168.1.1"
                     type="text"
                   />
@@ -179,7 +179,7 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
                     type="number"
                     value={form.port}
                     onChange={(e) => setForm({ ...form, port: Number(e.target.value) || 22 })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] text-terminal-mono font-terminal-mono text-center focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all text-[13px]"
+                    className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-on-surface text-terminal-mono font-terminal-mono text-center focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all text-[13px]"
                   />
                 </div>
               </div>
@@ -190,14 +190,14 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
               <h3 className="text-[11px] font-semibold text-secondary uppercase tracking-widest mb-2 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[15px]">key</span> 身份验证
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 rounded-xl border border-white/5 bg-white/[0.02]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 rounded-xl border border-outline-variant/30 bg-surface-dim">
                 <div>
                   <label className="block text-[13px] text-on-surface-variant mb-1.5">用户名</label>
                   <div className="relative">
                     <input
                       value={form.user}
                       onChange={(e) => setForm({ ...form, user: e.target.value })}
-                      className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] text-terminal-mono font-terminal-mono placeholder-[#8e9098] focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all text-[13px]"
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-on-surface text-terminal-mono font-terminal-mono placeholder:text-outline/60 focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all text-[13px]"
                       placeholder="root"
                       type="text"
                     />
@@ -211,7 +211,7 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
                   <select
                     value={form.auth}
                     onChange={(e) => setForm({ ...form, auth: e.target.value as SessionConfig["auth"] })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] text-[13px] appearance-none focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all"
+                    className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-on-surface text-[13px] appearance-none focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all"
                     style={{
                       backgroundImage: "url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238e9098' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e\")",
                       backgroundPosition: "right 0.5rem center",
@@ -232,12 +232,12 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
                         type={showPassword ? "text" : "password"}
                         value={form.password}
                         onChange={(e) => setForm({ ...form, password: e.target.value })}
-                        className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] text-terminal-mono font-terminal-mono placeholder-[#8e9098] focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all text-[13px]"
+                        className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-on-surface text-terminal-mono font-terminal-mono placeholder:text-outline/60 focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all text-[13px]"
                         placeholder="••••••••"
                       />
                       <button
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-white transition-colors"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-on-surface transition-colors"
                         type="button"
                       >
                         <span className="material-symbols-outlined text-[16px]">{showPassword ? "visibility_off" : "visibility"}</span>
@@ -252,13 +252,13 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
                         <input
                           value={form.private_key_path}
                           onChange={(e) => setForm({ ...form, private_key_path: e.target.value })}
-                          className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] text-terminal-mono font-terminal-mono placeholder-[#8e9098] focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all text-[13px] pr-12"
+                          className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-on-surface text-terminal-mono font-terminal-mono placeholder:text-outline/60 focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all text-[13px] pr-12"
                           placeholder="~/.ssh/id_ed25519"
                           type="text"
                         />
                         <button
                           onClick={handleBrowseKey}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-white transition-colors"
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-on-surface transition-colors"
                         >
                           <span className="material-symbols-outlined text-[16px]">folder_open</span>
                         </button>
@@ -271,12 +271,12 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
                           type={showPassword ? "text" : "password"}
                           value={keyPassphrase}
                           onChange={(e) => setKeyPassphrase(e.target.value)}
-                          className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] text-terminal-mono font-terminal-mono placeholder-[#8e9098] focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all text-[13px]"
+                          className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-on-surface text-terminal-mono font-terminal-mono placeholder:text-outline/60 focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all text-[13px]"
                           placeholder="(可选)"
                         />
                         <button
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-white transition-colors"
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-on-surface-variant hover:text-on-surface transition-colors"
                           type="button"
                         >
                           <span className="material-symbols-outlined text-[16px]">{showPassword ? "visibility_off" : "visibility"}</span>
@@ -294,14 +294,14 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
         <div className="px-5 py-3 border-t border-outline-variant/20 flex justify-end gap-2.5 items-center shrink-0" style={{ background: "var(--surface-container)" }}>
           <button
             onClick={onClose}
-            className="px-5 py-2 rounded-lg text-on-surface-variant hover:text-white transition-colors text-[13px] font-medium"
+            className="px-5 py-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors text-[13px] font-medium"
           >
             取消
           </button>
           <button
             onClick={handleSave}
             disabled={!isValid || saving}
-            className="px-5 py-2 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors text-[13px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2 rounded-lg bg-secondary/10 text-secondary hover:bg-secondary/20 border border-secondary/20 transition-colors text-[13px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             仅保存
           </button>

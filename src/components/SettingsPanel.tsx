@@ -168,6 +168,14 @@ export default function SettingsPanel({ open, onClose }: Props) {
                   const isActive = theme === tm.id;
                   const cur = overrides[tm.id];
                   const hasOverride = !!cur;
+                  const isDarkTheme = tm.id === "deep-blue";
+                  const isSystemTheme = tm.id === "system";
+
+                  const previewBg = isDarkTheme ? "#1c1b1b" : isSystemTheme ? "linear-gradient(to right, #1c1b1b 50%, #ffffff 50%)" : "#ffffff";
+                  const previewHeaderBg = isDarkTheme ? "#2a2a2a" : isSystemTheme ? "linear-gradient(to right, #2a2a2a 50%, #f3f4f6 50%)" : "#f3f4f6";
+                  const previewBodyBg = isDarkTheme ? "#131313" : isSystemTheme ? "linear-gradient(to right, #131313 50%, #f9fafb 50%)" : "#f9fafb";
+                  const previewTextColor = isDarkTheme ? "#4de082" : isSystemTheme ? "#22c55e" : "#22c55e";
+                  const previewBorderColor = isDarkTheme ? "rgba(255,255,255,0.1)" : isSystemTheme ? "rgba(0,0,0,0.1)" : "rgba(0,0,0,0.1)";
 
                   return (
                     <button
@@ -180,14 +188,14 @@ export default function SettingsPanel({ open, onClose }: Props) {
                       } ${scheduleEnabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                       style={{ background: "var(--surface-container)" }}
                     >
-                      <div className="bg-surface rounded h-[68px] mb-1.5 overflow-hidden flex flex-col">
-                        <div className="h-3 bg-surface-container-high border-b border-outline-variant/30 flex items-center px-2 gap-0.5">
-                          <div className="w-1.5 h-1.5 rounded-full bg-error"></div>
-                          <div className="w-1.5 h-1.5 rounded-full bg-secondary-container"></div>
-                          <div className="w-1.5 h-1.5 rounded-full bg-secondary"></div>
+                      <div className="rounded h-[68px] mb-1.5 overflow-hidden flex flex-col" style={{ background: previewBg }}>
+                        <div className="h-3 flex items-center px-2 gap-0.5" style={{ background: previewHeaderBg, borderBottom: `1px solid ${previewBorderColor}` }}>
+                          <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#ef4444" }}></div>
+                          <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#f59e0b" }}></div>
+                          <div className="w-1.5 h-1.5 rounded-full" style={{ background: isDarkTheme || isSystemTheme ? "#4de082" : "#22c55e" }}></div>
                         </div>
-                        <div className="flex-1 p-1.5 bg-surface-dim">
-                          <div className="text-secondary text-[9px] font-terminal-mono">&gt; _</div>
+                        <div className="flex-1 p-1.5" style={{ background: previewBodyBg }}>
+                          <div className="text-[9px] font-terminal-mono" style={{ color: previewTextColor }}>&gt; _</div>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
@@ -315,7 +323,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
                 <div>
                   <h2 className="text-lg font-bold text-on-surface">OpenTermo</h2>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-secondary bg-secondary/10 px-1.5 py-0.5 rounded font-terminal-mono">v1.1.1</span>
+                    <span className="text-xs text-secondary bg-secondary/10 px-1.5 py-0.5 rounded font-terminal-mono">V1.1.2</span>
                     <span className="text-[10px] text-outline/40">Tauri 2 · Rust</span>
                   </div>
                   <p className="text-xs text-on-surface-variant mt-1">现代化 SSH 终端客户端，支持集群管理和文件传输</p>
@@ -327,6 +335,16 @@ export default function SettingsPanel({ open, onClose }: Props) {
                 <h3 className="text-[12px] font-semibold text-outline/60 uppercase tracking-wider mb-2">更新日志</h3>
                 <div className="space-y-3 max-h-[240px] overflow-y-auto pr-1">
                   {[
+                    { ver: "V1.1.2", date: "2026-06-30", items: [
+                      "浅色模式全面修复：新增 10 组 RGB 变量、补 light 模式缺失颜色定义",
+                      "Tailwind 配置重构：全部 ~50 个颜色从硬编码 hex 改为 CSS 变量引用",
+                      "清理 12 个组件中 ~90 处硬编码深色 hex，所有输入框/对话框/侧边栏/右键菜单跟随主题",
+                      "浅色主题颜色调优：surface 色阶、outline 对比度、边框透明度优化",
+                      "修复 .input-field:focus、.glass-card、::selection 等 CSS 类的浅色模式样式",
+                      "对话框标题/按钮 text-white 修复",
+                      "标签页视觉优化：选中标签绿色底色、未选中标签灰色背景",
+                      "标题栏双击缩放修复：所有按钮不再触发窗口缩放",
+                    ] },
                     { ver: "v1.1.1", date: "2026-06-30", items: [
                       "定时主题切换：设置面板同时显示浅色/深色时段，精确 setTimeout 零轮询",
                       "跟随系统主题：自动监听系统深浅色偏好",

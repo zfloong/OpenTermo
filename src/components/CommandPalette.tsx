@@ -91,7 +91,7 @@ export default function CommandPalette() {
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
 
       {/* Panel */}
-      <div className="relative w-full max-w-xl bg-[#1a1a1a] border border-outline-variant/20 rounded-2xl shadow-2xl overflow-hidden animate-scale-in">
+      <div className="relative w-full max-w-xl bg-surface border-outline-variant/20 rounded-2xl shadow-2xl overflow-hidden animate-scale-in">
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-outline-variant/10">
           <span className="material-symbols-outlined text-[18px] text-outline/50 shrink-0">search</span>

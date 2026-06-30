@@ -26,6 +26,18 @@
   --surface-container-highest:  #353534;
   --surface-bright:             #3a3939;
   --surface-variant:            #353534;
+  --surface-dim:                #131313;
+
+  --bg-surface-rgb:             19 19 19;
+  --text-primary-rgb:           229 226 225;
+  --text-secondary-rgb:         197 198 207;
+  --surface-container-high-rgb: 42 42 42;
+  --surface-container-low-rgb:  28 27 27;
+  --surface-container-lowest-rgb: 14 14 14;
+  --surface-variant-rgb:        53 53 52;
+  --outline-rgb:                142 144 152;
+  --outline-variant-rgb:        68 71 78;
+  --error-rgb:                  255 180 171;
 
   --text-primary:               #e5e2e1;
   --text-secondary:             #c5c6cf;
@@ -156,18 +168,30 @@
 }
 
 [data-theme="light"] {
-  --bg-base:                    #f8f9fb;
+  --bg-base:                    #f5f6f8;
   --bg-surface:                 #ffffff;
-  --bg-glass:                   rgba(255,255,255,0.82);
+  --bg-glass:                   rgba(255,255,255,0.85);
   --bg-elevated:                #ffffff;
-  --bg-overlay:                 rgba(0,0,0,0.20);
-  --surface-container-lowest:   #f3f3f3;
-  --surface-container-low:      #f3f3f3;
-  --surface-container:          #eeeeee;
-  --surface-container-high:     #e8e8e8;
-  --surface-container-highest:  #e2e2e2;
+  --bg-overlay:                 rgba(0,0,0,0.25);
+  --surface-container-lowest:   #ffffff;
+  --surface-container-low:      #ffffff;
+  --surface-container:          #f8f9fb;
+  --surface-container-high:     #f0f1f5;
+  --surface-container-highest:  #e5e7eb;
   --surface-bright:             #ffffff;
-  --surface-variant:            #e2e2e2;
+  --surface-variant:            #e5e7eb;
+  --surface-dim:                #f3f4f6;
+
+  --bg-surface-rgb:             255 255 255;
+  --text-primary-rgb:           26 29 35;
+  --text-secondary-rgb:         107 114 128;
+  --surface-container-high-rgb: 240 241 245;
+  --surface-container-low-rgb:  255 255 255;
+  --surface-container-lowest-rgb: 255 255 255;
+  --surface-variant-rgb:        229 231 235;
+  --outline-rgb:                75 85 99;
+  --outline-variant-rgb:        170 173 186;
+  --error-rgb:                  239 68 68;
 
   --text-primary:               #1a1d23;
   --text-secondary:             #6b7280;
@@ -191,6 +215,8 @@
   --secondary-glow:             rgba(34,197,94,0.20);
   --on-secondary:               #ffffff;
 
+  --secondary-container:        #bbf7d0;
+
   --tertiary:                   #a855f7;
   --tertiary-rgb:               168 85 247;
   --tertiary-dim:               rgba(168,85,247,0.10);
@@ -201,16 +227,19 @@
   --color-danger:               #ef4444;
   --color-info:                 var(--primary);
 
+  --error:                      #ef4444;
+  --error-container:            #fce4e4;
+
   --surface-hover:              rgba(0,0,0,0.07);
   --surface-active:             rgba(0,0,0,0.06);
   --surface-selected:           rgba(59,130,246,0.08);
 
-  --border-subtle:              rgba(0,0,0,0.08);
-  --border-default:             rgba(0,0,0,0.14);
-  --border-strong:              rgba(0,0,0,0.20);
-  --border-focus:               rgba(59,130,246,0.40);
-  --outline:                    #757684;
-  --outline-variant:            #c5c5d4;
+  --border-subtle:              rgba(0,0,0,0.10);
+  --border-default:             rgba(0,0,0,0.18);
+  --border-strong:              rgba(0,0,0,0.25);
+  --border-focus:               rgba(59,130,246,0.50);
+  --outline:                    #4b5563;
+  --outline-variant:            #aaaaba;
 
   --shadow-sm:                  0 1px 3px rgba(0,0,0,0.06);
   --shadow-md:                  0 4px 12px rgba(0,0,0,0.08);
@@ -338,7 +367,10 @@ body {
 
 ::selection {
   background-color: rgba(77, 224, 130, 0.3);
-  color: #4de082;
+  color: var(--secondary);
+}
+[data-theme="light"] ::selection {
+  background-color: rgba(34, 197, 94, 0.2);
 }
 
 [data-tauri-drag-region] { -webkit-app-region: drag; }
@@ -369,6 +401,14 @@ body {
 .glass-card:hover {
   background: rgba(42, 42, 42, 0.6);
   border-color: rgba(142, 144, 152, 0.3);
+}
+[data-theme="light"] .glass-card {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .glass-card:hover {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.15);
 }
 
 .glass-modal {
@@ -427,8 +467,8 @@ body {
   opacity: 0.6;
 }
 .input-field:focus {
-  border-color: #4de082 !important;
-  box-shadow: 0 0 0 2px rgba(77, 224, 130, 0.15) !important;
+  border-color: var(--secondary) !important;
+  box-shadow: 0 0 0 2px var(--secondary-glow) !important;
   outline: none;
   background-color: var(--surface-container) !important;
 }

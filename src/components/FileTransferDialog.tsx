@@ -23,7 +23,7 @@ export default function FileTransferDialog({
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-4xl h-[70vh] bg-[#1a1a1a] border border-outline-variant/20 rounded-2xl shadow-2xl overflow-hidden animate-scale-in flex flex-col">
+      <div className="relative w-full max-w-4xl h-[70vh] bg-surface border-outline-variant/20 rounded-2xl shadow-2xl overflow-hidden animate-scale-in flex flex-col">
         {/* Header */}
         <div className="flex-shrink-0 px-5 py-3 border-b border-outline-variant/10 flex items-center justify-between">
           <h2 className="text-sm font-bold text-on-surface">文件传输</h2>

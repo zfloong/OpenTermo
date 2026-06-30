@@ -75,7 +75,7 @@ export default function LogDialog({ open, onClose }: { open: boolean; onClose: (
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-5xl w-[90vw] h-[80vh] flex flex-col bg-[#131313] border border-outline-variant/20 rounded-2xl shadow-2xl">
+      <DialogContent className="max-w-5xl w-[90vw] h-[80vh] flex flex-col bg-[var(--surface-dim)] border-outline-variant/20 rounded-2xl shadow-2xl">
         {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between px-6 pt-5 pb-3 border-b border-outline-variant/10">
           <div className="flex items-center gap-3">

@@ -398,7 +398,7 @@ function ClusterManageDialog({
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-[#1a1a1a] border border-outline-variant/20 rounded-2xl shadow-2xl overflow-hidden animate-scale-in">
+      <div className="relative w-full max-w-lg bg-surface border-outline-variant/20 rounded-2xl shadow-2xl overflow-hidden animate-scale-in">
         <div className="px-5 py-4 border-b border-outline-variant/10 flex items-center justify-between">
           <h2 className="text-sm font-bold text-on-surface">{cluster ? "编辑集群" : "新建集群"}</h2>
           <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-variant/30 transition-all">
@@ -411,7 +411,7 @@ function ClusterManageDialog({
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-[#1c1b1b] border border-outline-variant/20 text-sm text-on-surface placeholder:text-outline/40 focus:outline-none focus:border-secondary/50"
+              className="w-full px-3 py-2 rounded-xl bg-surface-container-low border-outline-variant/20 text-sm text-on-surface placeholder:text-outline/40 focus:outline-none focus:border-secondary/50"
               placeholder="例如：生产环境"
               onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
             />

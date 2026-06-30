@@ -58,13 +58,13 @@ export default function AddCommandDialog({ onClose, editEntry }: AddCommandDialo
               <span className="material-symbols-outlined text-[20px]">terminal</span>
             </div>
             <div>
-              <h2 className="text-[15px] font-semibold text-white">{isEditing ? "编辑脚本命令" : "新建脚本命令"}</h2>
+              <h2 className="text-[15px] font-semibold text-on-surface">{isEditing ? "编辑脚本命令" : "新建脚本命令"}</h2>
               <p className="text-[10px] text-on-surface-variant">{isEditing ? "修改终端脚本参数" : "创建一个可快速执行的终端脚本"}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-white hover:bg-white/10 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30 transition-colors"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
           </button>
@@ -78,14 +78,14 @@ export default function AddCommandDialog({ onClose, editEntry }: AddCommandDialo
               <h3 className="text-[11px] font-semibold text-secondary uppercase tracking-widest mb-2.5 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[15px]">badge</span> 基本信息
               </h3>
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-3 bg-surface-dim p-3.5 rounded-xl border border-outline-variant/30">
                 <div>
                   <label className="block text-[13px] text-on-surface-variant mb-1.5">命令名称</label>
                   <div className="relative">
                     <input
                       value={label}
                       onChange={(e) => setLabel(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] placeholder-[#8e9098] text-[14px] focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all"
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-on-surface placeholder:text-outline/60 text-[14px] focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all"
                       placeholder="例如：更新系统、检查日志..."
                       type="text"
                     />
@@ -99,14 +99,14 @@ export default function AddCommandDialog({ onClose, editEntry }: AddCommandDialo
               <h3 className="text-[11px] font-semibold text-secondary uppercase tracking-widest mb-2.5 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[15px]">code</span> 命令内容
               </h3>
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-3 bg-surface-dim p-3.5 rounded-xl border border-outline-variant/30">
                 <div>
                   <label className="block text-[13px] text-on-surface-variant mb-1.5">Shell 命令</label>
                   <div className="relative">
                     <textarea
                       value={command}
                       onChange={(e) => setCommand(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] text-terminal-mono font-terminal-mono placeholder-[#8e9098] focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all text-[13px] resize-vertical min-h-[80px]"
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-on-surface text-terminal-mono font-terminal-mono placeholder:text-outline/60 focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all text-[13px] resize-vertical min-h-[80px]"
                       placeholder="apt update && apt upgrade -y"
                       rows={3}
                     />
@@ -120,14 +120,14 @@ export default function AddCommandDialog({ onClose, editEntry }: AddCommandDialo
               <h3 className="text-[11px] font-semibold text-secondary uppercase tracking-widest mb-2.5 flex items-center gap-2">
                 <span className="material-symbols-outlined text-[15px]">folder</span> 分类（可选）
               </h3>
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-3 bg-surface-dim p-3.5 rounded-xl border border-outline-variant/30">
                 <div>
                   <label className="block text-[13px] text-on-surface-variant mb-1.5">分类名称</label>
                   <div className="relative">
                     <input
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
-                      className="w-full px-3.5 py-2 rounded-xl bg-[#1c1b1b] border border-[#44474e] text-[#e5e2e1] placeholder-[#8e9098] text-[14px] focus:outline-none focus:border-[#4de082] focus:shadow-[0_0_0_2px_rgba(77,224,130,0.15)] focus:bg-[#201f1f] transition-all"
+                      className="w-full px-3.5 py-2 rounded-xl bg-surface-container-low border-outline-variant text-on-surface placeholder:text-outline/60 text-[14px] focus:bg-surface-container focus:border-secondary focus:shadow-[0_0_0_2px_var(--secondary-glow)] transition-all"
                       placeholder="系统管理、数据库、网络..."
                       type="text"
                     />
@@ -142,7 +142,7 @@ export default function AddCommandDialog({ onClose, editEntry }: AddCommandDialo
         <div className="px-5 py-3 border-t border-outline-variant/20 flex justify-end gap-2.5 items-center shrink-0" style={{ background: "var(--surface-container)" }}>
           <button
             onClick={onClose}
-            className="px-5 py-2 rounded-lg text-on-surface-variant hover:text-white transition-colors text-[13px] font-medium"
+            className="px-5 py-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors text-[13px] font-medium"
           >
             取消
           </button>

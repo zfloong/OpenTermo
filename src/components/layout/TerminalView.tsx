@@ -1,4 +1,4 @@
-﻿﻿import { useEffect, useRef, useCallback, useState } from "react";
+﻿﻿﻿﻿﻿﻿﻿import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import { SearchAddon } from "xterm-addon-search";
@@ -336,12 +336,12 @@ export default function TerminalView({ tabId }: { tabId: string }) {
       const hasSel = sel.length > 0;
       const menu = document.createElement("div");
       menu.className = "dropdown-menu";
-      menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:200;min-width:160px;background:#1c1b1b;border:1px solid #44474e;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,0.4);overflow:hidden`;
+      menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:200;min-width:160px;background:var(--bg-elevated);border:1px solid var(--border-default);border-radius:8px;box-shadow:var(--shadow-lg);overflow:hidden`;
       const addItem = (label: string, action: () => void) => {
         const btn = document.createElement("button");
-        btn.style.cssText = "width:100%;padding:8px 12px;text-align:left;font-size:12px;color:#e5e2e1;background:none;border:none;cursor:pointer;transition:background 0.15s";
+        btn.style.cssText = "width:100%;padding:8px 12px;text-align:left;font-size:12px;color:var(--text-primary);background:none;border:none;cursor:pointer;transition:background 0.15s";
         btn.textContent = label;
-        btn.onmouseenter = () => btn.style.background = "#44474e";
+        btn.onmouseenter = () => btn.style.background = "var(--surface-hover)";
         btn.onmouseleave = () => btn.style.background = "none";
         btn.onmousedown = (ev) => { ev.preventDefault(); ev.stopPropagation(); action(); menu.remove(); };
         menu.appendChild(btn);
@@ -350,7 +350,7 @@ export default function TerminalView({ tabId }: { tabId: string }) {
       addItem("粘贴", () => { navigator.clipboard.readText().then((t) => { if (t) sendInput(tabId, t); }); });
       if (hasSel) {
         const sep = document.createElement("div");
-        sep.style.cssText = "height:1px;background:#44474e";
+        sep.style.cssText = "height:1px;background:var(--border-strong)";
         menu.appendChild(sep);
         addItem("复制并粘贴", async () => { await navigator.clipboard.writeText(sel); navigator.clipboard.readText().then((t) => { if (t) sendInput(tabId, t); }); });
       }
@@ -515,7 +515,7 @@ export default function TerminalView({ tabId }: { tabId: string }) {
 
       {searchOpen && (
         <div className="absolute top-3 right-4 z-20 flex flex-col" style={{ minWidth: 280 }}>
-          <div className="flex items-center gap-1.5 bg-[#1c1b1b] border border-[#44474e] rounded-lg px-3 py-2 shadow-lg" style={{ backdropFilter: "blur(20px)" }}>
+          <div className="flex items-center gap-1.5 bg-surface-container-low border-outline-variant rounded-lg px-3 py-2 shadow-lg" style={{ backdropFilter: "blur(20px)" }}>
             <span className="material-symbols-outlined text-[16px] text-outline shrink-0">search</span>
 
             <input
@@ -551,8 +551,8 @@ export default function TerminalView({ tabId }: { tabId: string }) {
           </div>
 
           {historyVisible && searchHistory.length > 0 && (
-            <div className="mt-2 bg-[#1c1b1b] border border-[#44474e] rounded-lg shadow-lg overflow-hidden" style={{ backdropFilter: "blur(20px)" }}>
-              <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-on-surface-variant border-b border-[#44474e]">
+            <div className="mt-2 bg-surface-container-low border-outline-variant rounded-lg shadow-lg overflow-hidden" style={{ backdropFilter: "blur(20px)" }}>
+              <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-on-surface-variant border-b border-outline-variant">
                 搜索历史
               </div>
               <div className="max-h-[180px] overflow-auto">
@@ -587,7 +587,7 @@ export default function TerminalView({ tabId }: { tabId: string }) {
                   </div>
                 ))}
               </div>
-              <div className="border-t border-[#44474e]">
+              <div className="border-t border-outline-variant">
                 <button
                   onClick={clearHistory}
                   className="w-full px-3 py-2 text-[11px] text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30 transition-colors text-left"

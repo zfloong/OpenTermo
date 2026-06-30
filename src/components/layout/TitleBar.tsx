@@ -1,4 +1,4 @@
-﻿import { useCallback, useState, useEffect } from "react";
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿import { useCallback, useState, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Minus, Square, X, Cable } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -40,6 +40,15 @@ export default function TitleBar({ onConnect, onSettings, view, onViewChange }: 
   const minimize = useCallback(() => getCurrentWindow().minimize(), []);
   const toggleMaximize = useCallback(() => getCurrentWindow().toggleMaximize(), []);
   const close = useCallback(() => getCurrentWindow().close(), []);
+  const handleHeaderDoubleClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest(".no-drag") || target.closest("button")) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    toggleMaximize();
+  }, [toggleMaximize]);
 
   const currentDrive = activeTabId ? mounts[activeTabId] : null;
 
@@ -67,11 +76,12 @@ export default function TitleBar({ onConnect, onSettings, view, onViewChange }: 
 
   return (
     <header
-      data-tauri-drag-region
       className="flex h-header_height items-center header-glass pl-[9px] pr-0 select-none flex-shrink-0 w-full z-50 gap-1"
+      onDoubleClick={handleHeaderDoubleClick}
     >
       {/* Logo + app name */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0 h-full"
+        onMouseDown={(e) => { if (e.button === 0) getCurrentWindow().startDragging(); }}>
         <div className="w-5 h-5 rounded bg-surface-variant border border-outline-variant/30 flex items-center justify-center overflow-hidden">
           <span className="material-symbols-outlined text-secondary" style={{ fontSize: "13px", fontVariationSettings: "'FILL' 1" }}>terminal</span>
         </div>
@@ -80,18 +90,18 @@ export default function TitleBar({ onConnect, onSettings, view, onViewChange }: 
         </span>
       </div>
 
-      {/* Nav spacer */}
-      <div className="w-6" />
-
-      <nav className="hidden md:flex h-full items-center gap-0">
+      {/* Nav */}
+      <nav className="hidden md:flex h-full items-center gap-0 no-drag ml-[60px]">
         <button onClick={() => onViewChange("terminal")} className={`h-full flex items-center px-2.5 text-[11px] transition-colors tracking-wide ${view === "terminal" ? "text-secondary border-b-2 border-secondary" : "text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30"}`}>会话</button>
         <button onClick={() => onViewChange("cluster")} className={`h-full flex items-center px-2.5 text-[11px] transition-colors tracking-wide ${view === "cluster" ? "text-secondary border-b-2 border-secondary" : "text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30"}`}>集群</button>
-        <a className="h-full flex items-center px-2.5 text-[11px] text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30 transition-colors tracking-wide" href="#">保险箱</a>
-        <a className="h-full flex items-center px-2.5 text-[11px] text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30 transition-colors tracking-wide" href="#">脚本</a>
       </nav>
 
+      {/* Draggable spacer */}
+      <div className="flex-1 h-full min-w-0"
+        onMouseDown={(e) => { if (e.button === 0) getCurrentWindow().startDragging(); }} />
+
       <div className="flex items-center gap-4 ml-auto">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 no-drag" onDoubleClick={(e) => e.preventDefault()}>
           {tabs.length === 0 && (
             <button
               onClick={onConnect}
@@ -149,6 +159,7 @@ export default function TitleBar({ onConnect, onSettings, view, onViewChange }: 
         <button
           onClick={minimize}
           onMouseDown={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
           className="flex h-full w-10 items-center justify-center text-on-surface-variant hover:bg-surface-variant/50 hover:text-on-surface transition-colors"
           aria-label="最小化"
         >
@@ -157,6 +168,7 @@ export default function TitleBar({ onConnect, onSettings, view, onViewChange }: 
         <button
           onClick={toggleMaximize}
           onMouseDown={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
           className="flex h-full w-10 items-center justify-center text-on-surface-variant hover:bg-surface-variant/50 hover:text-on-surface transition-colors"
           aria-label="最大化"
         >
@@ -165,6 +177,7 @@ export default function TitleBar({ onConnect, onSettings, view, onViewChange }: 
         <button
           onClick={close}
           onMouseDown={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
           className="flex h-full w-10 items-center justify-center text-on-surface-variant hover:bg-error-container hover:text-error transition-colors"
           aria-label="关闭"
         >

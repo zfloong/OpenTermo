@@ -352,7 +352,7 @@ function SessionItem({
     >
       {/* Left accent bar */}
       <div className={`absolute left-0 top-2 bottom-2 w-0.5 rounded-full transition-all ${
-        isActive ? "bg-secondary shadow-[0_0_6px_#4de082]" : isConnected ? "bg-secondary/60" : "opacity-0 group-hover:opacity-40 bg-outline"
+        isActive ? "bg-secondary shadow-[0_0_6px_var(--secondary)]" : isConnected ? "bg-secondary/60" : "opacity-0 group-hover:opacity-40 bg-outline"
       }`} />
 
       {/* Status icon — shows Chinese country name when available */}
@@ -375,11 +375,11 @@ function SessionItem({
       {/* Name + Host */}
       <div className="flex flex-col min-w-0 flex-1">
         <span className={`text-[12px] font-medium truncate leading-tight ${
-          isActive ? "text-white font-semibold" : isConnected ? "text-secondary" : "text-white"
+          isActive ? "text-on-surface font-semibold" : isConnected ? "text-secondary" : "text-on-surface"
         }`}>
           {session.name || session.host}
         </span>
-        <span className="text-[11px] font-terminal-mono text-white/60 truncate mt-0.5">
+        <span className="text-[11px] font-terminal-mono text-on-surface-variant/60 truncate mt-0.5">
           {session.user}@{session.host}{session.port !== 22 && session.port !== 23 ? `:${session.port}` : ""}
         </span>
       </div>

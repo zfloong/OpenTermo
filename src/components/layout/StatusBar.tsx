@@ -24,7 +24,7 @@ export default function StatusBar() {
       className="flex items-center justify-between h-footer_height px-4 flex-shrink-0 z-50 bg-surface-container-lowest border-t border-outline-variant/30 opacity-80 hover:opacity-100 transition-opacity"
     >
       <div className="font-terminal-mono text-on-surface text-xs">
-        OpenTermo v2.4.0-stable
+        OpenTermo V1.1.2
       </div>
 
       <div className="flex items-center gap-4 text-status-chip font-status-chip">

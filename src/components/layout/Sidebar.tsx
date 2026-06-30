@@ -126,10 +126,10 @@ export default function Sidebar() {
       className="flex flex-col flex-shrink-0 overflow-hidden relative"
       style={{
         width: sidebarWidth,
-        background: "rgba(28, 27, 27, 0.90)",
+        background: "var(--bg-glass)",
         backdropFilter: "blur(18px)",
         WebkitBackdropFilter: "blur(18px)",
-        borderRight: "1px solid rgba(68, 71, 78, 0.20)",
+        borderRight: "1px solid var(--border-strong)",
       }}
     >
       <div className="flex items-center gap-2 px-2 h-10 flex-shrink-0 cursor-pointer group" data-tauri-drag-region>

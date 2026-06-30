@@ -182,11 +182,11 @@ export default function App() {
         <Sidebar />
 
         {view === "cluster" ? (
-          <div className="flex-1 overflow-hidden relative bg-[#090909]">
+          <div className="flex-1 overflow-hidden relative bg-[var(--surface-dim)]">
             <ClusterPanel onViewChange={setView} />
           </div>
         ) : (
-        <div id="terminal-area" className="flex-1 overflow-hidden relative bg-[#090909]">
+        <div id="terminal-area" className="flex-1 overflow-hidden relative bg-[var(--surface-dim)]">
           {/* Tab bar */}
           {tabs.length > 0 && (
             <div className="flex items-center bg-surface-container-low border-b border-outline-variant/20 h-10 px-2 overflow-x-auto">
@@ -196,10 +196,10 @@ export default function App() {
                   <div
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-4 py-1.5 rounded-t cursor-pointer min-w-[150px] transition-colors ${
+                    className={`flex items-center gap-2 px-4 py-1.5 rounded-xl cursor-pointer min-w-[150px] transition-colors ${
                       isActive
-                        ? "bg-[#090909] border border-outline-variant/20 border-b-0 text-secondary"
-                        : "text-on-surface-variant hover:bg-surface-variant/30"
+                        ? "bg-secondary/15 border border-secondary/30 text-secondary shadow-sm"
+                        : "bg-surface-container text-on-surface-variant border border-outline-variant/20 hover:bg-surface-variant/30"
                     }`}
                   >
                     <span className="material-symbols-outlined text-[16px]">terminal</span>
@@ -220,7 +220,7 @@ export default function App() {
               })}
               <button
                 onClick={openConnect}
-                className="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/50 transition-colors ml-1"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/50 transition-colors ml-1"
               >
                 <span className="material-symbols-outlined text-[20px]">add</span>
               </button>
