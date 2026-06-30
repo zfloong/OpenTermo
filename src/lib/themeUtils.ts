@@ -1,11 +1,10 @@
 import type { ThemeId, ThemeOverride } from "@/stores/settingsStore";
 
-type ThemeBases = Record<ThemeId, { glassR: number; glassG: number; glassB: number; borderIsLight: boolean }>;
+type ThemeBases = Record<string, { glassR: number; glassG: number; glassB: number; borderIsLight: boolean }>;
 
 const THEME_BASES: ThemeBases = {
   "deep-blue": { glassR: 26, glassG: 26, glassB: 26, borderIsLight: false },
   "light":     { glassR: 255, glassG: 255, glassB: 255, borderIsLight: true },
-  "tabby":     { glassR: 26, glassG: 31, glassB: 39, borderIsLight: false },
 };
 
 /** Apply a ThemeOverride to the DOM (CSS custom properties on <html>). */

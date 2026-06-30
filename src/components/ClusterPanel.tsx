@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useSessionStore } from "@/stores/sessionStore";
 import type { Cluster, SessionConfig } from "@/lib/tauriCommands";
 import { listClusters, saveCluster, deleteCluster, pingHost, clusterUpload, clusterDownload } from "@/lib/tauriCommands";
+import FileTransferDialog from "@/components/FileTransferDialog";
 
 /** Display width: CJK chars = 2, ASCII = 1 */
 function dispLen(s: string): number {
@@ -36,8 +37,10 @@ export default function ClusterPanel({ onViewChange }: { onViewChange?: (v: "ter
   const unlistenRef = useRef<(() => void)[]>([]);
   const [latency, setLatency] = useState<Record<string, number>>({});
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null);
-  const [fileTransferOpen, setFileTransferOpen] = useState(false);
   const [fileResults, setFileResults] = useState<string[] | null>(null);
+  const [fileDialogOpen, setFileDialogOpen] = useState(false);
+  const [localFilePath, setLocalFilePath] = useState("");
+  const [remoteFilePath, setRemoteFilePath] = useState("");
   const sessions = useSessionStore((s) => s.sessions);
   const tabs = useSessionStore((s) => s.tabs);
   const activeTabId = useSessionStore((s) => s.activeTabId);
@@ -129,38 +132,29 @@ export default function ClusterPanel({ onViewChange }: { onViewChange?: (v: "ter
   };
 
   const handleFileUpload = async () => {
-    if (!active || activeSessions.length === 0) return;
-    const input = document.createElement("input");
-    input.type = "file";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      const remotePath = prompt(`上传到远程路径（默认 /root/${file.name}）:`, `/root/${file.name}`);
-      if (!remotePath) return;
-      const targets: [string, number, string, string, string][] = [];
-      for (const s of activeSessions) {
-        const existing = tabs.find((t) => t.session.id === s.id);
-        if (existing && existing.status === "connected") {
-          targets.push([s.host, s.port, s.user, s.private_key_path, remotePath]);
-        }
+    if (!active || activeSessions.length === 0 || !localFilePath) return;
+    const fileName = localFilePath.split("\\").pop() || localFilePath.split("/").pop() || "file";
+    const remotePath = remoteFilePath.endsWith("/") || remoteFilePath.endsWith("\\") ? remoteFilePath + fileName : remoteFilePath;
+    const targets: [string, number, string, string, string][] = [];
+    for (const s of activeSessions) {
+      const existing = tabs.find((t) => t.session.id === s.id);
+      if (existing && existing.status === "connected") {
+        targets.push([s.host, s.port, s.user, s.private_key_path, remotePath]);
       }
-      if (targets.length === 0) { setFileResults(["没有已连接的服务器"]); return; }
-      const results = await clusterUpload(file.name, targets);
-      setFileResults(results);
-    };
-    input.click();
+    }
+    if (targets.length === 0) { setFileResults(["没有已连接的服务器"]); return; }
+    const results = await clusterUpload(localFilePath, targets);
+    setFileResults(results);
   };
 
   const handleFileDownload = async () => {
-    if (!active || activeSessions.length === 0) return;
-    const remotePath = prompt("输入要下载的远程文件路径:", "/root/");
-    if (!remotePath) return;
+    if (!active || activeSessions.length === 0 || !remoteFilePath) return;
     const targets: [string, number, string, string, string, string][] = [];
     for (const s of activeSessions) {
       const existing = tabs.find((t) => t.session.id === s.id);
       if (existing && existing.status === "connected") {
-        const localName = `${s.name || s.host}_${remotePath.split("/").pop() || "file"}`;
-        targets.push([s.host, s.port, s.user, s.private_key_path, remotePath, localName]);
+        const localName = `${s.name || s.host}_${remoteFilePath.split("/").pop() || "file"}`;
+        targets.push([s.host, s.port, s.user, s.private_key_path, remoteFilePath, localName]);
       }
     }
     if (targets.length === 0) { setFileResults(["没有已连接的服务器"]); return; }
@@ -298,6 +292,14 @@ export default function ClusterPanel({ onViewChange }: { onViewChange?: (v: "ter
               >
                 停止
               </button>
+              <button
+                onClick={() => { setLocalFilePath(""); setRemoteFilePath("/root/"); setFileDialogOpen(true); }}
+                className="px-3 py-2 rounded-lg bg-surface-variant/40 text-outline hover:text-on-surface hover:bg-surface-variant/60 transition-colors text-xs font-medium"
+                title="文件传输"
+              >
+                <span className="material-symbols-outlined text-[14px] align-middle mr-0.5">folder_open</span>
+                文件
+              </button>
             </div>
             {cmdResults && cmdResults.cluster === active.name && (
               <div className="mt-3 space-y-2">
@@ -327,24 +329,7 @@ export default function ClusterPanel({ onViewChange }: { onViewChange?: (v: "ter
               </div>
             )}
           </div>
-
-          {/* 文件传输 */}
-          <div className="rounded-xl bg-surface-container-low/40 border border-outline-variant/10 p-4">
-            <button onClick={() => setFileTransferOpen(!fileTransferOpen)} className="w-full flex items-center justify-between text-xs font-bold text-on-surface mb-0">
-              <span>文件传输</span>
-              <span className={`material-symbols-outlined text-[16px] text-outline/50 transition-transform ${fileTransferOpen ? "" : "-rotate-90"}`}>expand_more</span>
-            </button>
-            {fileTransferOpen && (
-              <div className="mt-3 flex gap-2">
-                <button onClick={handleFileUpload} className="flex-1 px-3 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-medium text-center">
-                  上传到集群
-                </button>
-                <button onClick={handleFileDownload} className="flex-1 px-3 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-xs font-medium text-center">
-                  从集群下载
-                </button>
-              </div>
-            )}
-            {fileResults && (
+          {fileResults && (
               <div className="mt-2 space-y-1">
                 {fileResults.map((r, i) => (
                   <div key={i} className={`text-[10px] font-terminal-mono ${r.includes("✓") ? "text-secondary" : "text-error/70"}`}>{r}</div>
@@ -352,7 +337,6 @@ export default function ClusterPanel({ onViewChange }: { onViewChange?: (v: "ter
               </div>
             )}
           </div>
-        </div>
       )}
 
       {/* Manage dialog */}
@@ -364,6 +348,17 @@ export default function ClusterPanel({ onViewChange }: { onViewChange?: (v: "ter
           onClose={() => setShowManage(false)}
         />
       )}
+      {fileDialogOpen && <FileTransferDialog
+        localPath={localFilePath}
+        setLocalPath={setLocalFilePath}
+        remotePath={remoteFilePath}
+        setRemotePath={setRemoteFilePath}
+        onUpload={() => { setFileDialogOpen(false); handleFileUpload(); }}
+        onDownload={() => { setFileDialogOpen(false); handleFileDownload(); }}
+        onClose={() => setFileDialogOpen(false)}
+        sessions={activeSessions}
+        tabs={tabs}
+      />}
     </div>
   );
 }

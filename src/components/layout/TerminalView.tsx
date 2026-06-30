@@ -6,6 +6,7 @@ import "xterm/css/xterm.css";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 
+// ... (keep existing code)
 const TERMINAL_THEMES: Record<string, Record<string, string>> = {
   "deep-blue": {
     background: "#090909",
@@ -97,9 +98,13 @@ export default function TerminalView({ tabId }: { tabId: string }) {
   const sendInput = useSessionStore((s) => s.sendInput);
   const onResize = useSessionStore((s) => s.resize);
   const theme = useSettingsStore((s) => s.theme);
+  const effectiveTheme = theme === "system"
+    ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "deep-blue" : "light")
+    : theme;
   const fontSize = useSettingsStore((s) => s.fontSize);
-  const themeRef = useRef(theme);
-  themeRef.current = theme;
+  const fontFamily = useSettingsStore((s) => s.fontFamily);
+  const themeRef = useRef(effectiveTheme);
+  themeRef.current = effectiveTheme;
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -200,8 +205,8 @@ export default function TerminalView({ tabId }: { tabId: string }) {
     const container = containerRef.current;
 
     const term = new Terminal({
-      theme: getTerminalTheme(theme),
-      fontFamily: "'JetBrains Mono', 'Meatshell Mono', 'Cascadia Code', 'Consolas', monospace",
+      theme: getTerminalTheme(effectiveTheme),
+      fontFamily: `'${fontFamily}', 'JetBrains Mono', 'Consolas', monospace`,
       fontSize,
       lineHeight: 1.2,
       cursorBlink: true,
@@ -239,7 +244,9 @@ export default function TerminalView({ tabId }: { tabId: string }) {
     term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
       if (e.type !== "keydown") return true;
 
-      if (e.ctrlKey && e.key === "f") {
+      // Read shortcut from store via ref to avoid stale closure
+      const shortcut = useSettingsStore.getState().keyboardShortcuts.find((k) => k.id === "search-term")?.keys || "Ctrl + Shift + F";
+      if (matchesShortcut(e, shortcut)) {
         e.preventDefault();
         if (searchOpenRef.current) {
           searchInputRef.current?.focus();
@@ -247,6 +254,13 @@ export default function TerminalView({ tabId }: { tabId: string }) {
         } else {
           openSearch();
         }
+        return false;
+      }
+
+      // Zoom in/out terminal font (Ctrl+Wheel)
+      if (e.ctrlKey && e.key === "0") {
+        e.preventDefault();
+        useSettingsStore.getState().setFontSize(14);
         return false;
       }
 
@@ -266,6 +280,19 @@ export default function TerminalView({ tabId }: { tabId: string }) {
 
       return true;
     });
+
+    // Ctrl+Wheel zoom
+    term.element?.addEventListener("wheel", (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const current = useSettingsStore.getState().fontSize;
+        if (e.deltaY < 0) {
+          useSettingsStore.getState().setFontSize(current + 1);
+        } else if (e.deltaY > 0) {
+          useSettingsStore.getState().setFontSize(current - 1);
+        }
+      }
+    }, { passive: false });
 
     let mouseDown = false;
 
@@ -354,7 +381,10 @@ export default function TerminalView({ tabId }: { tabId: string }) {
 
   useEffect(() => {
     if (terminalRef.current) {
-      terminalRef.current.options.theme = getTerminalTheme(theme);
+      const t = theme === "system"
+        ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "deep-blue" : "light")
+        : theme;
+      terminalRef.current.options.theme = getTerminalTheme(t);
     }
   }, [theme]);
 
@@ -365,6 +395,13 @@ export default function TerminalView({ tabId }: { tabId: string }) {
       fitAddonRef.current?.fit();
     }
   }, [fontSize]);
+
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (term && term.options.fontFamily !== fontFamily) {
+      term.options.fontFamily = `'${fontFamily}', 'JetBrains Mono', 'Consolas', monospace`;
+    }
+  }, [fontFamily]);
 
   const triggerScroll = useSessionStore((s) => s.triggerScroll);
   const scrollTrigger = useSessionStore((s) => s.scrollTrigger[tabId] ?? 0);
@@ -564,4 +601,24 @@ export default function TerminalView({ tabId }: { tabId: string }) {
       )}
     </div>
   );
+}
+
+/** Match keyboard event against a shortcut string like "Ctrl + Shift + F" */
+function matchesShortcut(e: KeyboardEvent, shortcut: string): boolean {
+  if (!shortcut) return false;
+  const parts = shortcut.split(" + ").map((p) => p.trim());
+  const needsCtrl = parts.includes("Ctrl");
+  const needsShift = parts.includes("Shift");
+  const needsAlt = parts.includes("Alt");
+  const needsCmd = parts.includes("Cmd");
+  if (needsCtrl && !e.ctrlKey && !e.metaKey) return false;
+  if (needsShift && !e.shiftKey) return false;
+  if (needsAlt && !e.altKey) return false;
+  if (needsCmd && !e.metaKey) return false;
+  const keyPart = parts.find((p) => !["Ctrl", "Shift", "Alt", "Cmd"].includes(p));
+  if (keyPart) {
+    const targetKey = keyPart === "+/-" ? "+" : keyPart.toLowerCase();
+    if (e.key.toLowerCase() !== targetKey) return false;
+  }
+  return true;
 }

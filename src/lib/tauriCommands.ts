@@ -219,3 +219,13 @@ export async function clusterExec(tabIds: string[], command: string, stdin?: str
   return invoke<string[]>("cluster_exec", { tabIds, command, stdin });
 }
 
+export interface FileEntry {
+  name: string;
+  is_dir: boolean;
+  size: number;
+}
+
+export async function listLocalDir(path: string): Promise<FileEntry[]> {
+  return invoke<FileEntry[]>("list_local_dir", { path });
+}
+

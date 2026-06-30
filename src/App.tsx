@@ -20,10 +20,10 @@ function ErrorToast() {
   if (!lastError) return null;
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-[drop-in_200ms_ease-out] max-w-lg w-full px-4">
-      <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-error/10 border border-error/20 backdrop-blur-xl shadow-lg">
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-4" style={{ width: "auto", maxWidth: "90vw" }}>
+      <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-error/10 border border-error/20 backdrop-blur-xl shadow-lg whitespace-nowrap">
         <span className="material-symbols-outlined text-[18px] text-error flex-shrink-0">error_outline</span>
-        <span className="flex-1 text-xs text-error font-medium truncate">{lastError}</span>
+        <span className="text-xs text-error font-medium">{lastError}</span>
         <button onClick={clearError} className="flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-error/50 hover:text-error hover:bg-error/10 transition-all">
           <span className="material-symbols-outlined text-[14px]">close</span>
         </button>
@@ -35,6 +35,9 @@ function ErrorToast() {
 export default function App() {
   const theme = useSettingsStore((s) => s.theme);
   const overrides = useSettingsStore((s) => s.overrides);
+  const scheduleEnabled = useSettingsStore((s) => s.scheduleEnabled);
+  const scheduleDarkStart = useSettingsStore((s) => s.scheduleDarkStart);
+  const scheduleDarkEnd = useSettingsStore((s) => s.scheduleDarkEnd);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [view, setView] = useState<"terminal" | "cluster">("terminal");
 
@@ -64,22 +67,111 @@ export default function App() {
   }, [loadSessions, setupGlobal]);
 
   const applyAll = useCallback(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    const saved = overrides[theme];
+    const effective = theme === "system"
+      ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "deep-blue" : "light")
+      : theme;
+    document.documentElement.setAttribute("data-theme", effective);
+    const saved = overrides[effective];
     if (saved) {
-      applyOverride(theme, saved);
+      applyOverride(effective, saved);
     } else {
-      const KEYS = [
-        "--accent","--accent-soft","--accent-dim","--accent-border","--color-info",
-        "--bg-glass","--glass-blur",
-        "--border-subtle","--border-default","--border-strong",
-        "--scrollbar-thumb","--scrollbar-thumb-hover",
-      ];
-      for (const k of KEYS) document.documentElement.style.removeProperty(k);
+      clearOverrideStyles();
     }
   }, [theme, overrides]);
 
+  const clearOverrideStyles = useCallback(() => {
+    const KEYS = [
+      "--accent","--accent-soft","--accent-dim","--accent-border","--color-info",
+      "--bg-glass","--glass-blur",
+      "--border-subtle","--border-default","--border-strong",
+      "--scrollbar-thumb","--scrollbar-thumb-hover",
+    ];
+    for (const k of KEYS) document.documentElement.style.removeProperty(k);
+  }, []);
+
   useEffect(() => { applyAll(); }, [applyAll]);
+
+  // Listen for system color scheme changes (for "system" theme)
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = () => {
+      const t = useSettingsStore.getState().theme;
+      if (t === "system") applyAll();
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [applyAll]);
+
+  // Scheduled theme switch (精确 setTimeout，零轮询)
+  useEffect(() => {
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+
+    const applyThemeWithOverrides = (effective: "deep-blue" | "light") => {
+      document.documentElement.setAttribute("data-theme", effective);
+      const saved = useSettingsStore.getState().overrides[effective];
+      if (saved) {
+        applyOverride(effective, saved);
+      } else {
+        clearOverrideStyles();
+      }
+    };
+
+    const scheduleNext = () => {
+      const s = useSettingsStore.getState();
+      if (!s.scheduleEnabled) return;
+
+      const now = new Date();
+      const cur = now.getHours() * 60 + now.getMinutes();
+      const start = parseTime(s.scheduleDarkStart);
+      const end = parseTime(s.scheduleDarkEnd);
+
+      // 判断当前时段
+      const isDark = start <= end
+        ? (cur >= start && cur < end)
+        : (cur >= start || cur < end);
+      const effective = isDark ? "deep-blue" : "light";
+
+      // 如果跟当前 data-theme 不同则切换
+      const currentTheme = document.documentElement.getAttribute("data-theme");
+      if (currentTheme !== effective) {
+        applyThemeWithOverrides(effective);
+      }
+
+      // 计算下一次切换的分钟数（从午夜算起）
+      // 非跨越 midnight：事件顺序为 start(→深色), end(→浅色)
+      // 跨越 midnight：事件顺序为 end(→浅色), start(→深色)
+      let nextMin: number;
+      if (start <= end) {
+        if (cur < start) nextMin = start;           // → 深色
+        else if (cur < end) nextMin = end;           // → 浅色
+        else nextMin = start + 24 * 60;              // → 深色（次日）
+      } else {
+        if (cur < end) nextMin = end;                // → 浅色
+        else if (cur < start) nextMin = start;       // → 深色
+        else nextMin = end + 24 * 60;                // → 浅色（次日）
+      }
+
+      // 转换为 Date
+      const nextDate = new Date(now);
+      nextDate.setHours(Math.floor(nextMin / 60) % 24);
+      nextDate.setMinutes(nextMin % 60);
+      nextDate.setSeconds(0);
+      nextDate.setMilliseconds(0);
+      if (nextDate.getTime() <= now.getTime()) {
+        nextDate.setDate(nextDate.getDate() + 1);
+      }
+
+      timerId = setTimeout(scheduleNext, nextDate.getTime() - now.getTime());
+    };
+
+    if (useSettingsStore.getState().scheduleEnabled) {
+      scheduleNext();
+    }
+
+    return () => {
+      if (timerId !== null) clearTimeout(timerId);
+    };
+  }, [scheduleEnabled, scheduleDarkStart, scheduleDarkEnd]);
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
@@ -192,4 +284,10 @@ export default function App() {
       <CommandPalette />
     </div>
   );
+}
+
+/** Parse "HH:MM" to minutes since midnight */
+function parseTime(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + (m || 0);
 }

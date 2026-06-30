@@ -126,7 +126,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   // ── Session CRUD ───────────────────────────────────────────────────────
 
   setError(msg: string) {
-    set({ lastError: msg });
+    const clearAt = Date.now();
+    set({ lastError: msg, _errorId: clearAt });
+    setTimeout(() => {
+      set((s) => s._errorId === clearAt ? { lastError: null } : {});
+    }, 6000);
   },
 
   copyError() {

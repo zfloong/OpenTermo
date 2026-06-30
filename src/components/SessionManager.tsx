@@ -375,11 +375,11 @@ function SessionItem({
       {/* Name + Host */}
       <div className="flex flex-col min-w-0 flex-1">
         <span className={`text-[12px] font-medium truncate leading-tight ${
-          isActive ? "text-on-surface font-semibold" : isConnected ? "text-secondary" : "text-on-surface-variant group-hover:text-on-surface"
+          isActive ? "text-white font-semibold" : isConnected ? "text-secondary" : "text-white"
         }`}>
           {session.name || session.host}
         </span>
-        <span className="text-[11px] font-terminal-mono text-outline/60 truncate mt-0.5">
+        <span className="text-[11px] font-terminal-mono text-white/60 truncate mt-0.5">
           {session.user}@{session.host}{session.port !== 22 && session.port !== 23 ? `:${session.port}` : ""}
         </span>
       </div>

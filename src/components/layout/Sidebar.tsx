@@ -162,10 +162,10 @@ export default function Sidebar() {
         <div className="w-full flex items-center justify-between px-3 py-2 mb-1 hover:bg-surface-variant/20 active:bg-transparent transition-colors rounded-lg group cursor-pointer" onClick={() => setSessionsOpen(!sessionsOpen)}>
           <div className="flex items-center gap-2">
             <span className={`material-symbols-outlined text-[16px] text-outline/50 transition-transform duration-200 group-hover:text-outline ${sessionsOpen ? "" : "-rotate-90"}`}>expand_more</span>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-outline/50 group-hover:text-outline">终端列表</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-outline/80 group-hover:text-on-surface">终端列表</span>
           </div>
         </div>
-        <div className={sessionsOpen ? "" : "hidden"}>
+        <div className={sessionsOpen || searchQuery ? "" : "hidden"}>
           <SessionManager searchQuery={searchQuery} />
         </div>
         </div>
@@ -178,24 +178,32 @@ export default function Sidebar() {
         <div className="w-full flex items-center justify-between px-3 py-2 mb-1.5 hover:bg-surface-variant/20 active:bg-transparent transition-colors rounded-lg group cursor-pointer" onClick={() => setScriptsOpen(!scriptsOpen)}>
           <div className="flex items-center gap-2">
             <span className={`material-symbols-outlined text-[16px] text-outline/50 transition-transform duration-200 group-hover:text-outline ${scriptsOpen ? "" : "-rotate-90"}`}>expand_more</span>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-outline/50 group-hover:text-outline">脚本命令</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-outline/80 group-hover:text-on-surface">脚本命令</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[16px] text-outline/40 hover:text-secondary cursor-pointer transition-colors" onClick={(e) => { e.stopPropagation(); setAddCmdOpen(true); }}>add</span>
           </div>
         </div>
 
-        <div className={scriptsOpen ? "" : "hidden"}>
+        <div className={scriptsOpen || searchQuery ? "" : "hidden"}>
           {commandEntries.length === 0 ? (
             <div className="py-6 text-center">
               <span className="text-[11px] text-outline/30">暂无脚本命令</span>
             </div>
           ) : (
             (() => {
+              // Filter by search query
+              const filtered = searchQuery
+                ? commandEntries.filter((e) =>
+                    (e.label || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (e.command || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (e.category || "").toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                : commandEntries;
               // Group commands by category
-              const ungrouped = commandEntries.filter((e) => !e.category || e.category === "uncategorized");
-              const grouped: Record<string, typeof commandEntries> = {};
-              for (const e of commandEntries) {
+              const ungrouped = filtered.filter((e) => !e.category || e.category === "uncategorized");
+              const grouped: Record<string, typeof filtered> = {};
+              for (const e of filtered) {
                 if (!e.category || e.category === "uncategorized") continue;
                 if (!grouped[e.category]) grouped[e.category] = [];
                 grouped[e.category].push(e);

@@ -178,6 +178,8 @@ pub fn run() {
             commands::cluster_upload,
             commands::cluster_download,
             commands::cluster_exec,
+            commands::list_local_dir,
+            commands::open_url,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

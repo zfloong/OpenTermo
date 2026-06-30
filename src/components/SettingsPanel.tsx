@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useSettingsStore, type ThemeId, type ThemeOverride } from "@/stores/settingsStore";
 import { applyOverride } from "@/lib/themeUtils";
 import {
@@ -14,13 +15,12 @@ interface Props {
 const THEME_META: { id: ThemeId; label: string; desc: string; colors: string[] }[] = [
   { id: "deep-blue", label: "深色 (默认)", desc: "纯黑白灰层次 · Steel Lavender", colors: ["#131313", "#b5c7ef", "#4de082"] },
   { id: "light",     label: "浅色", desc: "明亮清爽 · Classic Blue", colors: ["#f8f9fb", "#3b82f6", "#22c55e"] },
-  { id: "tabby",     label: "Tabby", desc: "蓝紫深灰风 · Neon Violet", colors: ["#13171d", "#7b68ee", "#50d890"] },
+  { id: "system",   label: "跟随系统", desc: "自动切换深色/浅色", colors: ["#090909", "#b5c7ef", "#f8f9fb"] },
 ];
 
-const DEFAULT_OVERRIDES: Record<ThemeId, ThemeOverride> = {
+const DEFAULT_OVERRIDES: Record<string, ThemeOverride> = {
   "deep-blue": { accentHue: 210, glassAlpha: 0.88, borderAlpha: 0.13 },
   "light":     { accentHue: 217, glassAlpha: 0.82, borderAlpha: 0.14 },
-  "tabby":     { accentHue: 255, glassAlpha: 0.82, borderAlpha: 0.13 },
 };
 
 function rangeSlider(label: string, min: number, max: number, step: number, value: number, onChange: (v: number) => void, fmt?: (v: number) => string) {
@@ -49,14 +49,26 @@ function rangeSlider(label: string, min: number, max: number, step: number, valu
 export default function SettingsPanel({ open, onClose }: Props) {
   const theme = useSettingsStore((s) => s.theme);
   const fontSize = useSettingsStore((s) => s.fontSize);
+  const fontFamily = useSettingsStore((s) => s.fontFamily);
+  const scheduleEnabled = useSettingsStore((s) => s.scheduleEnabled);
+  const scheduleDarkStart = useSettingsStore((s) => s.scheduleDarkStart);
+  const scheduleDarkEnd = useSettingsStore((s) => s.scheduleDarkEnd);
+  // 浅色 = 深色的补集
+  const scheduleLightStart = scheduleDarkEnd;
+  const scheduleLightEnd = scheduleDarkStart;
   const overrides = useSettingsStore((s) => s.overrides);
   const setTheme = useSettingsStore((s) => s.setTheme);
   const setFontSize = useSettingsStore((s) => s.setFontSize);
+  const setScheduleEnabled = useSettingsStore((s) => s.setScheduleEnabled);
+  const setScheduleDarkStart = useSettingsStore((s) => s.setScheduleDarkStart);
+  const setScheduleDarkEnd = useSettingsStore((s) => s.setScheduleDarkEnd);
+  const setScheduleLightStart = (v: string) => setScheduleDarkEnd(v);
+  const setScheduleLightEnd = (v: string) => setScheduleDarkStart(v);
   const saveOverride = useSettingsStore((s) => s.saveOverride);
   const resetOverride = useSettingsStore((s) => s.resetOverride);
   const resetAllOverrides = useSettingsStore((s) => s.resetAllOverrides);
 
-  const [activeTab, setActiveTab] = useState<"appearance" | "keyboard" | "terminal" | "security">("appearance");
+  const [activeTab, setActiveTab] = useState<"appearance" | "keyboard" | "about">("appearance");
   const [expanded, setExpanded] = useState<ThemeId | null>(null);
   const [draft, setDraft] = useState<ThemeOverride | null>(null);
 
@@ -111,8 +123,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
   const tabs = [
     { id: "appearance", label: "外观", icon: "palette" },
     { id: "keyboard", label: "键盘", icon: "keyboard" },
-    { id: "terminal", label: "终端", icon: "terminal" },
-    { id: "security", label: "安全", icon: "shield_person" },
+    { id: "about", label: "关于", icon: "info" },
   ] as const;
 
   return (
@@ -147,7 +158,8 @@ export default function SettingsPanel({ open, onClose }: Props) {
           </nav>
         </aside>
 
-        <main className="flex-1 overflow-y-auto" style={{ background: "var(--surface-container-lowest)" }}>
+        <main className="flex-1 overflow-y-auto h-[500px]" style={{ background: "var(--surface-container-lowest)" }}>
+          {activeTab === "appearance" && (
           <div className="p-5 space-y-6">
             <div>
               <h3 className="text-[14px] font-semibold text-on-surface mb-2.5 border-b border-outline-variant/20 pb-1.5">主题</h3>
@@ -160,12 +172,12 @@ export default function SettingsPanel({ open, onClose }: Props) {
                   return (
                     <button
                       key={tm.id}
-                      onClick={() => setTheme(tm.id)}
+                      onClick={() => !scheduleEnabled && setTheme(tm.id)}
                       className={`relative group p-2 rounded-xl border-2 text-left transition-all ${
                         isActive
                           ? "border-secondary"
                           : "border-transparent hover:border-outline/50"
-                      }`}
+                      } ${scheduleEnabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                       style={{ background: "var(--surface-container)" }}
                     >
                       <div className="bg-surface rounded h-[68px] mb-1.5 overflow-hidden flex flex-col">
@@ -196,24 +208,65 @@ export default function SettingsPanel({ open, onClose }: Props) {
             </div>
 
             <div>
+              <h3 className="text-[14px] font-semibold text-on-surface mb-2.5 border-b border-outline-variant/20 pb-1.5">定时切换</h3>
+              <div className="bg-surface-container-high rounded-xl p-3.5 border border-outline-variant/20 space-y-3">
+                <ToggleRow title="启用定时切换" desc="按时间段自动切换深色/浅色，开启后主题选择将被锁定"
+                  defaultChecked={scheduleEnabled}
+                  onChange={(v) => setScheduleEnabled(v)} />
+                {scheduleEnabled && (
+                  <div className="space-y-3 pt-1">
+                    {/* 浅色时间段 */}
+                    <div>
+                      <label className="text-[10px] text-on-surface-variant font-medium flex items-center gap-1.5 mb-1">
+                        <span className="w-2 h-2 rounded-full bg-[#f8f9fb] border border-outline-variant/30 inline-block" />
+                        浅色时段
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <input type="time" value={scheduleLightStart}
+                            onChange={(e) => setScheduleLightStart(e.target.value)}
+                            className="w-full px-2 py-1 rounded bg-surface border border-outline-variant/30 text-xs text-on-surface font-terminal-mono outline-none focus:border-secondary/50" />
+                        </div>
+                        <span className="text-outline/40">→</span>
+                        <div className="flex-1">
+                          <input type="time" value={scheduleLightEnd}
+                            onChange={(e) => setScheduleLightEnd(e.target.value)}
+                            className="w-full px-2 py-1 rounded bg-surface border border-outline-variant/30 text-xs text-on-surface font-terminal-mono outline-none focus:border-secondary/50" />
+                        </div>
+                      </div>
+                    </div>
+                    {/* 深色时间段 */}
+                    <div>
+                      <label className="text-[10px] text-on-surface-variant font-medium flex items-center gap-1.5 mb-1">
+                        <span className="w-2 h-2 rounded-full bg-[#131313] inline-block" />
+                        深色时段
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <input type="time" value={scheduleDarkStart}
+                            onChange={(e) => setScheduleDarkStart(e.target.value)}
+                            className="w-full px-2 py-1 rounded bg-surface border border-outline-variant/30 text-xs text-on-surface font-terminal-mono outline-none focus:border-secondary/50" />
+                        </div>
+                        <span className="text-outline/40">→</span>
+                        <div className="flex-1">
+                          <input type="time" value={scheduleDarkEnd}
+                            onChange={(e) => setScheduleDarkEnd(e.target.value)}
+                            className="w-full px-2 py-1 rounded bg-surface border border-outline-variant/30 text-xs text-on-surface font-terminal-mono outline-none focus:border-secondary/50" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
               <h3 className="text-[14px] font-semibold text-on-surface mb-2.5 border-b border-outline-variant/20 pb-1.5">排版</h3>
               <div className="bg-surface-container-high rounded-xl p-3.5 border border-outline-variant/20 space-y-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] text-on-surface-variant">字体族</label>
-                  <div className="relative focus-glow rounded transition-shadow">
-                    <select className="w-full bg-surface text-on-surface border border-outline-variant/50 rounded p-2 appearance-none font-terminal-mono text-terminal-mono text-[12px] outline-none">
-                      <option>JetBrains Mono</option>
-                      <option>Fira Code</option>
-                      <option>Hack</option>
-                      <option>Source Code Pro</option>
-                    </select>
-                    <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant pointer-events-none text-[18px]">expand_more</span>
-                  </div>
-                </div>
                 <div className="flex flex-col gap-3">
                   <div className="flex justify-between items-center">
                     <label className="text-[11px] text-on-surface-variant">字体大小</label>
-                    <span className="text-terminal-mono font-terminal-mono text-primary font-medium bg-primary/10 px-1.5 py-0.5 rounded text-[11px]">{fontSize}px</span>
+                    <span className="text-terminal-mono font-terminal-mono text-secondary text-[11px]">{fontSize}px</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-on-surface-variant text-[12px] font-terminal-mono">A</span>
@@ -229,7 +282,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
                     <span className="text-on-surface-variant text-[18px] font-terminal-mono">A</span>
                   </div>
                 </div>
-                <div className="mt-3 p-3 bg-surface-dim rounded border border-outline-variant/30 font-terminal-mono text-terminal-mono text-[11px]">
+                <div className="mt-3 p-3 bg-surface-dim rounded border border-outline-variant/30" style={{ fontFamily: `'${fontFamily}', monospace`, fontSize: `${fontSize}px` }}>
                   <div className="text-secondary mb-1">user@opentermo:~$ <span className="text-on-surface">ls -la</span></div>
                   <div className="text-on-surface-variant opacity-80">drwxr-xr-x 2 user root  4096 Oct 12 10:00 configs</div>
                   <div className="text-primary">.rw-r--r-- 1 user root   234 Oct 12 10:05 .zshrc</div>
@@ -237,55 +290,91 @@ export default function SettingsPanel({ open, onClose }: Props) {
               </div>
             </div>
 
-            <div>
-              <h3 className="text-[14px] font-semibold text-on-surface mb-2.5 border-b border-outline-variant/20 pb-1.5">窗口与渲染</h3>
-              <div className="space-y-4">
-                <div className="bg-surface-container-high rounded-xl p-3.5 border border-outline-variant/20">
-                  <div className="flex justify-between items-center mb-3">
-                    <div>
-                      <label className="text-[12px] text-on-surface">背景不透明度</label>
-                      <p className="text-[11px] text-on-surface-variant mt-0.5">调整亚克力模糊效果强度。</p>
-                    </div>
-                    <span className="text-terminal-mono font-terminal-mono text-primary font-medium bg-primary/10 px-2 py-0.5 rounded text-sm">90%</span>
-                  </div>
-                  <input className="w-full" max="100" min="0" type="range" value="90" />
-                </div>
-                <div className="space-y-3">
-                  <ToggleRow title="GPU 加速" desc="使用硬件渲染以获得更好性能" defaultChecked />
-                  <ToggleRow title="连字" desc="在终端输出中启用字体连字" />
-                </div>
+            </div>
+          )}
+
+          {/* 键盘设置 */}
+          {activeTab === "keyboard" && (
+            <div className="p-5 space-y-6 min-h-[400px]">
+              <div>
+                <h3 className="text-[14px] font-semibold text-on-surface mb-2.5 border-b border-outline-variant/20 pb-1.5">快捷键 <span className="text-[11px] font-normal text-outline/50 ml-2">点击快捷键可修改</span></h3>
+                <KeyboardShortcuts />
               </div>
             </div>
+          )}
 
-            <div className="pt-4 border-t border-outline-variant/20 flex justify-end gap-2">
-              <button
-              onClick={handleResetAll}
-              disabled={!hasAnyOverride}
-              className="px-3 py-1.5 rounded-lg text-on-surface-variant hover:bg-surface-variant/40 hover:text-on-surface transition-colors text-[12px]"
-            >
-              恢复默认
-            </button>
-              <button
-                className="px-4 py-1.5 rounded-lg bg-secondary/20 text-secondary hover:bg-secondary/30 transition-colors text-[12px] font-medium"
-                onClick={onClose}
-              >
-                应用更改
-              </button>
-            </div>
-          </div>
+          {/* 终端设置 */}
+          {/* 关于 */}
+          {activeTab === "about" && (
+            <div className="p-5 space-y-6 min-h-[400px]">
+              {/* Logo + Version */}
+              <div className="flex items-center gap-4 pb-4 border-b border-outline-variant/10">
+                <div className="w-14 h-14 rounded-2xl bg-secondary/10 border border-secondary/20 flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-[28px] text-secondary">terminal</span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-on-surface">OpenTermo</h2>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-secondary bg-secondary/10 px-1.5 py-0.5 rounded font-terminal-mono">v1.1.1</span>
+                    <span className="text-[10px] text-outline/40">Tauri 2 · Rust</span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant mt-1">现代化 SSH 终端客户端，支持集群管理和文件传输</p>
+                </div>
+              </div>
 
-          {/* 空标签页占位 */}
-          {activeTab !== "appearance" && (
-            <div className="flex flex-col items-center justify-center h-full text-center p-12">
-              <span className="material-symbols-outlined text-[48px] text-outline/30 mb-4">
-                {activeTab === "keyboard" ? "keyboard" : activeTab === "terminal" ? "terminal" : "shield_person"}
-              </span>
-              <p className="text-on-surface-variant text-sm">
-                {activeTab === "keyboard" ? "键盘快捷键设置开发中" :
-                 activeTab === "terminal" ? "终端高级设置开发中" :
-                 "安全与隐私设置开发中"}
-              </p>
-              <p className="text-outline text-xs mt-1">即将推出</p>
+              {/* Update log */}
+              <div>
+                <h3 className="text-[12px] font-semibold text-outline/60 uppercase tracking-wider mb-2">更新日志</h3>
+                <div className="space-y-3 max-h-[240px] overflow-y-auto pr-1">
+                  {[
+                    { ver: "v1.1.1", date: "2026-06-30", items: [
+                      "定时主题切换：设置面板同时显示浅色/深色时段，精确 setTimeout 零轮询",
+                      "跟随系统主题：自动监听系统深浅色偏好",
+                      "文件传输对话框：本地/远程双栏文件浏览器",
+                      "快捷键自定义：支持编辑快捷键组合，命令面板/终端搜索均可配置",
+                      "终端 Ctrl+0 重置字号、Ctrl+滚轮缩放",
+                      "关于页面：版本信息与更新日志",
+                      "挂载按钮图标化，帮助按钮跳转 GitHub",
+                      "侧边栏搜索增强：保持分区展开、脚本命令过滤",
+                      "错误提示 6 秒自动清除",
+                      "rclone 错误信息增加安装指引",
+                    ] },
+                    { ver: "v1.1.0", date: "2026-06-30", items: ["全新集群管理功能", "文件传输分栏界面", "批量命令 + 实时终端输出", "SSH exec 通道支持 PTY"] },
+                    { ver: "v1.0.9", date: "2026-06-29", items: ["IP 归属地自动显示国家旗帜", "修复日志时间戳重复"] },
+                    { ver: "v1.0.8", date: "2026-06-28", items: ["侧边栏 UI 重构", "搜索框移到终端列表上方", "分组名视觉层级优化", "脚本命令支持分组显示"] },
+                    { ver: "v1.0.7", date: "2026-06-28", items: ["rclone 密码加密", "残留进程清理", "智能 Tab 切换"] },
+                  ].map((rel) => (
+                    <div key={rel.ver} className="bg-surface-container-high/50 rounded-lg p-3 border border-outline-variant/10">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[11px] font-bold text-secondary font-terminal-mono">{rel.ver}</span>
+                        <span className="text-[9px] text-outline/40">{rel.date}</span>
+                      </div>
+                      <ul className="space-y-0.5">
+                        {rel.items.map((item, j) => (
+                          <li key={j} className="text-[11px] text-on-surface-variant flex items-start gap-1.5">
+                            <span className="text-secondary/60 mt-0.5">·</span>
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Links */}
+              <div className="flex items-center gap-3 pt-2">
+                <button onClick={() => invoke("open_url", { url: "https://github.com/zfloong/OpenTermo" })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/50 transition-all text-xs">
+                  <span className="material-symbols-outlined text-[14px]">code</span>
+                  GitHub
+                </button>
+                <button onClick={() => invoke("open_url", { url: "https://github.com/zfloong/OpenTermo/releases/latest" })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-variant/30 text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/50 transition-all text-xs">
+                  <span className="material-symbols-outlined text-[14px]">update</span>
+                  检查更新
+                </button>
+              </div>
             </div>
           )}
         </main>
@@ -294,7 +383,71 @@ export default function SettingsPanel({ open, onClose }: Props) {
   );
 }
 
-function ToggleRow({ title, desc, defaultChecked = false }: { title: string; desc: string; defaultChecked?: boolean }) {
+/* ── Editable keyboard shortcuts ── */
+function KeyboardShortcuts() {
+  const shortcuts = useSettingsStore((s) => s.keyboardShortcuts);
+  const updateShortcut = useSettingsStore((s) => s.updateShortcut);
+  const [editing, setEditing] = useState<string | null>(null);
+
+  const startEdit = (id: string) => setEditing(id);
+
+  const handleKeyCapture = (e: React.KeyboardEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const parts: string[] = [];
+    if (e.ctrlKey) parts.push("Ctrl");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.altKey) parts.push("Alt");
+    if (e.metaKey) parts.push("Cmd");
+    if (e.key && !["Control", "Shift", "Alt", "Meta"].includes(e.key)) {
+      const key = e.key === "+" ? "+/-" : e.key.length === 1 ? e.key.toUpperCase() : e.key;
+      parts.push(key);
+      updateShortcut(id, parts.join(" + "));
+      setEditing(null);
+    }
+  };
+
+  return (
+    <div className="space-y-2" onKeyDown={(e) => editing && handleKeyCapture(e, editing)}>
+      {shortcuts.map((s) => (
+        <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-container-high/50 border border-outline-variant/10 hover:bg-surface-variant/20 hover:border-outline-variant/30 transition-all duration-150 group">
+          <span className="text-xs text-on-surface-variant group-hover:text-on-surface transition-colors duration-150">{s.action}</span>
+          {s.id === "zoom-in" ? (
+            <span
+              className="text-[10px] font-terminal-mono text-secondary bg-secondary/10 px-2 py-0.5 rounded border border-secondary/20 cursor-pointer relative group-hover:bg-secondary/20 group-hover:shadow-[0_0_8px_rgba(77,224,130,0.2)] transition-all duration-150"
+              onClick={() => {
+                const tip = document.getElementById("zoom-tip");
+                if (tip) { tip.classList.remove("opacity-0"); setTimeout(() => tip.classList.add("opacity-0"), 2000); }
+              }}
+            >
+              {s.keys}
+              <span id="zoom-tip" className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] bg-surface-container-high text-on-surface-variant px-2 py-1 rounded shadow-lg border border-outline-variant/20 opacity-0 transition-opacity pointer-events-none">
+                该快捷键不支持修改
+              </span>
+            </span>
+          ) : editing === s.id ? (
+            <input
+              autoFocus
+              className="w-36 px-2 py-0.5 rounded text-[10px] font-terminal-mono text-secondary bg-secondary/10 border border-secondary/30 outline-none text-center focus:ring-1 focus:ring-secondary/40 focus:shadow-[0_0_8px_rgba(77,224,130,0.15)] transition-all duration-150"
+              placeholder="按下新快捷键..."
+              onBlur={() => setEditing(null)}
+              onKeyDown={(e) => handleKeyCapture(e, s.id)}
+            />
+          ) : (
+            <button
+              onClick={() => startEdit(s.id)}
+              className="text-[10px] font-terminal-mono text-secondary bg-secondary/10 px-2 py-0.5 rounded border border-secondary/20 hover:bg-secondary/20 hover:shadow-[0_0_8px_rgba(77,224,130,0.2)] active:scale-95 transition-all duration-150 cursor-pointer"
+            >
+              {s.keys}
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ToggleRow({ title, desc, defaultChecked = false, onChange }: { title: string; desc: string; defaultChecked?: boolean; onChange?: (v: boolean) => void }) {
   const [checked, setChecked] = useState(defaultChecked);
   return (
     <label className="flex items-center justify-between p-2.5 rounded-xl hover:bg-surface-variant/30 transition-colors cursor-pointer border border-transparent hover:border-outline/20" style={{ background: "var(--surface-container)" }}>
@@ -305,7 +458,7 @@ function ToggleRow({ title, desc, defaultChecked = false }: { title: string; des
       <div className="relative inline-flex items-center cursor-pointer">
         <input
           checked={checked}
-          onChange={(e) => setChecked(e.target.checked)}
+          onChange={(e) => { setChecked(e.target.checked); onChange?.(e.target.checked); }}
           className="sr-only peer"
           type="checkbox"
         />

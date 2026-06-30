@@ -46,7 +46,10 @@ export default function TitleBar({ onConnect, onSettings, view, onViewChange }: 
   const handleMount = useCallback(async () => {
     if (!activeTabId) return;
     clearError();
-    try { await rclone_mount(activeTabId); } catch (e: any) {
+    try {
+      const drive = await rclone_mount(activeTabId);
+      setMounts((prev) => ({ ...prev, [activeTabId]: drive }));
+    } catch (e: any) {
       setError("[SSHFS 挂载] " + (e?.toString?.() || String(e)));
     }
   }, [activeTabId, clearError, setError]);
@@ -54,7 +57,10 @@ export default function TitleBar({ onConnect, onSettings, view, onViewChange }: 
   const handleUnmount = useCallback(async () => {
     if (!activeTabId) return;
     clearError();
-    try { await rclone_unmount(activeTabId); } catch (e: any) {
+    try {
+      await rclone_unmount(activeTabId);
+      setMounts((prev) => { const n = { ...prev }; delete n[activeTabId]; return n; });
+    } catch (e: any) {
       setError("[SSHFS 卸载] " + (e?.toString?.() || String(e)));
     }
   }, [activeTabId, clearError, setError]);
@@ -62,7 +68,7 @@ export default function TitleBar({ onConnect, onSettings, view, onViewChange }: 
   return (
     <header
       data-tauri-drag-region
-      className="flex h-header_height items-center header-glass pl-[9px] pr-container_padding select-none flex-shrink-0 w-full z-50 gap-1"
+      className="flex h-header_height items-center header-glass pl-[9px] pr-0 select-none flex-shrink-0 w-full z-50 gap-1"
     >
       {/* Logo + app name */}
       <div className="flex items-center gap-2 flex-shrink-0">
@@ -101,37 +107,45 @@ export default function TitleBar({ onConnect, onSettings, view, onViewChange }: 
             <button
               onClick={currentDrive ? handleUnmount : handleMount}
               onMouseDown={(e) => e.stopPropagation()}
-              className={`flex items-center gap-1 px-2 h-6 rounded text-terminal-mono text-terminal-mono text-[11px] transition-colors ${
+              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
                 currentDrive
-                  ? "text-secondary hover:bg-secondary/10"
-                  : "text-on-surface-variant hover:text-primary hover:bg-primary/10"
+                  ? "text-secondary bg-secondary/10 hover:bg-secondary/20"
+                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30"
               }`}
+              title={currentDrive ? `卸载 ${currentDrive}` : "挂载"}
             >
-              <span className="material-symbols-outlined text-[20px]">storage</span>
-              <span>{currentDrive ? `卸载 ${currentDrive}` : "挂载"}</span>
+              <span className="material-symbols-outlined text-[18px]">storage</span>
             </button>
           )}
 
           <button
             onClick={onSettings}
             onMouseDown={(e) => e.stopPropagation()}
-            className="w-6 h-6 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/50 transition-colors"
-            aria-label="设置"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30 transition-all"
+            title="设置"
           >
-            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 0" }}>settings</span>
+            <span className="material-symbols-outlined text-[18px]">settings</span>
           </button>
 
           <button
+            onClick={async () => {
+              try {
+                const { invoke } = await import("@tauri-apps/api/core");
+                await invoke("open_url", { url: "https://github.com/zfloong/OpenTermo" });
+              } catch {
+                window.open("https://github.com/zfloong/OpenTermo", "_blank");
+              }
+            }}
             onMouseDown={(e) => e.stopPropagation()}
-            className="w-6 h-6 rounded flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/50 transition-colors"
-            aria-label="帮助"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-variant/30 transition-all"
+            title="帮助"
           >
-            <span className="material-symbols-outlined text-[20px]">help</span>
+            <span className="material-symbols-outlined text-[18px]">help</span>
           </button>
         </div>
       </div>
 
-      <div className="no-drag flex h-full flex-shrink-0 ml-1">
+      <div className="no-drag flex h-full flex-shrink-0 ml-1 pr-1">
         <button
           onClick={minimize}
           onMouseDown={(e) => e.stopPropagation()}

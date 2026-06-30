@@ -256,7 +256,7 @@ fn obscure_rclone_password(rclone_path: &str, password: &str) -> Result<String, 
 
     let mut child = child
         .spawn()
-        .map_err(|e| format!("启动 rclone obscure 失败: {e}"))?;
+        .map_err(|e| format!("启动 rclone obscure 失败: {e}。请确保已安装 rclone (https://rclone.org/downloads)"))?;
 
     if let Some(mut stdin) = child.stdin.take() {
         stdin
@@ -384,7 +384,7 @@ pub fn rclone_mount(
         .stderr(Stdio::piped());
 
     let mut child = cmd.spawn()
-        .map_err(|e| format!("Failed to start rclone: {}", e))?;
+        .map_err(|e| format!("启动 rclone 失败: {}。请确保已安装 rclone (https://rclone.org/downloads)", e))?;
 
     let pid = child.id();
 
@@ -698,6 +698,60 @@ pub fn cluster_download(
         }
     }
     Ok(results)
+}
+
+/// List files and directories in a local path.
+#[tauri::command]
+pub fn list_local_dir(path: String) -> Result<Vec<serde_json::Value>, String> {
+    let entries = std::fs::read_dir(&path)
+        .map_err(|e| format!("读取目录失败: {e}"))?;
+    let mut items: Vec<serde_json::Value> = Vec::new();
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+        if !name.starts_with('.') {
+            items.push(serde_json::json!({
+                "name": name,
+                "is_dir": is_dir,
+                "size": size,
+            }));
+        }
+    }
+    items.sort_by(|a, b| {
+        let a_dir = a["is_dir"].as_bool().unwrap_or(false);
+        let b_dir = b["is_dir"].as_bool().unwrap_or(false);
+        if a_dir != b_dir { return if a_dir { std::cmp::Ordering::Less } else { std::cmp::Ordering::Greater }; }
+        a["name"].as_str().unwrap_or("").cmp(b["name"].as_str().unwrap_or(""))
+    });
+    Ok(items)
+}
+
+/// Open a URL in the default system browser.
+#[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .spawn()
+            .map_err(|e| format!("打开链接失败: {e}"))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("打开链接失败: {e}"))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("打开链接失败: {e}"))?;
+    }
+    Ok(())
 }
 
 /// 获取本机 Windows 用户名和计算机名
