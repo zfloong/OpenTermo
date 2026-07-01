@@ -164,6 +164,13 @@ export default function Sidebar() {
             <span className={`material-symbols-outlined text-[16px] text-outline/50 transition-transform duration-200 group-hover:text-outline ${sessionsOpen ? "" : "-rotate-90"}`}>expand_more</span>
             <span className="text-[11px] font-bold uppercase tracking-wider text-outline/80 group-hover:text-on-surface">终端列表</span>
           </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); useSessionStore.getState().openConnectDialog(); }}
+            className="w-5 h-5 rounded flex items-center justify-center text-outline/40 hover:text-secondary hover:bg-secondary/10 transition-all"
+            title="新建连接"
+          >
+            <span className="material-symbols-outlined text-[16px]">add</span>
+          </button>
         </div>
         <div className={sessionsOpen || searchQuery ? "" : "hidden"}>
           <SessionManager searchQuery={searchQuery} />

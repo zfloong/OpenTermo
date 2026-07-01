@@ -861,15 +861,12 @@ pub fn read_logs() -> Result<serde_json::Value, String> {
 /// or the ping timed out.
 #[tauri::command]
 pub fn ping_host(host: String) -> Result<i64, String> {
-    use std::process::Command;
+    let mut cmd = std::process::Command::new("ping");
     #[cfg(windows)]
-    let mut cmd = {
-        let mut c = Command::new("ping");
-        c.creation_flags(0x08000000); // CREATE_NO_WINDOW
-        c
-    };
-    #[cfg(not(windows))]
-    let mut cmd = Command::new("ping");
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
     let output = cmd
         .arg("-n")
         .arg("1")        // send 1 echo request
