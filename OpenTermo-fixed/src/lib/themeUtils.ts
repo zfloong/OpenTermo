@@ -60,7 +60,7 @@ export function applyOverride(theme: ThemeId, o: ThemeOverride) {
   // ━━━━━ Transparency ━━━━━
   // glassAlpha controls ONLY window transparency + blur, not panel lightness
   const ga = Math.round(o.glassAlpha * 100) / 100;
-  const bgAlpha = clamp(0.3 + ga * 0.7, 0.3, 1);
+  const bgAlpha = ga;
   r.setProperty("--bg-base", `rgba(${m.baseR},${m.baseG},${m.baseB},${bgAlpha})`);
   const blurPx = Math.round(3 + ga * 16);
   r.setProperty("--glass-blur", `${blurPx}px`);

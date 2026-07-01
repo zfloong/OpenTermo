@@ -10,13 +10,12 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
-    "withGlobalTauri": true,
+    "withGlobalTauri": false,
     "windows": [
       {
         "title": "OpenTermo",
         "width": 1200,
         "height": 800,
-        
         "decorations": false,
         "resizable": true,
         "transparent": true,
@@ -24,8 +23,7 @@
         "minHeight": 600,
         "dragDropEnabled": false,
         "devtools": true,
-        "visible": true,
-        "backgroundColor": "#000000"
+        "visible": true
       }
     ],
     "security": {

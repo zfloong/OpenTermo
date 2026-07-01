@@ -60,7 +60,7 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
 
-        <div id="terminal-area" className="flex-1 overflow-hidden relative bg-[var(--bg-base)]">
+        <div id="terminal-area" className="flex-1 overflow-hidden relative">
             {tabs.length > 0 ? (
               tabs.map((tab) => (
                 <div

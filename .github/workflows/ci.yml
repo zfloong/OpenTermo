@@ -7,17 +7,12 @@ on:
   pull_request:
     branches: [zfl]
 
-# Cancel in-progress runs when a new push arrives
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: write
-
-defaults:
-  run:
-    working-directory: OpenTermo-fixed
 
 env:
   CARGO_TERM_COLOR: always
@@ -29,7 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ---- Node.js ----
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -44,16 +38,16 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm install
+        working-directory: OpenTermo-fixed
 
-      # ---- Generate Tauri icons (from custom icon.png) ----
       - name: Generate Tauri icon set
         run: npx tauri icon src-tauri/icons/icon.png
+        working-directory: OpenTermo-fixed
 
-      # ---- Frontend build ----
       - name: TypeScript check + Vite build
         run: npm run build
+        working-directory: OpenTermo-fixed
 
-      # ---- Rust backend (meatshell + Tauri) ----
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -63,8 +57,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            src-tauri/target
-          key: ${{ runner.os }}-cargo-v2-${{ hashFiles('src-tauri/Cargo.toml', 'meatshell/Cargo.toml') }}
+            OpenTermo-fixed/src-tauri/target
+          key: ${{ runner.os }}-cargo-v2-${{ hashFiles('OpenTermo-fixed/src-tauri/Cargo.toml', 'OpenTermo-fixed/meatshell/Cargo.toml') }}
           restore-keys: ${{ runner.os }}-cargo-v2-
 
       - name: cargo check (Tauri + meatshell, with retry)
@@ -83,9 +77,8 @@ jobs:
               Start-Sleep -Seconds 15
             }
           }
-        working-directory: src-tauri
+        working-directory: OpenTermo-fixed/src-tauri
 
-      # ---- Full Tauri build ----
       - name: Tauri build (with retry)
         shell: pwsh
         run: |
@@ -102,16 +95,16 @@ jobs:
               Start-Sleep -Seconds 15
             }
           }
+        working-directory: OpenTermo-fixed
         env:
           TAURI_SKIP_DEVSERVER_CHECK: "true"
 
-      # ---- Show what was built ----
       - name: List build outputs
         shell: pwsh
         run: |
           Write-Host "=== Bundle dir contents ==="
-          if (Test-Path src-tauri/target/release/bundle/) {
-            Get-ChildItem -Recurse src-tauri/target/release/bundle/ -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
+          if (Test-Path OpenTermo-fixed/src-tauri/target/release/bundle/) {
+            Get-ChildItem -Recurse OpenTermo-fixed/src-tauri/target/release/bundle/ -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
           } else {
             Write-Host "(no bundle directory)"
           }
@@ -120,7 +113,6 @@ jobs:
           Write-Host "=== Target release root ==="
           Get-ChildItem OpenTermo-fixed/src-tauri/target/release/ -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName }
 
-      # ---- GitHub Release (tag-triggered) ----
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/Vzfl')
         uses: softprops/action-gh-release@v2
@@ -131,7 +123,6 @@ jobs:
             OpenTermo-fixed/src-tauri/target/release/bundle/msi/*.msi
             OpenTermo-fixed/src-tauri/target/release/bundle/nsis/*.exe
 
-      # ---- Upload build artifacts ----
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
