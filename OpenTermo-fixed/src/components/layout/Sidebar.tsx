@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { PanelLeftOpen, PanelLeftClose } from "lucide-react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { List, ChevronRight } from "lucide-react";
 import { useUIStore, MIN_SIDEBAR_WIDTH } from "@/stores/uiStore";
 import CommandPanel from "@/components/CommandPanel";
 import SessionManager from "@/components/SessionManager";
@@ -31,12 +31,12 @@ export default function Sidebar() {
   }, [setSidebarWidth]);
 
   return (<>
-    {!isOpen && (<button onClick={toggleSidebar} title="展开侧栏" className="absolute left-3 top-12 z-50 w-8 h-8 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] backdrop-blur-sm transition-all"><PanelLeftOpen size={16} /></button>)}
+
     <aside className="sidebar-glass flex flex-col flex-shrink-0 overflow-hidden relative" style={{ width: sidebarWidth }}>
       <div className="flex items-center gap-1 px-3 py-1.5 flex-shrink-0 select-none border-b border-[var(--border-strong)]" data-tauri-drag-region>
-        <button onClick={() => setTab("sessions")} className={"flex-1 py-2 text-base font-semibold rounded-md transition-all no-drag " + (tab === "sessions" ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]")}>会话</button>
-        <button onClick={() => setTab("commands")} className={"flex-1 py-2 text-base font-semibold rounded-md transition-all no-drag " + (tab === "commands" ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]")}>命令</button>
-        <button onClick={toggleSidebar} title="收起侧栏" className="no-drag w-7 h-8 flex items-center justify-center rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-all ml-1"><PanelLeftClose size={14} /></button>
+        <button onClick={() => setTab("sessions")} className={"flex-1 py-2 flex items-center justify-center gap-1.5 text-sm font-semibold rounded-md transition-all no-drag " + (tab === "sessions" ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]")}><List size={14} />会话</button>
+        <button onClick={() => setTab("commands")} className={"flex-1 py-2 flex items-center justify-center gap-1.5 text-sm font-semibold rounded-md transition-all no-drag " + (tab === "commands" ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]")}><ChevronRight size={14} />命令</button>
+
       </div>
       <div className="flex-1 overflow-y-auto">{tab === "sessions" ? <SessionManager /> : <div className="h-full flex flex-col px-2"><CommandPanel /></div>}</div>
       <div onMouseDown={onDragStart} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[rgb(var(--accent-rgb)/0.40)] transition-colors z-10" />

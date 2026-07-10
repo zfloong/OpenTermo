@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Minus, Square, X, Cable, HardDrive, HardDriveUpload, Settings } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { rclone_mount, rclone_unmount, rclone_list } from "@/lib/tauriCommands";
+import { useUIStore } from "@/stores/uiStore";
 
 interface TitleBarProps {
   onConnect: () => void;
@@ -16,6 +17,7 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
   const disconnect = useSessionStore((s) => s.disconnect);
   const setError = useSessionStore((s) => s.setError);
   const clearError = useSessionStore((s) => s.clearError);
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   // tabId -> drive letter (e.g. "M:")
   const [mounts, setMounts] = useState<Record<string, string>>({});
 
@@ -69,7 +71,7 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
       className="flex h-11 items-center bg-[var(--bg-glass)] backdrop-blur-[var(--glass-blur,18px)] border-b border-[var(--border-subtle)] select-none flex-shrink-0"
     >
       {/* Logo + app name */}
-      <div className="flex items-center gap-2.5 pl-4 pr-3 flex-shrink-0">
+      <div onClick={toggleSidebar} className="flex items-center gap-2.5 pl-4 pr-3 flex-shrink-0 no-drag cursor-pointer">
         <svg viewBox="0 0 64 64" className="w-7 h-7 rounded-lg flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <linearGradient id="logo-bg" x1="0" y1="0" x2="1" y2="1">
@@ -83,7 +85,7 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
             <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
           </rect>
         </svg>
-        <span className="text-xs font-semibold text-[var(--text-secondary)] tracking-wide">
+        <span className="text-xs font-semibold text-[var(--text-primary)]/85 tracking-wide">
           OpenTermo
         </span>
       </div>

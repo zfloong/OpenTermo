@@ -236,13 +236,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     const unlistenClosed = await listen<string>(
       `terminal-closed:${tabId}`,
-      (event) => {
+      async (event) => {
         const tab = get().tabs.find((t) => t.id === tabId);
         // If tab was still connecting, show error
         if (tab && tab.status === "connecting") {
           set({ lastError: `连接失败: ${event.payload}` });
           setTimeout(() => set({ lastError: null }), 6000);
         }
+
+        await get()._teardownListener(tabId);
         set((s) => ({
           tabs: s.tabs.filter((t) => t.id !== tabId),
           activeTabId: s.activeTabId === tabId ? null : s.activeTabId,
@@ -312,3 +314,4 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     ul.set("global-credential", unlistenCredential);
   },
 }));
+

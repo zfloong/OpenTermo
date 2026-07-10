@@ -1,7 +1,7 @@
-import { useState, useCallback } from "react";
-import { Settings, Palette, Type, Check, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
-import { useSettingsStore, type ThemeId, type ThemeOverride } from "@/stores/settingsStore";
-import { applyOverride } from "@/lib/themeUtils";
+﻿import { useState } from "react";
+import { Settings, Palette, Info, RotateCcw, ExternalLink } from "lucide-react";
+import { useSettingsStore, type ThemeId } from "@/stores/settingsStore";
+import { applyTheme } from "@/lib/themeUtils";
 import {
   Dialog,
   DialogContent,
@@ -14,30 +14,54 @@ interface Props {
   onClose: () => void;
 }
 
-const THEME_META: { id: ThemeId; label: string; desc: string; colors: string[] }[] = [
-  { id: "deep-blue", label: "默认", desc: "纯黑白灰层次", colors: ["#000000", "#8b9dc3", "#1a1a1a"] },
-  { id: "light",     label: "白天", desc: "明亮清爽",     colors: ["#f8f9fb", "#3b82f6", "#6366f1"] },
-  { id: "tabby",     label: "Tabby", desc: "蓝紫深灰风", colors: ["#13171d", "#7b68ee", "#9b8cf0"] },
+type Section = "appearance" | "about";
+
+const THEMES: { id: ThemeId; label: string; color: string }[] = [
+  { id: "deep-blue", label: "默认", color: "#1a1a2e" },
+  { id: "light",     label: "白天", color: "#e8eaed" },
+  { id: "tabby",     label: "Tabby", color: "#1a1f2e" },
 ];
 
-const DEFAULT_OVERRIDES: Record<ThemeId, ThemeOverride> = {
-  "deep-blue": { accentHue: 210, glassAlpha: 0.88, borderAlpha: 0.13, panelHue: -1, panelSat: 40 },
-  "light":     { accentHue: 217, glassAlpha: 0.82, borderAlpha: 0.14, panelHue: -1, panelSat: 20 },
-  "tabby":     { accentHue: 255, glassAlpha: 0.82, borderAlpha: 0.13, panelHue: -1, panelSat: 40 },
-};
+const FONT_OPTIONS = [
+  { value: "", label: "默认 (Meatshell Mono)" },
+  { value: "JetBrains Mono", label: "JetBrains Mono" },
+  { value: "Fira Code", label: "Fira Code" },
+  { value: "Cascadia Code", label: "Cascadia Code" },
+  { value: "Consolas", label: "Consolas" },
+  { value: "Source Code Pro", label: "Source Code Pro" },
+];
 
-function rangeSlider(label: string, min: number, max: number, step: number, value: number, onChange: (v: number) => void, fmt?: (v: number) => string) {
+const CURSOR_OPTIONS: { value: "bar" | "block" | "underline"; label: string }[] = [
+  { value: "bar", label: "条状" },
+  { value: "block", label: "方块" },
+  { value: "underline", label: "下划线" },
+];
+
+const NAV_ITEMS: { id: Section; icon: React.ReactNode; label: string }[] = [
+  { id: "appearance", icon: <Palette size={16} />, label: "外观" },
+  { id: "about", icon: <Info size={16} />, label: "关于" },
+];
+
+function rangeSlider(
+  label: string,
+  min: number,
+  max: number,
+  step: number,
+  value: number,
+  onChange: (v: number) => void,
+  fmt?: (v: number) => string
+) {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex justify-between text-xs">
         <span className="text-[var(--text-secondary)]">{label}</span>
-        <span className="text-[var(--accent)] tabular-nums font-medium">{fmt ? fmt(value) : value}</span>
+        <span className="text-[var(--accent)] tabular-nums font-medium">
+          {fmt ? fmt(value) : value}
+        </span>
       </div>
       <input
         type="range"
-        min={min}
-        max={max}
-        step={step}
+        min={min} max={max} step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-[var(--border-strong)]
@@ -51,73 +75,44 @@ function rangeSlider(label: string, min: number, max: number, step: number, valu
 }
 
 export default function SettingsPanel({ open, onClose }: Props) {
+  const [section, setSection] = useState<Section>("appearance");
+
   const theme = useSettingsStore((s) => s.theme);
   const fontSize = useSettingsStore((s) => s.fontSize);
-  const overrides = useSettingsStore((s) => s.overrides);
+  const fontFamily = useSettingsStore((s) => s.fontFamily);
+  const cursorStyle = useSettingsStore((s) => s.cursorStyle);
+  const cursorBlink = useSettingsStore((s) => s.cursorBlink);
+  const glassAlpha = useSettingsStore((s) => s.glassAlpha);
+  const borderAlpha = useSettingsStore((s) => s.borderAlpha);
+
   const setTheme = useSettingsStore((s) => s.setTheme);
   const setFontSize = useSettingsStore((s) => s.setFontSize);
-  const saveOverride = useSettingsStore((s) => s.saveOverride);
-  const resetOverride = useSettingsStore((s) => s.resetOverride);
-  const resetAllOverrides = useSettingsStore((s) => s.resetAllOverrides);
+  const setFontFamily = useSettingsStore((s) => s.setFontFamily);
+  const setCursorStyle = useSettingsStore((s) => s.setCursorStyle);
+  const setCursorBlink = useSettingsStore((s) => s.setCursorBlink);
+  const setGlassAlpha = useSettingsStore((s) => s.setGlassAlpha);
+  const setBorderAlpha = useSettingsStore((s) => s.setBorderAlpha);
 
-  const [expanded, setExpanded] = useState<ThemeId | null>(null);
+  const previewTheme = (tid: ThemeId) => {
+    setTheme(tid);
+    document.documentElement.setAttribute("data-theme", tid);
+    applyTheme(tid, glassAlpha, borderAlpha);
+  };
 
-  // Draft state for editing
-  const [draft, setDraft] = useState<ThemeOverride | null>(null);
-
-  const openEditor = useCallback((tid: ThemeId) => {
-    if (expanded === tid) {
-      setExpanded(null);
-      setDraft(null);
-      return;
-    }
-    setExpanded(tid);
-    const current = overrides[tid] || DEFAULT_OVERRIDES[tid];
-    setDraft({ ...current });
-  }, [expanded, overrides]);
-
-  const updateDraft = useCallback((key: keyof ThemeOverride, value: number) => {
-    setDraft((d) => {
-      if (!d) return null;
-      const next = { ...d, [key]: value };
-      // Real-time preview: apply draft to DOM
-      const tid = expanded;
-      if (tid) applyOverride(tid, next);
-      return next;
-    });
-  }, [expanded]);
-
-  const handleSave = useCallback(() => {
-    if (!expanded || !draft) return;
-    saveOverride(expanded, draft);
-    setExpanded(null);
-    setDraft(null);
-  }, [expanded, draft, saveOverride]);
-
-  const handleCancel = useCallback(() => {
-    setExpanded(null);
-    setDraft(null);
-  }, []);
-
-  const handleResetTheme = useCallback(() => {
-    if (!expanded) return;
-    resetOverride(expanded);
-    setExpanded(null);
-    setDraft(null);
-  }, [expanded, resetOverride]);
-
-  const handleResetAll = useCallback(() => {
-    resetAllOverrides();
-    setExpanded(null);
-    setDraft(null);
-  }, [resetAllOverrides]);
-
-  const hasAnyOverride = Object.keys(overrides).length > 0;
+  const handleResetAll = () => {
+    setTheme("deep-blue");
+    setFontSize(14);
+    setFontFamily("");
+    setCursorStyle("bar");
+    setCursorBlink(true);
+    setGlassAlpha(0.85);
+    setBorderAlpha(0.13);
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-sm p-6 max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-[640px] p-0 max-h-[85vh] overflow-hidden">
+        <DialogHeader className="px-5 pt-5 pb-1">
           <DialogTitle className="flex items-center gap-2.5 text-lg">
             <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--accent-dim)]">
               <Settings size={17} className="text-[var(--accent)]" />
@@ -126,137 +121,177 @@ export default function SettingsPanel({ open, onClose }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 mt-4">
-          {/* ── Themes ── */}
-          <section className="flex flex-col gap-2">
-            <div className="flex items-center gap-2.5 mb-1">
-              <Palette size={14} className="text-[var(--accent)]" />
-              <span className="text-sm font-medium text-[var(--text-heading)]">主题</span>
-            </div>
+        <div className="flex h-[450px]">
+          {/* ── Left nav ── */}
+          <nav className="w-32 flex-shrink-0 border-r border-[var(--border-subtle)] px-2 py-4 flex flex-col gap-1">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setSection(item.id)}
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left
+                  ${section === item.id
+                    ? "bg-[var(--surface-selected)] text-[var(--accent)]"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                  }`}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            ))}
+          </nav>
 
-            {THEME_META.map((tm) => {
-              const isActive = theme === tm.id;
-              const isExpanded = expanded === tm.id;
-              const cur = overrides[tm.id];
-              const hasOverride = !!cur;
+          {/* ── Right content ── */}
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {section === "appearance" && (
+              <div className="flex flex-col gap-5">
 
-              return (
-                <div key={tm.id} className="flex flex-col">
-                  <button
-                    onClick={() => {
-                      if (!isActive) setTheme(tm.id);
-                      openEditor(tm.id);
-                    }}
-                    className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl border transition-all text-left
-                      ${isActive
-                        ? "border-[var(--accent)] bg-[var(--accent-dim)] ring-1 ring-[rgb(var(--accent-rgb)/0.20)]"
-                        : "border-[var(--border-subtle)] hover:border-[var(--border-default)] hover:bg-[var(--surface-hover)]"
-                      }`}
-                  >
-                    <div className="flex rounded-md overflow-hidden border border-[var(--border-subtle)] shrink-0 shadow-sm">
-                      {tm.colors.map((c, i) => (
-                        <div key={i} className="w-5 h-7" style={{ background: c }} />
-                      ))}
-                    </div>
-                    <div className="flex-1 min-w-0 text-left">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-medium text-[var(--text-primary)]">{tm.label}</span>
-                        {hasOverride && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-warning)]" title="已自定义" />
-                        )}
-                      </div>
-                      <div className="text-xs text-[var(--text-muted)]">{tm.desc}</div>
-                    </div>
-                    {isActive && <Check size={16} className="text-[var(--accent)] shrink-0" strokeWidth={2.5} />}
-                    {isExpanded ? <ChevronUp size={14} className="text-[var(--text-muted)] shrink-0" /> : <ChevronDown size={14} className="text-[var(--text-muted)] shrink-0" />}
-                  </button>
+                {/* ── 主题 ── */}
+                <section className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <Palette size={14} className="text-[var(--accent)]" />
+                    <span className="text-sm font-medium text-[var(--text-heading)]">主题</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {THEMES.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => previewTheme(t.id)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all flex-1
+                          ${theme === t.id
+                            ? "bg-[var(--surface-selected)] text-[var(--accent)] border border-[var(--accent-border)]"
+                            : "text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--surface-hover)]"
+                          }`}
+                      >
+                        <span className="w-4 h-4 rounded-full border border-[var(--border-subtle)] flex-shrink-0"
+                          style={{ backgroundColor: t.color }} />
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </section>
 
-                  {/* Expanded editor */}
-                  {isExpanded && draft && (
-                    <div className="ml-2 mt-1.5 px-3.5 py-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] flex flex-col gap-3">
-                      <p className="text-xs text-[var(--text-muted)] mb-1">拖动滑块实时预览，满意后点保存</p>
-                      {rangeSlider("Accent 色相", 0, 360, 1, draft.accentHue, (v) => updateDraft("accentHue", v), (v) => `${v}°`)}
-                      <p className="text-[11px] text-[var(--text-muted)] -mt-1">→ 侧栏/标题栏/状态栏的高亮颜色</p>
-                      {rangeSlider("窗口透明度", 20, 95, 1, Math.round(draft.glassAlpha * 100), (v) => updateDraft("glassAlpha", v / 100), (v) => `${v}%`)}
-                      <p className="text-[11px] text-[var(--text-muted)] -mt-1">→ 低值透视桌面，高值厚重不透明</p>
-                      {rangeSlider("面板色相", -1, 360, 1, Math.round(draft.panelHue ?? -1), (v) => updateDraft("panelHue", v), (v) => v < 0 ? "中性灰" : `${v}°`)}
-                      <p className="text-[11px] text-[var(--text-muted)] -mt-1">→ -1=中性灰，拖动为侧/顶/底栏着色</p>
+                <hr className="border-0 h-px bg-[var(--border-subtle)]" />
 
-                      {rangeSlider("面板饱和度", 0, 80, 1, Math.round(draft.panelSat ?? 40), (v) => updateDraft("panelSat", v), (v) => `${v}%`)}
-                      <p className="text-[11px] text-[var(--text-muted)] -mt-1">→ 0=纯灰，80=浓郁，配合色相使用</p>
+                {/* ── 字体 ── */}
+                <section className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--accent)]">
+                      <line x1="4" y1="7" x2="20" y2="7" /><line x1="9" y1="7" x2="9" y2="17" /><line x1="15" y1="7" x2="15" y2="17" /><line x1="4" y1="17" x2="20" y2="17" />
+                    </svg>
+                    <span className="text-sm font-medium text-[var(--text-heading)]">终端字体</span>
+                  </div>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-[var(--text-secondary)]">字族</span>
+                    <select value={fontFamily} onChange={(e) => setFontFamily(e.target.value)}
+                      className="h-8 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2 text-[var(--text-primary)] outline-none focus:border-[var(--accent)] transition-colors">
+                      {FONT_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
+                    </select>
+                  </label>
+                  {rangeSlider("字号", 10, 28, 1, fontSize, setFontSize, (v) => `${v}px`)}
+                </section>
 
-                      {rangeSlider("边框可见度", 5, 30, 1, Math.round(draft.borderAlpha * 100), (v) => updateDraft("borderAlpha", v / 100), (v) => `${v}%`)}
-                      <p className="text-[11px] text-[var(--text-muted)] -mt-1">→ 各区域分隔线的深浅</p>
+                <hr className="border-0 h-px bg-[var(--border-subtle)]" />
 
-                      <div className="flex items-center gap-2 mt-1">
-                        <button
-                          onClick={handleSave}
-                          className="flex-1 py-1.5 text-xs font-semibold rounded-md bg-[var(--accent)] text-white hover:brightness-110 transition-all"
-                        >
-                          保存
-                        </button>
-                        <button
-                          onClick={handleCancel}
-                          className="flex-1 py-1.5 text-xs font-semibold rounded-md border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] transition-all"
-                        >
-                          取消
-                        </button>
-                        <button
-                          onClick={handleResetTheme}
-                          className="px-2 py-1.5 text-xs rounded-md text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 transition-all"
-                          title="恢复此主题默认"
-                        >
-                          <RotateCcw size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                {/* ── 光标 ── */}
+                <section className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--accent)]">
+                      <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="12" cy="12" r="1.5" />
+                    </svg>
+                    <span className="text-sm font-medium text-[var(--text-heading)]">光标</span>
+                  </div>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-[var(--text-secondary)]">样式</span>
+                    <select value={cursorStyle} onChange={(e) => setCursorStyle(e.target.value as "bar" | "block" | "underline")}
+                      className="h-8 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2 text-[var(--text-primary)] outline-none focus:border-[var(--accent)] transition-colors">
+                      {CURSOR_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
+                    </select>
+                  </label>
+                  <label className="flex items-center justify-between py-1">
+                    <span className="text-xs text-[var(--text-secondary)]">闪烁</span>
+                    <button onClick={() => setCursorBlink(!cursorBlink)}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${cursorBlink ? "bg-[var(--accent)]" : "bg-[var(--border-strong)]"}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${cursorBlink ? "translate-x-5" : "translate-x-0"}`} />
+                    </button>
+                  </label>
+                </section>
+
+                <hr className="border-0 h-px bg-[var(--border-subtle)]" />
+
+                {/* ── 窗口 ── */}
+                <section className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--accent)]">
+                      <rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <span className="text-sm font-medium text-[var(--text-heading)]">窗口</span>
+                  </div>
+                  {rangeSlider("透明度", 20, 95, 1, Math.round(glassAlpha * 100), (v) => {
+                    setGlassAlpha(v / 100);
+                    applyTheme(theme, v / 100, borderAlpha);
+                  }, (v) => `${v}%`)}
+                  {rangeSlider("边框柔和度", 5, 30, 1, Math.round(borderAlpha * 100), (v) => {
+                    setBorderAlpha(v / 100);
+                    applyTheme(theme, glassAlpha, v / 100);
+                  }, (v) => `${v}%`)}
+                </section>
+
+                <hr className="border-0 h-px bg-[var(--border-subtle)]" />
+
+                {/* ── 重置 ── */}
+                <button onClick={handleResetAll}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium text-[var(--color-danger)] border border-[var(--color-danger)]/25 hover:bg-[var(--color-danger)]/10 transition-all">
+                  <RotateCcw size={14} />
+                  全部恢复默认
+                </button>
+              </div>
+            )}
+
+            {section === "about" && (
+              <div className="flex flex-col items-center justify-center h-full gap-3">
+                {/* Logo */}
+                <svg viewBox="0 0 64 64" className="w-14 h-14" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="64" height="64" rx="16" fill="#121212" />
+                  <text x="7" y="44" fontFamily="Arial Black, system-ui, sans-serif" fontSize="36" fontWeight="900" fill="#fff">&gt;_</text>
+                  <rect x="46" y="16" width="4" height="24" rx="2" fill="#4ade80" />
+                </svg>
+
+                <div className="text-center">
+                  <h2 className="text-xl font-bold text-[var(--text-primary)]">OpenTermo</h2>
+                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">v2.0.0</p>
                 </div>
-              );
-            })}
-          </section>
 
-          <div className="h-px bg-[var(--border-subtle)]" />
+                <p className="text-sm text-[var(--text-secondary)] text-center max-w-xs leading-relaxed">
+                  一款基于 Tauri 的现代化 SSH 终端客户端，使用 Rust 高性能引擎。
+                </p>
 
-          {/* ── Font size ── */}
-          <section className="flex flex-col gap-2">
-            <div className="flex items-center gap-2.5">
-              <Type size={14} className="text-[var(--accent)]" />
-              <span className="text-sm font-medium text-[var(--text-heading)]">字号</span>
-              <span className="text-sm font-bold text-[var(--accent)] ml-auto tabular-nums">{fontSize}px</span>
-            </div>
-            <input
-              type="range"
-              min="10"
-              max="28"
-              step="1"
-              value={fontSize}
-              onChange={(e) => setFontSize(Number(e.target.value))}
-              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-[var(--border-strong)]
-                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
-                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--accent)]
-                [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md
-                [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110"
-            />
-            <div className="flex justify-between text-xs text-[var(--text-muted)] px-1">
-              <span>10</span><span>14</span><span>28</span>
-            </div>
-          </section>
+                <div className="w-full max-w-xs border-t border-[var(--border-subtle)] pt-3 mt-1">
+                  <div className="flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">前端</span>
+                      <span className="text-[var(--text-primary)]">React + xterm.js</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">后端</span>
+                      <span className="text-[var(--text-primary)]">Rust / Meatshell</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">框架</span>
+                      <span className="text-[var(--text-primary)]">Tauri 2.0</span>
+                    </div>
+                  </div>
+                </div>
 
-          {/* ── Reset all ── */}
-          <div className="h-px bg-[var(--border-subtle)]" />
-          <button
-            onClick={handleResetAll}
-            disabled={!hasAnyOverride}
-            className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all
-              ${hasAnyOverride
-                ? "text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/25"
-                : "text-[var(--text-muted)] border border-[var(--border-subtle)] cursor-not-allowed"
-              }`}
-          >
-            <RotateCcw size={14} />
-            全部恢复默认
-          </button>
+                <a href="https://github.com" target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs text-[var(--accent)] hover:underline mt-1">
+                  <ExternalLink size={12} />
+                  GitHub 仓库
+                </a>
+
+                <p className="text-[10px] text-[var(--text-muted)]/50 mt-4">&copy; 2024 OpenTermo</p>
+              </div>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

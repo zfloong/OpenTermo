@@ -1,136 +1,76 @@
-import type { ThemeId, ThemeOverride } from "@/stores/settingsStore";
+import type { ThemeId } from "@/stores/settingsStore";
 
 type ThemeMeta = { baseR: number; baseG: number; baseB: number; borderIsLight: boolean };
 
 const THEME_META: Record<ThemeId, ThemeMeta> = {
-  "deep-blue": { baseR: 26, baseG: 26, baseB: 26, borderIsLight: false },
+  "deep-blue": { baseR: 18, baseG: 18, baseB: 20, borderIsLight: false },
   "light":     { baseR: 248, baseG: 249, baseB: 251, borderIsLight: true },
-  "tabby":     { baseR: 26, baseG: 31, baseB: 39, borderIsLight: false },
+  "tabby":     { baseR: 22, baseG: 26, baseB: 34, borderIsLight: false },
 };
-
-function hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
-  const sN = s / 100;
-  const lN = l / 100;
-  const c = (1 - Math.abs(2 * lN - 1)) * sN;
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-  const m = lN - c / 2;
-  let r = 0, g = 0, b = 0;
-  if (h < 60)      { r = c; g = x; }
-  else if (h < 120) { r = x; g = c; }
-  else if (h < 180) { g = c; b = x; }
-  else if (h < 240) { g = x; b = c; }
-  else if (h < 300) { r = x; b = c; }
-  else              { r = c; b = x; }
-  return {
-    r: Math.round((r + m) * 255),
-    g: Math.round((g + m) * 255),
-    b: Math.round((b + m) * 255),
-  };
-}
-
-function hslToRgbStr(h: number, s: number, l: number): string {
-  const rgb = hslToRgb(h, s, l);
-  return `${rgb.r} ${rgb.g} ${rgb.b}`;
-}
 
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.round(v)));
 }
 
-/** Linear interpolation between two values */
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-export function applyOverride(theme: ThemeId, o: ThemeOverride) {
+/**
+ * Apply theme visual variables to :root.
+ * @param theme - theme id
+ * @param glassAlpha - window/panel transparency (0.2-0.95)
+ * @param borderAlpha - border visibility (0.05-0.30)
+ */
+export function applyTheme(theme: ThemeId, glassAlpha: number, borderAlpha: number) {
   const r = document.documentElement.style;
   const m = THEME_META[theme];
 
-  // ━━━━━ Accent colors ━━━━━
-  const accH = o.accentHue;
-  r.setProperty("--accent", `hsl(${accH}, 60%, 58%)`);
-  r.setProperty("--accent-rgb", hslToRgbStr(accH, 60, 58));
-  const softH = (accH + 20) % 360;
-  r.setProperty("--accent-soft", `hsl(${softH}, 55%, 63%)`);
-  r.setProperty("--accent-soft-rgb", hslToRgbStr(softH, 55, 63));
-  r.setProperty("--accent-dim", `hsla(${accH}, 60%, 58%, 0.14)`);
-  r.setProperty("--accent-border", `hsla(${accH}, 60%, 58%, 0.30)`);
-  r.setProperty("--color-info", `hsl(${accH}, 60%, 58%)`);
-
-  // ━━━━━ Transparency ━━━━━
-  // glassAlpha controls ONLY window transparency + blur, not panel lightness
-  const ga = Math.round(o.glassAlpha * 100) / 100;
-  const bgAlpha = ga;
+  // --- Base background with transparency ---
+  const bgAlpha = Math.round(glassAlpha * 100) / 100;
   r.setProperty("--bg-base", `rgba(${m.baseR},${m.baseG},${m.baseB},${bgAlpha})`);
-  const blurPx = Math.round(3 + ga * 16);
+  const blurPx = Math.round(3 + bgAlpha * 16);
   r.setProperty("--glass-blur", `${blurPx}px`);
 
-  // ━━━━━ Panel colors ━━━━━
-  const pH = o.panelHue;
-  const pSat = o.panelSat;
-
-  // Decide panel RGB: hue=-1 means neutral gray (use THEME_META base)
-  let panelR: number, panelG: number, panelB: number;
-  let panelIsColored = false;
-
-  if (pH < 0 || pSat <= 5) {
-    // Neutral gray — use theme base RGB
-    panelR = m.baseR;
-    panelG = m.baseG;
-    panelB = m.baseB;
-    panelIsColored = false;
-  } else {
-    // Colored panel from HSL
-    // Fixed lightness: ~18% dark themes, ~90% light themes
-    const pLgt = m.borderIsLight ? 91 : 18;
-    const rgb = hslToRgb(pH, pSat, pLgt);
-    panelR = rgb.r;
-    panelG = rgb.g;
-    panelB = rgb.b;
-    panelIsColored = true;
-  }
-
-  // bg-glass: panel color with glassAlpha as opacity
-  r.setProperty("--bg-glass", `rgba(${panelR},${panelG},${panelB},${ga})`);
-
-  // bg-elevated: same as glass but fully opaque
+  // --- Panel background ---
+  const panelOffset = m.borderIsLight ? 4 : -4;
+  var panelR = clamp(m.baseR + panelOffset, 0, 255);
+  var panelG = clamp(m.baseG + panelOffset, 0, 255);
+  var panelB = clamp(m.baseB + panelOffset, 0, 255);
+  r.setProperty("--bg-glass", `rgba(${panelR},${panelG},${panelB},${bgAlpha})`);
   r.setProperty("--bg-elevated", `rgb(${panelR},${panelG},${panelB})`);
+  // --- Accent colors — bright blue for all themes ---
+  var accentR = 59; var accentG = 130; var accentB = 246;
+  r.setProperty("--accent-rgb", `${accentR} ${accentG} ${accentB}`);
+  r.setProperty("--accent", `rgb(${accentR},${accentG},${accentB})`);
+  r.setProperty("--accent-dim", `rgba(${accentR},${accentG},${accentB},0.14)`);
+  r.setProperty("--accent-border", `rgba(${accentR},${accentG},${accentB},0.30)`);
+  r.setProperty("--color-info", `rgb(${accentR},${accentG},${accentB})`);
+  r.setProperty("--color-success", "rgb(74, 222, 128)");
+  r.setProperty("--color-warning", "rgb(251, 191, 36)");
+  r.setProperty("--color-danger", "rgb(248, 113, 113)");
 
-  // bg-surface: slightly offset — darker for dark themes, lighter for light
-  const surfOffset = m.borderIsLight ? 3 : -6;
+
+
+  var surfOffset = m.borderIsLight ? 6 : -6;
   r.setProperty("--bg-surface", `rgb(${clamp(panelR+surfOffset,0,255)},${clamp(panelG+surfOffset,0,255)},${clamp(panelB+surfOffset,0,255)})`);
 
-  // Surface interaction states — derived from panel color
-  const hoverAlpha = m.borderIsLight ? 0.93 : 0.93;
-  const hoverR = Math.round(panelR * hoverAlpha + (m.borderIsLight ? 0 : 0));
-  const hoverG = Math.round(panelG * hoverAlpha + (m.borderIsLight ? 0 : 0));
-  const hoverB = Math.round(panelB * hoverAlpha + (m.borderIsLight ? 0 : 0));
-  // For dark themes, surface hover = slightly lighter than panel
-  // For light themes, surface hover = slightly darker
+  // --- Surface interaction states ---
   if (m.borderIsLight) {
-    r.setProperty("--surface-hover", `rgba(0,0,0,0.05)`);
-    r.setProperty("--surface-active", `rgba(0,0,0,0.07)`);
-    if (panelIsColored) {
-      r.setProperty("--surface-selected", `rgba(${panelR},${panelG},${panelB},0.18)`);
-    } else {
-      r.setProperty("--surface-selected", `rgba(59,130,246,0.08)`);
-    }
+    r.setProperty("--surface-hover", "rgba(0,0,0,0.04)");
+    r.setProperty("--surface-active", "rgba(0,0,0,0.07)");
+    r.setProperty("--surface-selected", "rgba(59,130,246,0.08)");
   } else {
-    r.setProperty("--surface-hover", `rgba(255,255,255,0.07)`);
-    r.setProperty("--surface-active", `rgba(255,255,255,0.09)`);
-    if (panelIsColored) {
-      r.setProperty("--surface-selected", `rgba(${panelR},${panelG},${panelB},0.25)`);
-    } else {
-      r.setProperty("--surface-selected", `rgba(255,255,255,0.10)`);
-    }
+    r.setProperty("--surface-hover", "rgba(255,255,255,0.06)");
+    r.setProperty("--surface-active", "rgba(255,255,255,0.09)");
+    r.setProperty("--surface-selected", "rgba(255,255,255,0.10)");
   }
 
-  // ━━━━━ Borders ━━━━━
-  const ba = Math.round(o.borderAlpha * 100) / 100;
-  const bc = m.borderIsLight ? "0,0,0" : "255,255,255";
-  r.setProperty("--border-subtle", `rgba(${bc},${(ba * 0.55).toFixed(2)})`);
-  r.setProperty("--border-default", `rgba(${bc},${ba.toFixed(2)})`);
-  r.setProperty("--border-strong", `rgba(${bc},${(ba * 1.4).toFixed(2)})`);
-  r.setProperty("--scrollbar-thumb", `rgba(${bc},${(ba * 0.7).toFixed(2)})`);
-  r.setProperty("--scrollbar-thumb-hover", `rgba(${bc},${(ba * 1.2).toFixed(2)})`);
+  // --- Borders: softer color (grayish instead of pure white/black) ---
+  var ba = Math.round(borderAlpha * 100) / 100;
+  // Soft border base RGB: light themes use dark gray, dark themes use light gray (not pure white)
+  var bcR = m.borderIsLight ? "80" : "180";
+  var bcG = m.borderIsLight ? "80" : "180";
+  var bcB = m.borderIsLight ? "90" : "185";
+  r.setProperty("--border-subtle", `rgba(${bcR},${bcG},${bcB},${(ba * 0.5).toFixed(2)})`);
+  r.setProperty("--border-default", `rgba(${bcR},${bcG},${bcB},${ba.toFixed(2)})`);
+  r.setProperty("--border-strong", `rgba(${bcR},${bcG},${bcB},${(ba * 1.5).toFixed(2)})`);
+  r.setProperty("--scrollbar-thumb", `rgba(${bcR},${bcG},${bcB},${(ba * 0.6).toFixed(2)})`);
+  r.setProperty("--scrollbar-thumb-hover", `rgba(${bcR},${bcG},${bcB},${(ba * 1.0).toFixed(2)})`);
 }

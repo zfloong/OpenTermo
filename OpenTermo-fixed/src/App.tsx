@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { applyOverride } from "@/lib/themeUtils";
+import { applyTheme } from "@/lib/themeUtils";
 import TitleBar from "@/components/layout/TitleBar";
 import Sidebar from "@/components/layout/Sidebar";
 import TerminalView from "@/components/layout/TerminalView";
@@ -17,8 +17,8 @@ import { useSessionStore } from "@/stores/sessionStore";
 
 export default function App() {
   const theme = useSettingsStore((s) => s.theme);
-  const overrides = useSettingsStore((s) => s.overrides);
-  const getEffectiveOverride = useSettingsStore((s) => s.getEffectiveOverride);
+  const glassAlpha = useSettingsStore((s) => s.glassAlpha);
+  const borderAlpha = useSettingsStore((s) => s.borderAlpha);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const activeTabId = useSessionStore((s) => s.activeTabId);
@@ -48,8 +48,8 @@ export default function App() {
   // Apply theme + overrides — JS is always the single source of truth
   const applyAll = useCallback(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    applyOverride(theme, getEffectiveOverride(theme));
-  }, [theme, getEffectiveOverride]);
+    applyTheme(theme, glassAlpha, borderAlpha);
+  }, [theme, glassAlpha, borderAlpha]);
 
   useEffect(() => { applyAll(); }, [applyAll]);
 

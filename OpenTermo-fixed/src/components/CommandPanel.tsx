@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   ChevronDown,
@@ -662,7 +662,7 @@ export default function CommandPanel() {
         )}
 
         {/* Label */}
-        <span className="flex-1 text-[12px] text-[var(--text-primary)] truncate">{cmd.label || cmd.command}</span>
+        <span className="flex-1 text-[14px] text-[var(--text-primary)] truncate">{cmd.label || cmd.command}</span>
 
         {/* Pinned star */}
         {cmd.pinned && <Star size={10} className="text-[var(--color-warning)] shrink-0" />}
@@ -781,10 +781,10 @@ export default function CommandPanel() {
                 >
                   <ChevronDown size={14} className={`shrink-0 text-[var(--text-muted)] transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
                   {isExpanded
-                    ? <FolderOpen size={15} className="shrink-0 text-[var(--color-warning)]" />
-                    : <FolderClosed size={15} className="shrink-0 text-[var(--color-warning)]" />
+                    ? <FolderOpen size={15} className="shrink-0 text-[var(--text-secondary)]" />
+                    : <FolderClosed size={15} className="shrink-0 text-[var(--text-secondary)]" />
                   }
-                  <span className="text-sm font-medium text-[var(--text-primary)]">{node.name}</span>
+                  <span className="text-[15px] font-medium text-[var(--text-primary)]">{node.name}</span>
                   <span className="text-[10px] tabular-nums text-[var(--text-muted)]/50 ml-auto bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded-full">{node.commands.length + node.children.reduce((acc, c) => acc + c.commands.length, 0)}</span>
                 </button>
                 {isExpanded && (
@@ -792,8 +792,8 @@ export default function CommandPanel() {
                     {node.commands.map((cmd) => renderCmd(cmd, 24))}
                     {node.children.map((child) => (
                       <div key={child.path}>
-                        <div className="pl-8 pr-3 py-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-muted)]/60">
-                          <FolderClosed size={11} className="shrink-0 text-[var(--color-warning)]/60" />
+                        <div className="pl-8 pr-3 py-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-muted)]/60">
+                          <FolderClosed size={11} className="shrink-0 text-[var(--text-secondary)]/60" />
                           {child.name}
                         </div>
                         {child.commands.map((cmd) => renderCmd(cmd, 44))}

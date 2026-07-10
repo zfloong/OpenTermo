@@ -104,6 +104,9 @@ export default function TerminalView({ tabId }: { tabId: string }) {
   const onResize = useSessionStore((s) => s.resize);
   const theme = useSettingsStore((s) => s.theme);
   const fontSize = useSettingsStore((s) => s.fontSize);
+  const fontFamily = useSettingsStore((s) => s.fontFamily);
+  const cursorStyle = useSettingsStore((s) => s.cursorStyle);
+  const cursorBlink = useSettingsStore((s) => s.cursorBlink);
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
@@ -220,12 +223,13 @@ export default function TerminalView({ tabId }: { tabId: string }) {
     const container = containerRef.current;
 
     const term = new Terminal({
+        scrollback: 25000,
       theme: getTerminalTheme(theme),
-      fontFamily: "'Meatshell Mono', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace",
+      fontFamily: fontFamily || "'Meatshell Mono', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace",
       fontSize,
       lineHeight: 1.2,
-      cursorBlink: true,
-      cursorStyle: "bar",
+      cursorBlink,
+      cursorStyle,
       cursorWidth: 2,
       allowProposedApi: true,
     });
@@ -402,7 +406,31 @@ export default function TerminalView({ tabId }: { tabId: string }) {
     }
   }, [fontSize]);
 
-  // ── Scroll to bottom when command panel triggers ───────────────
+  // ── Watch fontFamily changes ─────────────────────────
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (term) {
+      term.options.fontFamily = fontFamily || "'Meatshell Mono', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace";
+    }
+  }, [fontFamily]);
+
+  // ── Watch cursorStyle changes ────────────────────────
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (term) {
+      term.options.cursorStyle = cursorStyle;
+    }
+  }, [cursorStyle]);
+
+  // ── Watch cursorBlink changes ────────────────────────
+  useEffect(() => {
+    const term = terminalRef.current;
+    if (term) {
+      term.options.cursorBlink = cursorBlink;
+    }
+  }, [cursorBlink]);
+
+  // ── Scroll to bottom when command panel triggers ───────────
   const triggerScroll = useSessionStore((s) => s.triggerScroll);
   const scrollTrigger = useSessionStore((s) => s.scrollTrigger[tabId] ?? 0);
   const scrollTriggerRef = useRef(scrollTrigger);
@@ -656,3 +684,4 @@ export default function TerminalView({ tabId }: { tabId: string }) {
     </div>
   );
 }
+
