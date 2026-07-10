@@ -31,7 +31,7 @@ export default function SessionManager() {
   const activeTabId = useSessionStore((s) => s.activeTabId);
   const setActiveTab = useSessionStore((s) => s.setActiveTab);
 
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(["Default"]));
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [ctx, setCtx] = useState<CtxState | null>(null);
   const [search, setSearch] = useState("");
   const [knownGroups, setKnownGroups] = useState<Set<string>>(new Set());
@@ -64,14 +64,14 @@ export default function SessionManager() {
 
     // Sort sessions within each group A-Z
     for (const g of Object.keys(map)) {
-      map[g].sort((a, b) => (a.name || a.host).localeCompare(b.name || b.host));
+      map[g].sort((a, b) => (a.name || a.host).localeCompare(b.name || b.host, 'en'));
     }
 
     // Sort: Default first, then alphabetical
     const keys = Object.keys(map).sort((a, b) => {
       if (a === "Default") return -1;
       if (b === "Default") return 1;
-      return a.localeCompare(b);
+      return a.localeCompare(b, 'en');
     });
 
     return keys.map((k) => ({ name: k, path: k, sessions: map[k] }));
@@ -164,14 +164,32 @@ export default function SessionManager() {
     loadSessions();
   };
 
+  const handleDeleteGroup = async (name: string) => {
+    if (!confirm(`删除分组 "${name}"? 该分组下的所有会话将移至 Default.`)) return;
+    const targets = sessions.filter((s) => (s.group || "Default") === name);
+    for (const s of targets) {
+      await save({ ...s, group: "" });
+    }
+    setKnownGroups((prev) => {
+      const next = new Set(prev);
+      next.delete(name);
+      return next;
+    });
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.delete(name);
+      return next;
+    });
+    loadSessions();
+  };
 
   const sessionCtx = (s: SessionConfig): (ContextMenuItem | null)[] => {
     // Gather all groups for move-to submenu
-    const groupNames = [...new Set(sessions.map((x) => x.group || "Default"))];
+    const groupNames = [...new Set([...knownGroups, ...sessions.map((x) => x.group || "Default")])];
     groupNames.sort((a, b) => {
       if (a === "Default") return -1;
       if (b === "Default") return 1;
-      return a.localeCompare(b);
+      return a.localeCompare(b, 'en');
     });
     const cur = s.group || "Default";
     const moveItems: ContextMenuItem[] = groupNames
@@ -264,6 +282,8 @@ export default function SessionManager() {
                     { label: isExpanded ? "折叠" : "展开", icon: isExpanded ? <ChevronRight size={13} /> : <ChevronDown size={13} />, onClick: () => toggleGroup(group.path) },
                     null,
                     { label: "重命名", icon: <Edit3 size={13} />, onClick: () => handleRenameGroup(group.name) },
+                    null,
+                    { label: "删除分组", icon: <Trash2 size={13} />, onClick: () => handleDeleteGroup(group.name), danger: true }
                   ])}
                   className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--surface-hover)] transition-colors group/gh"
                 >
