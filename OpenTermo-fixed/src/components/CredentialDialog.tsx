@@ -37,18 +37,18 @@ export default function CredentialDialog({ prompt, onClose }: CredentialDialogPr
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-[380px]">
-        <DialogHeader>
+      <DialogContent className="max-w-[420px] mx-4 p-0">
+        <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle>
             登录 — {prompt.host}
           </DialogTitle>
         </DialogHeader>
 
-        <p className="text-xs text-[var(--text-secondary)] -mt-1">
+        <p className="text-xs text-[var(--text-secondary)] px-6">
           需要额外凭据才能连接。
         </p>
 
-        <div className="flex flex-col gap-4 mt-1">
+        <div className="flex flex-col gap-4 px-6">
           {prompt.need_user && (
             <label className="flex flex-col gap-1">
               <span className="text-xs text-[var(--text-secondary)]">用户名</span>
@@ -84,7 +84,7 @@ export default function CredentialDialog({ prompt, onClose }: CredentialDialogPr
           </label>
         </div>
 
-        <div className="flex items-center gap-2 justify-end mt-2">
+        <div className="flex items-center gap-2 justify-end px-6 pb-6">
           <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>

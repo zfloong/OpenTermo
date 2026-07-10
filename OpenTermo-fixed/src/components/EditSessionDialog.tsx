@@ -66,7 +66,7 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-[540px] p-0">
+      <DialogContent className="max-w-[540px] mx-4 p-0">
         <DialogHeader className="px-6 py-4 border-b border-[var(--border-subtle)]">
           <DialogTitle className="text-lg">编辑连接</DialogTitle>
         </DialogHeader>
