@@ -36,27 +36,6 @@ pub fn delete_session(id: String) -> Result<(), String> {
     store.save().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub fn reorder_sessions(ids: Vec<String>) -> Result<(), String> {
-    let mut store = ConfigStore::load().map_err(|e| e.to_string())?;
-    let sessions = store.sessions_mut();
-    let mut map: HashMap<String, SessionConfig> = sessions
-        .drain(..)
-        .map(|s| (s.id.clone(), s))
-        .collect();
-    let mut reordered = Vec::with_capacity(map.len());
-    for id in &ids {
-        if let Some(s) = map.remove(id) {
-            reordered.push(s);
-        }
-    }
-    for (_k, s) in map {
-        reordered.push(s);
-    }
-    *sessions = reordered;
-    store.save().map_err(|e| e.to_string())
-}
-
 // -- Quick-command snippets --------------------------------------------------
 
 #[tauri::command]
@@ -93,12 +72,6 @@ pub fn save_command(entry: CommandEntry) -> Result<CommandEntry, String> {
         }))
 }
 
-#[tauri::command]
-pub fn reorder_commands(ids: Vec<String>) -> Result<(), String> {
-    let mut store = CommandStore::load().map_err(|e| e.to_string())?;
-    store.reorder(&ids);
-    store.save().map_err(|e| e.to_string())
-}
 
 #[tauri::command]
 pub fn delete_command(id: String) -> Result<(), String> {
@@ -419,8 +392,3 @@ pub fn rclone_list(
 }
 
 // -- Utility -----------------------------------------------------------------
-
-#[tauri::command]
-pub fn write_text_file(path: String, content: String) -> Result<(), String> {
-    std::fs::write(&path, &content).map_err(|e| e.to_string())
-}
