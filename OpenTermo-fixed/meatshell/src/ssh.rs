@@ -943,7 +943,7 @@ async fn run_session(
 
     // Explicitly close the monitor channel so the server-side
     // monitoring loop is terminated cleanly.
-    if let Some(mut mon_ch) = mon_channel.take() {
+    if let Some(mon_ch) = mon_channel.take() {
         let _ = mon_ch.eof().await;
         let _ = mon_ch.close().await;
     }

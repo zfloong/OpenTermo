@@ -7,7 +7,6 @@ import {
   listSessions,
   saveSession,
   deleteSession,
-  reorderSessions,
   connectSession,
   sendInput,
   resizeTerminal,
@@ -140,7 +139,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
       return { sessions: reordered };
     });
-    reorderSessions(ids).catch(console.error);
   },
 
   async connect(tabId, session) {
