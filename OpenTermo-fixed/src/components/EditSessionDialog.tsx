@@ -80,7 +80,16 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-[var(--text-secondary)]">分组</span>
-              <Input value={form.group || ""} onChange={(e) => setForm({ ...form, group: e.target.value })} placeholder="Default" className="h-9 text-sm" />
+              <select
+                value={form.group}
+                onChange={(e) => setForm({ ...form, group: e.target.value })}
+                className="h-9 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all"
+              >
+                <option value="">Default</option>
+                {[...new Set(useSessionStore.getState().sessions.map((s) => s.group).filter(Boolean))].map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
             </label>
           </div>
 
