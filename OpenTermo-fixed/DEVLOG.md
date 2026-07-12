@@ -104,3 +104,28 @@ Sort: Last Used ?  /  ?: ????
 - ?????/Unicode ?????????? Python + UTF-8 ??
 - `CheckSquare` ? `Square` ???? lucide-react ???
 - ?????? `localStorage.getItem("cmd-sort")` ???
+
+
+## 2026-07-12 — Vzfl2.2 导出修复 + 编码加固
+
+### 修复
+- 导出全部命令 — 修复因缺少 Rust 后端 `write_text_file` 命令导致的调用失败
+- 导出文件夹（右键） — 从静默浏览器下载改为系统存盘对话框，用户可选择保存位置
+- SettingsPanel.tsx 编码损坏 — 恢复 git 版本，修复之前被 PowerShell 意外损坏的编码
+
+### 编码加固（全量扫描）
+- 所有 25 个无 BOM 的源文件统一添加 UTF-8 BOM，防止 PowerShell 误判为 ANSI/GBK
+- `tauri.conf.json` 和 `capabilities/default.json` 除外（Rust serde_json 不兼容 BOM）
+- 编码检查确认 0 个文件存在损坏
+
+### 教训
+- **永远不要用 PowerShell 的 `Get-Content` / `Set-Content` 处理含中文的源文件**
+- 文件编辑必须用 Python 显式指定 `encoding='utf-8'`，避免系统默认编码(GBK)污染
+- 后续所有代码修改优先通过 Python 脚本或编辑器，杜绝 PowerShell 管道写回
+
+### 改动文件
+- `src-tauri/src/commands.rs` — 新增 `write_text_file` 命令
+- `src-tauri/src/lib.rs` — 注册 `write_text_file`
+- `src/components/CommandPanel.tsx` — 导出文件夹改用 save() 对话框
+- `src/components/SettingsPanel.tsx` — 从 git 恢复编码
+- 25 个源文件（.ts/.tsx/.rs/.css/.html/.js）— 添加 UTF-8 BOM

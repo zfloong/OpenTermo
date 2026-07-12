@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+﻿import { useEffect, useState, useCallback } from "react";
 import { Copy, ChevronDown, ChevronUp } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { getSystemStats, type SystemSnapshot } from "@/lib/tauriCommands";

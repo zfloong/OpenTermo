@@ -1,4 +1,4 @@
-//! Pending-prompt registry for async HostKey / Credential dialogs.
+﻿//! Pending-prompt registry for async HostKey / Credential dialogs.
 //!
 //! When the SSH session emits a `HostKeyPrompt` or `CredentialPrompt`, the
 //! responder is stored here so the frontend can later reply via a Tauri command.

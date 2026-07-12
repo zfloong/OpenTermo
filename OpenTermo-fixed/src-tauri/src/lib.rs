@@ -1,4 +1,4 @@
-mod commands;
+﻿mod commands;
 mod prompts;
 mod session;
 
@@ -162,6 +162,7 @@ pub fn run() {
             commands::rclone_mount,
             commands::rclone_unmount,
             commands::rclone_list,
+            commands::write_text_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

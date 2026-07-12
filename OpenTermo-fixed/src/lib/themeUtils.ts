@@ -1,4 +1,4 @@
-import type { ThemeId } from "@/stores/settingsStore";
+﻿import type { ThemeId } from "@/stores/settingsStore";
 
 type ThemeMeta = { baseR: number; baseG: number; baseB: number; borderIsLight: boolean };
 

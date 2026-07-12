@@ -1,4 +1,4 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 
 export type ThemeId = "deep-blue" | "light" | "tabby";
 export type CursorStyle = "bar" | "block" | "underline";

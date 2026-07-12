@@ -1,4 +1,4 @@
-//! Session manager — bridges meatshell backend sessions with the Tauri
+﻿//! Session manager — bridges meatshell backend sessions with the Tauri
 //! frontend via event emissions.
 
 use std::collections::HashMap;

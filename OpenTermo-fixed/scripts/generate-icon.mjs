@@ -1,4 +1,4 @@
-// Generate a minimal valid PNG icon for Tauri.
+﻿// Generate a minimal valid PNG icon for Tauri.
 // Uses only Node.js built-ins (zlib for deflate).
 import { deflateSync } from "zlib";
 import { writeFileSync, mkdirSync, existsSync } from "fs";

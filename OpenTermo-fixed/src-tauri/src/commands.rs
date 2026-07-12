@@ -1,4 +1,4 @@
-//! Tauri IPC commands exposed to the frontend.
+﻿//! Tauri IPC commands exposed to the frontend.
 
 use std::collections::HashMap;
 use std::process::{Command, Stdio};
@@ -392,3 +392,8 @@ pub fn rclone_list(
 }
 
 // -- Utility -----------------------------------------------------------------
+
+#[tauri::command]
+pub fn write_text_file(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, &content).map_err(|e| format!("写入文件失败: {}", e))
+}

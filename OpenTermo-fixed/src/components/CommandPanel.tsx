@@ -533,13 +533,14 @@ export default function CommandPanel() {
         {
           label: "导出文件夹",
           icon: <Download size={12} />,
-          onClick: () => {
-            const json = exportFolder(node.path);
-            const blob = new Blob([json], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url; a.download = node.path.replace(/\//g, "-") + ".json"; a.click();
-            URL.revokeObjectURL(url);
+          onClick: async () => {
+            const filePath = await save({
+              filters: [{ name: "JSON", extensions: ["json"] }],
+              defaultPath: node.path.replace(/\//g, "-") + ".json",
+            });
+            if (filePath) {
+              await invoke("write_text_file", { path: filePath, content: exportFolder(node.path) });
+            }
           },
         },
         null,
@@ -1060,3 +1061,4 @@ function NewFolderDialog({
     </Dialog>
   );
 }
+
