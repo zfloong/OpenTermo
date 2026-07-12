@@ -1,5 +1,5 @@
 ﻿import { useState } from "react";
-import { Settings, Palette, Info, RotateCcw, ExternalLink } from "lucide-react";
+import { Settings, Palette, Info, RotateCcw, ExternalLink, Terminal } from "lucide-react";
 import { useSettingsStore, type ThemeId } from "@/stores/settingsStore";
 import { applyTheme } from "@/lib/themeUtils";
 import {
@@ -14,7 +14,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Section = "appearance" | "about";
+type Section = "appearance" | "terminal" | "about";
 
 const THEMES: { id: ThemeId; label: string; color: string }[] = [
   { id: "deep-blue", label: "默认", color: "#1a1a2e" },
@@ -39,6 +39,7 @@ const CURSOR_OPTIONS: { value: "bar" | "block" | "underline"; label: string }[] 
 
 const NAV_ITEMS: { id: Section; icon: React.ReactNode; label: string }[] = [
   { id: "appearance", icon: <Palette size={16} />, label: "外观" },
+  { id: "terminal", icon: <Terminal size={16} />, label: "终端" },
   { id: "about", icon: <Info size={16} />, label: "关于" },
 ];
 
@@ -172,7 +173,40 @@ export default function SettingsPanel({ open, onClose }: Props) {
 
                 <hr className="border-0 h-px bg-[var(--border-subtle)]" />
 
-                {/* ── 字体 ── */}
+
+                {/* ── 窗口 ── */}
+                <section className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--accent)]">
+                      <rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <span className="text-sm font-medium text-[var(--text-heading)]">窗口</span>
+                  </div>
+                  {rangeSlider("透明度", 20, 95, 1, Math.round(glassAlpha * 100), (v) => {
+                    setGlassAlpha(v / 100);
+                    applyTheme(theme, v / 100, borderAlpha);
+                  }, (v) => `${v}%`)}
+                  {rangeSlider("边框柔和度", 5, 30, 1, Math.round(borderAlpha * 100), (v) => {
+                    setBorderAlpha(v / 100);
+                    applyTheme(theme, glassAlpha, v / 100);
+                  }, (v) => `${v}%`)}
+                </section>
+
+                <hr className="border-0 h-px bg-[var(--border-subtle)]" />
+
+                {/* ── 重置 ── */}
+                <button onClick={handleResetAll}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium text-[var(--color-danger)] border border-[var(--color-danger)]/25 hover:bg-[var(--color-danger)]/10 transition-all">
+                  <RotateCcw size={14} />
+                  全部恢复默认
+                </button>
+              </div>
+            )}
+
+
+            {section === "terminal" && (
+              <div className="flex flex-col gap-5">
+                {/* ── 终端字体 ── */}
                 <section className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--accent)]">
@@ -215,35 +249,6 @@ export default function SettingsPanel({ open, onClose }: Props) {
                     </button>
                   </label>
                 </section>
-
-                <hr className="border-0 h-px bg-[var(--border-subtle)]" />
-
-                {/* ── 窗口 ── */}
-                <section className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--accent)]">
-                      <rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="12" cy="12" r="3" />
-                    </svg>
-                    <span className="text-sm font-medium text-[var(--text-heading)]">窗口</span>
-                  </div>
-                  {rangeSlider("透明度", 20, 95, 1, Math.round(glassAlpha * 100), (v) => {
-                    setGlassAlpha(v / 100);
-                    applyTheme(theme, v / 100, borderAlpha);
-                  }, (v) => `${v}%`)}
-                  {rangeSlider("边框柔和度", 5, 30, 1, Math.round(borderAlpha * 100), (v) => {
-                    setBorderAlpha(v / 100);
-                    applyTheme(theme, glassAlpha, v / 100);
-                  }, (v) => `${v}%`)}
-                </section>
-
-                <hr className="border-0 h-px bg-[var(--border-subtle)]" />
-
-                {/* ── 重置 ── */}
-                <button onClick={handleResetAll}
-                  className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium text-[var(--color-danger)] border border-[var(--color-danger)]/25 hover:bg-[var(--color-danger)]/10 transition-all">
-                  <RotateCcw size={14} />
-                  全部恢复默认
-                </button>
               </div>
             )}
 
@@ -258,7 +263,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
 
                 <div className="text-center">
                   <h2 className="text-xl font-bold text-[var(--text-primary)]">OpenTermo</h2>
-                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">v2.0.0</p>
+                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">v2.4.0</p>
                 </div>
 
                 <p className="text-sm text-[var(--text-secondary)] text-center max-w-xs leading-relaxed">
