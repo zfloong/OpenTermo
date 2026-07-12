@@ -12,7 +12,6 @@ export default function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const entries = useCommandStore((s) => s.entries);
-  const recordUsage = useCommandStore((s) => s.recordUsage);
   const activeTabId = useSessionStore((s) => s.activeTabId);
   const tabs = useSessionStore((s) => s.tabs);
   const sendInput = useSessionStore((s) => s.sendInput);
@@ -64,13 +63,12 @@ export default function CommandPalette() {
       const resolved = resolveCommandTemplate(entry.command, activeTab?.session);
       sendInput(activeTabId, resolved + "\n");
       triggerScroll(activeTabId);
-      recordUsage(entry.id);
       setOpen(false);
       setTimeout(() => {
         document.querySelector<HTMLElement>('.xterm-helper-textarea')?.focus();
       }, 50);
     },
-    [activeTabId, activeTab, sendInput, recordUsage],
+    [activeTabId, activeTab, sendInput],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

@@ -7,7 +7,6 @@ import {
 } from "@/lib/tauriCommands";
 
 const LS_EMPTY_FOLDERS = "opentermo-empty-folders";
-const LS_USAGE_COUNTS = "opentermo-cmd-usage";
 
 function loadEmptyFolders(): string[] {
   try {
@@ -22,23 +21,10 @@ function saveEmptyFolders(paths: string[]) {
   localStorage.setItem(LS_EMPTY_FOLDERS, JSON.stringify(paths));
 }
 
-function loadUsageCounts(): Record<string, number> {
-  try {
-    const raw = localStorage.getItem(LS_USAGE_COUNTS);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveUsageCounts(counts: Record<string, number>) {
-  localStorage.setItem(LS_USAGE_COUNTS, JSON.stringify(counts));
-}
 
 interface CommandState {
   entries: CommandEntry[];
   emptyFolders: string[];
-  usageCounts: Record<string, number>;
   loading: boolean;
 
   load: () => Promise<void>;
@@ -48,8 +34,6 @@ interface CommandState {
   removeEmptyFolder: (path: string) => void;
   renameFolder: (oldPath: string, newPath: string) => Promise<void>;
 
-  // Usage tracking
-  recordUsage: (id: string) => void;
 
   // Import / Export
   exportAll: () => string;
@@ -60,14 +44,13 @@ interface CommandState {
 export const useCommandStore = create<CommandState>((set, get) => ({
   entries: [],
   emptyFolders: loadEmptyFolders(),
-  usageCounts: loadUsageCounts(),
   loading: false,
 
   async load() {
     set({ loading: true });
     try {
       const entries = await listCommands();
-      set({ entries, emptyFolders: loadEmptyFolders(), usageCounts: loadUsageCounts() });
+      set({ entries, emptyFolders: loadEmptyFolders() });
     } catch {
       // Backend not ready; keep previous state
     } finally {
@@ -155,15 +138,6 @@ export const useCommandStore = create<CommandState>((set, get) => ({
     saveEmptyFolders(newFolders);
 
     set({ entries: newEntries, emptyFolders: newFolders });
-  },
-
-  // ── Usage tracking ──
-  recordUsage(id: string) {
-    set((s) => {
-      const counts = { ...s.usageCounts, [id]: (s.usageCounts[id] || 0) + 1 };
-      saveUsageCounts(counts);
-      return { usageCounts: counts };
-    });
   },
 
   // ── Import / Export ──

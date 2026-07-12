@@ -129,3 +129,52 @@ Sort: Last Used ?  /  ?: ????
 - `src/components/CommandPanel.tsx` — 导出文件夹改用 save() 对话框
 - `src/components/SettingsPanel.tsx` — 从 git 恢复编码
 - 25 个源文件（.ts/.tsx/.rs/.css/.html/.js）— 添加 UTF-8 BOM
+
+
+---
+
+## 2026-07-12 — Vzfl2.2 后续修复 + 经验教训
+
+### 修复
+- 命令面板搜索框已删除（无使用场景）
+- 会话面板搜索框已删除（无使用场景）
+- Star 图标增加 fill 属性，从空心边框变为实心金色填充
+- 命令面板白天模式对比度修复（使用次数/命令数徽标/子文件夹标签）
+
+### 统计功能移除
+- 删除命令使用次数记录功能（usageCounts/recordUsage）
+- 简化 commandStore，移除 localStorage 存储的计数逻辑
+- 命令卡片 UI 删除次数显示
+
+### ⚠️ 重要教训：文件修改的正确方式
+
+#### 错误做法（每次都搞崩编码）
+```
+# ❌ PowerShell 管道传 Python 脚本
+$script | Out-File -Path file.py -Encoding utf8
+python file.py               # 脚本中 `escape` 被 PowerShell 拦截
+
+# ❌ Python -c 传含中文/复杂表达式的代码
+python -c "import os; ..."   # -- 被 PowerShell 解析为递减运算符
+
+# ❌ Python replace 假设 \n 但文件是 \r\n
+text.replace('abc\n', 'xyz')  # 实际匹配的是 'abc\r\n'，替换失败
+```
+
+#### 正确做法
+```
+// ✅ 使用 Node.js REPL (mcp__node_repl__js) 直接操作文件
+var fs = await import('fs');
+var text = fs.readFileSync(fp, 'utf8');
+// 直接修改字符串，不用考虑 PowerShell 转义
+fs.writeFileSync(fp, text, 'utf8');
+
+// ✅ 或写入独立 .py 文件后用 python 执行（不用管道传递）
+// 文件内容显式 encoding='utf-8'，不含 \n
+```
+
+#### 核心原则
+1. **永远不要用 PowerShell 管道传代码给 Python** — \n、-- 等都会被 PowerShell 拦截
+2. **优先用 Node.js REPL 改文件** — 编码可控，无转义问题
+3. **CRLF/\r\n 要小心** — 替换前先 normalize 为 \n
+4. **JSON 文件绝不能加 BOM** — serde_json 不兼容，PostCSS 也不兼容

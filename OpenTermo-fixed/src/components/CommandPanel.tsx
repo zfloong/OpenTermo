@@ -1,6 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Search,
   ChevronDown,
   ChevronRight,
   Send,
@@ -61,14 +60,12 @@ interface TreeNode {
 export default function CommandPanel() {
   const entries = useCommandStore((s) => s.entries);
   const emptyFolders = useCommandStore((s) => s.emptyFolders);
-  const usageCounts = useCommandStore((s) => s.usageCounts);
   const load = useCommandStore((s) => s.load);
   const upsert = useCommandStore((s) => s.upsert);
   const remove = useCommandStore((s) => s.remove);
   const addEmptyFolder = useCommandStore((s) => s.addEmptyFolder);
   const removeEmptyFolder = useCommandStore((s) => s.removeEmptyFolder);
   const renameFolder = useCommandStore((s) => s.renameFolder);
-  const recordUsage = useCommandStore((s) => s.recordUsage);
   const exportAll = useCommandStore((s) => s.exportAll);
   const exportFolder = useCommandStore((s) => s.exportFolder);
   const importCommands = useCommandStore((s) => s.importCommands);
@@ -83,7 +80,6 @@ export default function CommandPanel() {
   const triggerScroll = useSessionStore((s) => s.triggerScroll);
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
-  const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<CommandEntry | null>(null);
   const [editingNew, setEditingNew] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -165,9 +161,8 @@ export default function CommandPanel() {
     const commands = selected.map((e) => resolveCommandTemplate(e.command, activeTab?.session ?? null)).join("\n");
     sendInput(activeTabId, commands);
     triggerScroll(activeTabId);
-    selected.forEach((e) => recordUsage(e.id));
     setSelectedIds(new Set());
-  }, [activeTabId, activeTab, selectedIds, entries, sendInput, recordUsage]);
+  }, [activeTabId, activeTab, selectedIds, entries, sendInput]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -178,17 +173,12 @@ export default function CommandPanel() {
   }, []);
 
   const toggleSelectAll = useCallback(() => {
-    const visible = entries.filter((e) => {
-      const lower = search.toLowerCase();
-      if (!lower) return true;
-      return (e.label || "").toLowerCase().includes(lower) || e.command.toLowerCase().includes(lower) || (e.category || "").toLowerCase().includes(lower);
-    });
-    if (visible.every((e) => selectedIds.has(e.id))) {
+    if (entries.every((e) => selectedIds.has(e.id))) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(visible.map((e) => e.id)));
+      setSelectedIds(new Set(entries.map((e) => e.id)));
     }
-  }, [entries, search, selectedIds]);
+  }, [entries,  selectedIds]);
 
   // ═══ Sort commands within a group ════════════════════════════════════════════
 
@@ -212,18 +202,9 @@ export default function CommandPanel() {
   // ── Build tree ────────────────────────────────────────────────────────
 
   const tree = useMemo(() => {
-    const lower = search.toLowerCase();
-
     // Group commands by category path
     const cmdByPath = new Map<string, CommandEntry[]>();
     for (const e of entries) {
-      if (lower) {
-        const match =
-          e.label.toLowerCase().includes(lower) ||
-          e.command.toLowerCase().includes(lower) ||
-          (e.description ?? "").toLowerCase().includes(lower);
-        if (!match) continue;
-      }
       const cat = e.category.trim() || "未分类";
       if (!cmdByPath.has(cat)) cmdByPath.set(cat, []);
       cmdByPath.get(cat)!.push(e);
@@ -239,7 +220,6 @@ export default function CommandPanel() {
       }
     }
     for (const p of emptyFolders) {
-      if (!lower) folderPaths.add(p);
     }
 
     // Top-level entries: ??? + root folders
@@ -277,19 +257,6 @@ export default function CommandPanel() {
         const isExplicitEmpty = emptyFolders.includes(childPath);
         const isEmpty = cmds.length === 0 && isExplicitEmpty;
 
-        if (cmds.length === 0 && !isExplicitEmpty && !lower) continue;
-        // In search mode, show folders that have matching commands (even if indirect)
-        if (lower && cmds.length === 0 && !isExplicitEmpty) {
-          // Check if any descendant has matching commands
-          let hasMatchingDescendant = false;
-          for (const [cat, ccmds] of cmdByPath) {
-            if (cat.startsWith(childPath + "/") && ccmds.length > 0) {
-              hasMatchingDescendant = true;
-              break;
-            }
-          }
-          if (!hasMatchingDescendant) continue;
-        }
 
         const subChildren = depth < 2 ? buildChildren(childPath, depth + 1) : [];
         children.push({
@@ -309,14 +276,13 @@ export default function CommandPanel() {
       return children;
     };
 
-    // In search mode, only show ??? if it has matches
-    if (!lower || uncategorized?.length) {
+    {
       const roots = buildChildren("", 0);
       rootNodes.push(...roots);
     }
 
     return rootNodes;
-  }, [entries, emptyFolders, search, sortCommands]);
+  }, [entries, emptyFolders, sortCommands]);
 
   // Auto-expand all cards on first load
   useEffect(() => {
@@ -336,12 +302,11 @@ export default function CommandPanel() {
       await upsert(updated);
       await sendInput(activeTabId, resolved);
       triggerScroll(activeTabId);
-      recordUsage(cmd.id);
       setTimeout(() => {
         document.querySelector<HTMLElement>('.xterm-helper-textarea')?.focus();
       }, 50);
     },
-    [activeTabId, activeTab, upsert, sendInput, recordUsage],
+    [activeTabId, activeTab, upsert, sendInput],
   );
 
   const handleExecute = useCallback(
@@ -353,12 +318,11 @@ export default function CommandPanel() {
       // Send command + Enter to execute immediately
       await sendInput(activeTabId, resolved + "\r");
       triggerScroll(activeTabId);
-      recordUsage(cmd.id);
       setTimeout(() => {
         document.querySelector<HTMLElement>('.xterm-helper-textarea')?.focus();
       }, 50);
     },
-    [activeTabId, activeTab, upsert, sendInput, recordUsage],
+    [activeTabId, activeTab, upsert, sendInput],
   );
 
   const handleCmdClick = useCallback(
@@ -666,35 +630,17 @@ export default function CommandPanel() {
         <span className="flex-1 text-[14px] text-[var(--text-primary)] truncate">{cmd.label || cmd.command}</span>
 
         {/* Pinned star */}
-        {cmd.pinned && <Star size={10} className="text-[var(--color-warning)] shrink-0" />}
+        {cmd.pinned && <Star size={10} className="text-[var(--color-warning)] shrink-0" fill="var(--color-warning)" />}
 
-        {/* Usage count */}
-        {usageCounts[cmd.id] > 0 && (
-          <span className="text-[10px] text-[var(--text-muted)]/40 tabular-nums shrink-0">{usageCounts[cmd.id]}x</span>
-        )}
       </div>
     ),
-    [activeTabId, selectedIds, usageCounts, handleSend, toggleSelect, showCtx, cmdCtx]
+    [activeTabId, selectedIds, handleSend, toggleSelect, showCtx, cmdCtx]
   );
 
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full" onContextMenu={(e) => { e.preventDefault(); showCtx(e, emptyCtx()); }}>
-      {/* Search */}
-      <div className="relative px-2 pb-1">
-        <Search
-          size={15}
-          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]"
-        />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="筛选命令..."
-          className="w-full h-8 pl-8 pr-2 text-sm bg-[var(--bg-surface)] border-2 border-transparent rounded-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--border-focus)] transition-[border-color,background]"
-        />
-      </div>
 
       {/* Toolbar: batch select + import/export */}
       <div className="flex items-center gap-1 px-2 pb-1">
@@ -766,7 +712,7 @@ export default function CommandPanel() {
       <div className="flex-1 overflow-y-auto min-h-0 px-2 py-1.5 space-y-1.5">
         {tree.length === 0 ? (
           <div className="flex items-center justify-center h-20 text-sm text-[var(--text-muted)]">
-            {search ? "无匹配命令" : "暂无保存的命令"}
+            "暂无保存的命令"
           </div>
         ) : (
           tree.map((node) => {
@@ -786,15 +732,15 @@ export default function CommandPanel() {
                     : <FolderClosed size={15} className="shrink-0 text-[var(--text-secondary)]" />
                   }
                   <span className="text-[15px] font-medium text-[var(--text-primary)]">{node.name}</span>
-                  <span className="text-[10px] tabular-nums text-[var(--text-muted)]/50 ml-auto bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded-full">{node.commands.length + node.children.reduce((acc, c) => acc + c.commands.length, 0)}</span>
+                  <span className="text-[10px] tabular-nums text-[var(--text-secondary)] ml-auto bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded-full">{node.commands.length + node.children.reduce((acc, c) => acc + c.commands.length, 0)}</span>
                 </button>
                 {isExpanded && (
                   <div className="border-l border-r border-b border-[var(--border-subtle)] rounded-b-lg overflow-hidden">
                     {node.commands.map((cmd) => renderCmd(cmd, 24))}
                     {node.children.map((child) => (
                       <div key={child.path}>
-                        <div className="pl-8 pr-3 py-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-muted)]/60">
-                          <FolderClosed size={11} className="shrink-0 text-[var(--text-secondary)]/60" />
+                        <div className="pl-8 pr-3 py-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-secondary)]">
+                          <FolderClosed size={11} className="shrink-0 text-[var(--text-secondary)]" />
                           {child.name}
                         </div>
                         {child.commands.map((cmd) => renderCmd(cmd, 44))}

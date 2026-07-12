@@ -33,25 +33,15 @@ export default function SessionManager() {
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [ctx, setCtx] = useState<CtxState | null>(null);
-  const [search, setSearch] = useState("");
   const [knownGroups, setKnownGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => { loadSessions(); }, [loadSessions]);
 
   // Group sessions
   const groups = useMemo(() => {
-    const lower = search.toLowerCase();
-    const filtered = lower
-      ? sessions.filter((s) =>
-          (s.name || "").toLowerCase().includes(lower) ||
-          (s.host || "").toLowerCase().includes(lower) ||
-          (s.user || "").toLowerCase().includes(lower) ||
-          (s.group || "").toLowerCase().includes(lower)
-        )
-      : sessions;
 
     const map: Record<string, SessionConfig[]> = {};
-    for (const s of filtered) {
+    for (const s of sessions) {
       const g = s.group || "Default";
       if (!map[g]) map[g] = [];
       map[g].push(s);
@@ -75,7 +65,7 @@ export default function SessionManager() {
     });
 
     return keys.map((k) => ({ name: k, path: k, sessions: map[k] }));
-    }, [sessions, search, knownGroups]);
+    }, [sessions, knownGroups]);
   const toggleGroup = (path: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -220,29 +210,6 @@ export default function SessionManager() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Search */}
-      <div className="px-3 py-2 border-b border-[var(--border-subtle)] flex-shrink-0">
-        <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus-within:border-[rgb(var(--accent-rgb)/0.50)] transition-colors">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="text-[var(--text-muted)] shrink-0">
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜索会话..."
-            className="flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] min-w-0"
-          />
-          {search && (
-            <button onClick={() => setSearch("")} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] shrink-0">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Groups - Clash Verge style cards */}
       <div
         className="flex-1 overflow-y-auto min-h-0 px-2 py-2 space-y-2"
@@ -265,7 +232,7 @@ export default function SessionManager() {
             ])}
           >
             <Terminal size={28} className="opacity-25" />
-            <span>{search ? "无匹配会话" : "暂无保存的会话"}</span>
+            <span>"暂无保存的会话"</span>
           </div>
         ) : (
           groups.map((group) => {
