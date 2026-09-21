@@ -134,21 +134,34 @@ fn clean_stale_rclone_configs() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Runs before the window opens, so nothing this instance spawned can
-    // match yet — every hit is a leftover from a previous run.
-    kill_stale_rclone();
-    clean_stale_rclone_configs();
-
     // Prevent re-entrant close (the cleanup thread calls window.close()
     // which re-fires CloseRequested; the flag breaks the cycle).
     let is_closing = Arc::new(AtomicBool::new(false));
 
     tauri::Builder::default()
+        // Must be registered first: its setup hook runs before all others and
+        // turns a second launch away (the newcomer just focuses this window),
+        // so the startup sweep in our own setup below can only ever run on
+        // the single live instance.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .manage(SessionManager::new())
         .manage(Mutex::new(SystemSampler::new()))
         .manage(Arc::new(PromptManager::new()))
         .setup(|app| {
+            // Runs only on the primary instance: a second launch is turned
+            // away inside the single-instance plugin's setup, before this
+            // point. Also still ahead of the window being shown and of any
+            // user input, so nothing this instance spawned can match yet —
+            // every hit is a leftover from a previous run.
+            kill_stale_rclone();
+            clean_stale_rclone_configs();
+
             let icon_bytes = include_bytes!("../icons/icon.png");
             if let Ok(img) = image::load_from_memory(icon_bytes) {
                 let rgba = img.into_rgba8();

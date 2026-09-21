@@ -399,10 +399,66 @@ pub fn rclone_unmount(
     Ok(format!("Unmounted {}", drive))
 }
 
-#[tauri::command]
+/// True if a process with this PID is running. Fail-safe: when `tasklist`
+/// can't be run at all, reports alive so a live mount is never pruned.
+fn pid_alive(pid: u32) -> bool {
+    let Ok(out) = Command::new("tasklist")
+        .creation_flags(0x08000000)
+        .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
+        .output()
+    else {
+        return true;
+    };
+    // A match prints a CSV row like `"rclone.exe","1234",...`; no match
+    // prints a localized info line that never starts with a quote.
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .any(|line| line.starts_with('"'))
+}
+
+/// Drop mounts whose rclone process died on its own (crash, or killed from
+/// outside the app) and delete their config entries. The session is still
+/// alive, so nothing else would ever clean these up; the frontend polls
+/// `rclone_list` every few seconds, making it the natural detection point.
+fn prune_dead_mounts(mgr: &SessionManager) {
+    let snapshot: Vec<(String, u32, String)> = mgr
+        .mounts
+        .lock()
+        .iter()
+        .map(|(id, m)| (id.clone(), m.pid, m.config_name.clone()))
+        .collect();
+
+    for (tab_id, pid, config_name) in snapshot {
+        if pid_alive(pid) {
+            continue;
+        }
+        // Serialize with mount/unmount, then remove only if the entry is
+        // still the same one — a remount may have replaced it meanwhile.
+        let _op = MOUNT_OP.lock();
+        let removed = {
+            let mut mounts = mgr.mounts.lock();
+            let same_entry = mounts.get(&tab_id).is_some_and(|m| m.pid == pid);
+            if same_entry {
+                mounts.remove(&tab_id);
+            }
+            same_entry
+        };
+        if removed {
+            let _ = Command::new(crate::get_rclone_path())
+                .creation_flags(0x08000000)
+                .args(["config", "delete"])
+                .arg(&config_name)
+                .output();
+        }
+    }
+}
+
+// Runs on the async runtime: dead-mount probing spawns tasklist.
+#[tauri::command(async)]
 pub fn rclone_list(
     mgr: State<'_, SessionManager>,
 ) -> Vec<HashMap<String, String>> {
+    prune_dead_mounts(&mgr);
     mgr.mounts.lock().iter().map(|(id, m)| {
         let mut map = HashMap::new();
         map.insert("tabId".into(), id.clone());
