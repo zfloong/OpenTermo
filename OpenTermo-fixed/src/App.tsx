@@ -26,8 +26,8 @@ export default function App() {
   const sessions = useSessionStore((s) => s.sessions);
   const connectDialogOpen = useSessionStore((s) => s.connectDialogOpen);
   const editingSessionId = useSessionStore((s) => s.editingSessionId);
-  const hostKeyPrompt = useSessionStore((s) => s.hostKeyPrompt);
-  const credentialPrompt = useSessionStore((s) => s.credentialPrompt);
+  const hostKeyPrompts = useSessionStore((s) => s.hostKeyPrompts);
+  const credentialPrompts = useSessionStore((s) => s.credentialPrompts);
 
   const loadSessions = useSessionStore((s) => s.loadSessions);
   const connect = useSessionStore((s) => s.connect);
@@ -68,7 +68,7 @@ export default function App() {
                   className="absolute inset-0"
                   style={{ display: tab.id === activeTabId ? "block" : "none" }}
                 >
-                  <TerminalView tabId={tab.id} />
+                  <TerminalView tabId={tab.id} active={tab.id === activeTabId} />
                 </div>
               ))
             ) : (
@@ -104,12 +104,20 @@ export default function App() {
         ) : null;
       })()}
 
-      {hostKeyPrompt && (
-        <HostKeyDialog prompt={hostKeyPrompt} onClose={dismissHostKey} />
+      {hostKeyPrompts.length > 0 && (
+        <HostKeyDialog
+          key={hostKeyPrompts[0].prompt_id}
+          prompt={hostKeyPrompts[0]}
+          onClose={dismissHostKey}
+        />
       )}
 
-      {credentialPrompt && (
-        <CredentialDialog prompt={credentialPrompt} onClose={dismissCredential} />
+      {credentialPrompts.length > 0 && (
+        <CredentialDialog
+          key={credentialPrompts[0].prompt_id}
+          prompt={credentialPrompts[0]}
+          onClose={dismissCredential}
+        />
       )}
 
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />

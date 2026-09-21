@@ -95,7 +95,7 @@ const MAX_HISTORY = 20;
 /**
  * xterm.js terminal component bound to a single session tab.
  */
-export default function TerminalView({ tabId }: { tabId: string }) {
+export default function TerminalView({ tabId, active }: { tabId: string; active: boolean }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -197,15 +197,7 @@ export default function TerminalView({ tabId }: { tabId: string }) {
       setHasMatch(true);
       return;
     }
-    s.findNext(query, { incremental: false });
-    // Detect whether any match was found by checking decorations
-    // findNext returns void, so we check manually:
-    // A quick findNext then findPrevious to see if there's a result.
-    // Simpler: use a flag — if findNext moved, there's a match.
-    // Workaround: try findNext and if decorationsCount is 0, no match.
-    s.findNext(query, { incremental: false });
-    s.findPrevious(query);
-    setHasMatch(true);
+    setHasMatch(s.findNext(query, { incremental: false }));
   }, []);
 
   // When searchQuery changes, do a search
@@ -378,10 +370,10 @@ export default function TerminalView({ tabId }: { tabId: string }) {
     window.addEventListener(`terminal-data:${tabId}`, onData);
 
     return () => {
-      // [DISABLED] Select-to-copy cleanup
-      // container.removeEventListener("mousedown", onMouseDown);
-      // container.removeEventListener("mouseup", onMouseUp);
-      // container.removeEventListener("mouseleave", onMouseLeave);
+      container.removeEventListener("mousedown", onMouseDown);
+      container.removeEventListener("mouseup", onMouseUp);
+      container.removeEventListener("mouseleave", onMouseLeave);
+      container.removeEventListener("dblclick", blockDblClick, true);
       window.removeEventListener(`terminal-data:${tabId}`, onData);
       term.dispose();
       terminalRef.current = null;
@@ -471,6 +463,19 @@ export default function TerminalView({ tabId }: { tabId: string }) {
     return () => ro.disconnect();
   }, [tabId, onResize]);
 
+  // Refit when this tab becomes visible: a resize that happened while the tab
+  // was hidden never reached this terminal (fit() is a no-op while hidden).
+  useEffect(() => {
+    if (!active) return;
+    const fitAddon = fitAddonRef.current;
+    const term = terminalRef.current;
+    if (!fitAddon || !term) return;
+    try { fitAddon.fit(); } catch {}
+    if (term.cols > 0 && term.rows > 0) {
+      onResize(tabId, term.cols, term.rows);
+    }
+  }, [active, tabId, onResize]);
+
   // navigation in history dropdown ───────────────────
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (historyVisible && searchHistory.length > 0) {
@@ -533,13 +538,13 @@ export default function TerminalView({ tabId }: { tabId: string }) {
   const searchNext = () => {
     const s = searchAddonRef.current;
     if (!s || !searchQuery.trim()) return;
-    s.findNext(searchQuery);
+    setHasMatch(s.findNext(searchQuery));
   };
 
   const searchPrev = () => {
     const s = searchAddonRef.current;
     if (!s || !searchQuery.trim()) return;
-    s.findPrevious(searchQuery);
+    setHasMatch(s.findPrevious(searchQuery));
   };
 
   return (

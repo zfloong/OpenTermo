@@ -21,6 +21,13 @@ export interface SessionConfig {
   last_used: string | null;
   group: string;
   kind: SessionKind;
+  /** Serial-only fields, used when kind === "serial". */
+  serial_port: string;
+  baud_rate: number;
+  data_bits: number;
+  stop_bits: number;
+  parity: string;
+  flow_control: string;
 }
 
 // 鈹€鈹€ Types matching meatshell::system::SystemSnapshot 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€

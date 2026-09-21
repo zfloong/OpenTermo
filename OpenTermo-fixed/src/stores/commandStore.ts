@@ -142,30 +142,49 @@ export const useCommandStore = create<CommandState>((set, get) => ({
 
   // ── Import / Export ──
   exportAll(): string {
-    const entries = get().entries.map(({ id, ...rest }) => rest);
-    return JSON.stringify(entries, null, 2);
+    const { entries, emptyFolders } = get();
+    return JSON.stringify(
+      { commands: entries.map(({ id, ...rest }) => rest), emptyFolders },
+      null,
+      2,
+    );
   },
 
   exportFolder(folderPath: string): string {
-    const entries = get().entries
+    const { entries, emptyFolders } = get();
+    const commands = entries
       .filter((e) => e.category.trim() === folderPath || e.category.trim().startsWith(folderPath + "/"))
       .map(({ id, ...rest }) => rest);
-    return JSON.stringify(entries, null, 2);
+    const folders = emptyFolders.filter((p) => isPathUnderOrEqual(folderPath, p));
+    return JSON.stringify({ commands, emptyFolders: folders }, null, 2);
   },
 
   async importCommands(json: string): Promise<{ imported: number; skipped: number }> {
-    let parsed: Array<Partial<CommandEntry>>;
+    let parsedCommands: Array<Partial<CommandEntry>>;
+    let parsedFolders: string[] = [];
     try {
-      parsed = JSON.parse(json);
-      if (!Array.isArray(parsed)) throw new Error("Not an array");
+      const parsed = JSON.parse(json);
+      if (Array.isArray(parsed)) {
+        parsedCommands = parsed;
+      } else if (parsed && Array.isArray(parsed.commands)) {
+        parsedCommands = parsed.commands;
+        if (Array.isArray(parsed.emptyFolders)) {
+          parsedFolders = parsed.emptyFolders.filter(
+            (p: unknown): p is string => typeof p === "string" && p.trim().length > 0,
+          );
+        }
+      } else {
+        throw new Error("Not a command export");
+      }
     } catch {
-      throw new Error("Invalid JSON: expected an array of command objects");
+      throw new Error("Invalid JSON: expected a command export (array, or { commands, emptyFolders })");
     }
 
     let imported = 0;
     let skipped = 0;
+    const importedCats: string[] = [];
 
-    for (const item of parsed) {
+    for (const item of parsedCommands) {
       if (!item.command) { skipped++; continue; }
       const entry: CommandEntry = {
         id: crypto.randomUUID(),
@@ -179,12 +198,19 @@ export const useCommandStore = create<CommandState>((set, get) => ({
         order: item.order || null,
       };
       await saveCommand(entry);
+      if (entry.category.trim()) importedCats.push(entry.category.trim());
       imported++;
     }
 
-    // Reload fresh list
+    // Reload fresh list, then merge empty-folder markers (same invariant as upsert:
+    // no marker at/above a category that now holds a command)
     const entries = await listCommands();
-    set({ entries, emptyFolders: loadEmptyFolders() });
+    let folders = [...new Set([...get().emptyFolders, ...parsedFolders])];
+    for (const cat of importedCats) {
+      folders = folders.filter((p) => !isPathUnderOrEqual(p, cat));
+    }
+    saveEmptyFolders(folders);
+    set({ entries, emptyFolders: folders });
     return { imported, skipped };
   },
 }));

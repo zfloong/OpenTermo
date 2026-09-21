@@ -11,6 +11,8 @@ import {
   sendInput,
   resizeTerminal,
   disconnectSession,
+  replyHostKey,
+  replyCredential,
 } from "@/lib/tauriCommands";
 
 type ConnectionStatus = "disconnected" | "connecting" | "connected";
@@ -43,10 +45,10 @@ interface SessionState {
   connectDialogOpen: boolean;
   /** ID of session being edited (null = no edit dialog open). */
   editingSessionId: string | null;
-  /** Pending host-key confirmation prompt. */
-  hostKeyPrompt: HostKeyPromptPayload | null;
-  /** Pending credential prompt. */
-  credentialPrompt: CredentialPromptPayload | null;
+  /** Pending host-key confirmation prompts (FIFO, one shown at a time). */
+  hostKeyPrompts: HostKeyPromptPayload[];
+  /** Pending credential prompts (FIFO, one shown at a time). */
+  credentialPrompts: CredentialPromptPayload[];
   /** Last connection error message (auto-clears). */
   lastError: string | null;
   /** Incremented to force terminal scroll-to-bottom from command panels. */
@@ -91,8 +93,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   activeTabId: null,
   connectDialogOpen: false,
   editingSessionId: null,
-  hostKeyPrompt: null,
-  credentialPrompt: null,
+  hostKeyPrompts: [],
+  credentialPrompts: [],
   lastError: null,
   scrollTrigger: {},
   _unlisteners: new Map(),
@@ -173,9 +175,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   async disconnect(tabId) {
     await disconnectSession(tabId);
     await get()._teardownListener(tabId);
+    // Answer any prompts still queued for this tab; otherwise the backend
+    // connect task stays blocked on the reply channel forever.
+    for (const p of get().hostKeyPrompts.filter((p) => p.tab_id === tabId)) {
+      void replyHostKey(p.prompt_id, false).catch(() => {});
+    }
+    for (const p of get().credentialPrompts.filter((p) => p.tab_id === tabId)) {
+      void replyCredential(p.prompt_id, null, null, null).catch(() => {});
+    }
     set((s) => ({
       tabs: s.tabs.filter((t) => t.id !== tabId),
       activeTabId: s.activeTabId === tabId ? null : s.activeTabId,
+      hostKeyPrompts: s.hostKeyPrompts.filter((p) => p.tab_id !== tabId),
+      credentialPrompts: s.credentialPrompts.filter((p) => p.tab_id !== tabId),
     }));
   },
 
@@ -206,13 +218,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   openEditDialog: (id) => set({ editingSessionId: id }),
   closeEditDialog: () => set({ editingSessionId: null }),
-  dismissHostKey: () => set({ hostKeyPrompt: null }),
-  dismissCredential: () => set({ credentialPrompt: null }),
+  dismissHostKey: () => set((s) => ({ hostKeyPrompts: s.hostKeyPrompts.slice(1) })),
+  dismissCredential: () => set((s) => ({ credentialPrompts: s.credentialPrompts.slice(1) })),
 
   // ── Event listeners ───────────────────────────────────────────────────
 
   async _setupListener(tabId) {
-    if (get()._unlisteners.has(tabId)) return;
+    if (get()._unlisteners.has(`${tabId}-output`)) return;
 
     const unlistenOutput = await listen<string>(
       `terminal-output:${tabId}`,
@@ -248,6 +260,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         set((s) => ({
           tabs: s.tabs.filter((t) => t.id !== tabId),
           activeTabId: s.activeTabId === tabId ? null : s.activeTabId,
+          hostKeyPrompts: s.hostKeyPrompts.filter((p) => p.tab_id !== tabId),
+          credentialPrompts: s.credentialPrompts.filter((p) => p.tab_id !== tabId),
         }));
       },
     );
@@ -302,12 +316,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     const unlistenHostKey = await listen<HostKeyPromptPayload>(
       "host-key-prompt",
-      (event) => set({ hostKeyPrompt: event.payload }),
+      (event) => set((s) => ({ hostKeyPrompts: [...s.hostKeyPrompts, event.payload] })),
     );
 
     const unlistenCredential = await listen<CredentialPromptPayload>(
       "credential-prompt",
-      (event) => set({ credentialPrompt: event.payload }),
+      (event) => set((s) => ({ credentialPrompts: [...s.credentialPrompts, event.payload] })),
     );
 
     ul.set("global-host-key", unlistenHostKey);

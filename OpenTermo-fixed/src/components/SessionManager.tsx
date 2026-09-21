@@ -19,6 +19,21 @@ interface SessionGroup {
   sessions: SessionConfig[];
 }
 
+const LS_KNOWN_GROUPS = "opentermo-known-groups";
+
+function loadKnownGroups(): Set<string> {
+  try {
+    const raw = localStorage.getItem(LS_KNOWN_GROUPS);
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveKnownGroups(groups: Set<string>) {
+  localStorage.setItem(LS_KNOWN_GROUPS, JSON.stringify([...groups]));
+}
+
 export default function SessionManager() {
   const sessions = useSessionStore((s) => s.sessions);
   const loadSessions = useSessionStore((s) => s.loadSessions);
@@ -33,9 +48,10 @@ export default function SessionManager() {
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [ctx, setCtx] = useState<CtxState | null>(null);
-  const [knownGroups, setKnownGroups] = useState<Set<string>>(new Set());
+  const [knownGroups, setKnownGroups] = useState<Set<string>>(loadKnownGroups);
 
   useEffect(() => { loadSessions(); }, [loadSessions]);
+  useEffect(() => { saveKnownGroups(knownGroups); }, [knownGroups]);
 
   // Group sessions
   const groups = useMemo(() => {

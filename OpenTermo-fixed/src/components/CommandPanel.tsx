@@ -51,10 +51,13 @@ interface CtxState {
 interface TreeNode {
   name: string;
   path: string;
-  depth: number;
   commands: CommandEntry[];
   children: TreeNode[];
   isEmpty: boolean;
+}
+
+function countCommands(node: TreeNode): number {
+  return node.commands.length + node.children.reduce((acc, c) => acc + countCommands(c), 0);
 }
 
 export default function CommandPanel() {
@@ -88,7 +91,6 @@ export default function CommandPanel() {
   const [moveTarget, setMoveTarget] = useState<{ ids: string[] } | null>(null);
   const [newFolderPrompt, setNewFolderPrompt] = useState<{ parentPath: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [importMsg, setImportMsg] = useState<string | null>(null);
 
   // Click-delay discrimination: single-click = send, double-click = send+execute
@@ -139,18 +141,6 @@ export default function CommandPanel() {
       }
     },
     [importCommands],
-  );
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setDragOverFolder(null);
-      const file = e.dataTransfer.files[0];
-      if (file && file.name.endsWith(".json")) {
-        handleImport(file);
-      }
-    },
-    [handleImport],
   );
 
   // ═══ Batch execute ═══════════════════════════════════════════════════════════
@@ -220,6 +210,7 @@ export default function CommandPanel() {
       }
     }
     for (const p of emptyFolders) {
+      folderPaths.add(p);
     }
 
     // Top-level entries: ??? + root folders
@@ -231,15 +222,14 @@ export default function CommandPanel() {
       rootNodes.push({
         name: "未分类",
         path: "未分类",
-        depth: 0,
         commands: sortCommands(uncategorized),
         children: [],
         isEmpty: false,
       });
     }
 
-    // Build tree from folder paths (depth 0–2)
-    const buildChildren = (parent: string, depth: number): TreeNode[] => {
+    // Build tree from folder paths
+    const buildChildren = (parent: string): TreeNode[] => {
       const prefix = parent ? parent + "/" : "";
       const children: TreeNode[] = [];
       const seen = new Set<string>();
@@ -258,11 +248,10 @@ export default function CommandPanel() {
         const isEmpty = cmds.length === 0 && isExplicitEmpty;
 
 
-        const subChildren = depth < 2 ? buildChildren(childPath, depth + 1) : [];
+        const subChildren = buildChildren(childPath);
         children.push({
           name: childName,
           path: childPath,
-          depth,
           commands: isEmpty ? [] : sortCommands(cmds),
           children: subChildren,
           isEmpty,
@@ -277,7 +266,7 @@ export default function CommandPanel() {
     };
 
     {
-      const roots = buildChildren("", 0);
+      const roots = buildChildren("");
       rootNodes.push(...roots);
     }
 
@@ -464,21 +453,23 @@ export default function CommandPanel() {
 
   const folderCtx = useCallback(
     (node: TreeNode): (ContextMenuItem | null)[] => {
+      const canNest = node.path.split("/").length === 1 && node.path !== "未分类";
       const items: (ContextMenuItem | null)[] = [
         {
           label: "新建命令",
           icon: <Plus size={12} />,
           onClick: () => openNewCommandDialog(node.path),
         },
+        ...(canNest
+          ? [
+              {
+                label: "新建子文件夹",
+                icon: <FolderPlus size={12} />,
+                onClick: () => setNewFolderPrompt({ parentPath: node.path }),
+              },
+            ]
+          : []),
       ];
-
-      if (node.depth < 2) {
-        items.push({
-          label: "新建子文件夹",
-          icon: <FolderPlus size={12} />,
-          onClick: () => setNewFolderPrompt({ parentPath: node.path }),
-        });
-      }
 
       items.push(
         {
@@ -634,8 +625,39 @@ export default function CommandPanel() {
 
       </div>
     ),
-    [activeTabId, selectedIds, handleSend, toggleSelect, showCtx, cmdCtx]
+    [selectedIds, handleCmdClick, toggleSelect, showCtx, cmdCtx]
   );
+
+  // ── Nested folder rows (level 2) ──────────────────────────────────────
+
+  const renderChildFolders = (nodes: TreeNode[], pad: number): React.ReactNode =>
+    nodes.map((child) => {
+      const isExpanded = expandedCards.has(child.path);
+      return (
+        <div key={child.path}>
+          <button
+            onClick={() => setExpandedCards((prev) => { const n = new Set(prev); if (n.has(child.path)) n.delete(child.path); else n.add(child.path); return n; })}
+            onContextMenu={(e) => showCtx(e, folderCtx(child))}
+            className="w-full flex items-center gap-2 pr-3 py-2 text-left transition-colors hover:bg-[var(--surface-hover)]"
+            style={{ paddingLeft: pad }}
+          >
+            <ChevronDown size={14} className={`shrink-0 text-[var(--text-muted)] transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
+            {isExpanded
+              ? <FolderOpen size={15} className="shrink-0 text-[var(--text-secondary)]" />
+              : <FolderClosed size={15} className="shrink-0 text-[var(--text-secondary)]" />
+            }
+            <span className="text-[15px] font-medium text-[var(--text-primary)]">{child.name}</span>
+            <span className="text-[10px] tabular-nums text-[var(--text-secondary)] ml-auto bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded-full">{countCommands(child)}</span>
+          </button>
+          {isExpanded && (
+            <>
+              {child.commands.map((cmd) => renderCmd(cmd, pad + 12))}
+              {renderChildFolders(child.children, pad + 20)}
+            </>
+          )}
+        </div>
+      );
+    });
 
   // ── Render ────────────────────────────────────────────────────────────
 
@@ -732,20 +754,12 @@ export default function CommandPanel() {
                     : <FolderClosed size={15} className="shrink-0 text-[var(--text-secondary)]" />
                   }
                   <span className="text-[15px] font-medium text-[var(--text-primary)]">{node.name}</span>
-                  <span className="text-[10px] tabular-nums text-[var(--text-secondary)] ml-auto bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded-full">{node.commands.length + node.children.reduce((acc, c) => acc + c.commands.length, 0)}</span>
+                  <span className="text-[10px] tabular-nums text-[var(--text-secondary)] ml-auto bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded-full">{countCommands(node)}</span>
                 </button>
                 {isExpanded && (
                   <div className="border-l border-r border-b border-[var(--border-subtle)] rounded-b-lg overflow-hidden">
                     {node.commands.map((cmd) => renderCmd(cmd, 24))}
-                    {node.children.map((child) => (
-                      <div key={child.path}>
-                        <div className="pl-8 pr-3 py-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-secondary)]">
-                          <FolderClosed size={11} className="shrink-0 text-[var(--text-secondary)]" />
-                          {child.name}
-                        </div>
-                        {child.commands.map((cmd) => renderCmd(cmd, 44))}
-                      </div>
-                    ))}
+                    {renderChildFolders(node.children, 32)}
                   </div>
                 )}
               </div>
@@ -843,9 +857,10 @@ function CommandEditDialog({
   }, [entry?.id]);
 
   const isValid = (label || command).trim().length > 0;
+  const depthTooDeep = category.trim().split("/").filter(Boolean).length > 2;
 
   const handleSave = () => {
-    if (!entry || !isValid) return;
+    if (!entry || !isValid || depthTooDeep) return;
     onSave({
       ...entry,
       id: entry.id || crypto.randomUUID(),
@@ -883,13 +898,16 @@ function CommandEditDialog({
             <label className="text-sm text-[var(--text-secondary)]">分类</label>
             <Input value={category} onChange={(e) => setCategory(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }} placeholder="文件夹/子文件夹（如 数据库/MySQL）" className="h-8 text-sm" list="cmd-categories" />
             <datalist id="cmd-categories">{folderPaths.filter((c) => c !== "未分类").map((c) => (<option key={c} value={c} />))}</datalist>
+            {depthTooDeep && (
+              <span className="text-xs text-[var(--color-danger)]">分类最多支持两层（如 数据库/MySQL）</span>
+            )}
           </div>
           <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)] cursor-pointer">
             <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} className="rounded accent-[var(--accent)]" />固定到顶部
           </label>
           <div className="flex justify-end gap-2 mt-1">
             <Button variant="ghost" size="sm" onClick={onClose} className="text-sm h-7">取消</Button>
-            <Button variant="primary" size="sm" onClick={handleSave} disabled={!isValid} className="text-sm h-7">保存</Button>
+            <Button variant="primary" size="sm" onClick={handleSave} disabled={!isValid || depthTooDeep} className="text-sm h-7">保存</Button>
           </div>
         </div>
       </DialogContent>
@@ -921,7 +939,6 @@ function MoveDialog({
             onChange={(e) => setSelected(e.target.value)}
             className="w-full h-8 rounded-sm border-2 border-transparent bg-[var(--bg-surface)] px-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-focus)]"
           >
-            <option value="">-- 选择文件夹 --</option>
             <option value="">未分类</option>
             {folderPaths
               .filter((p) => p && p !== "未分类")

@@ -36,7 +36,7 @@ export default function CredentialDialog({ prompt, onClose }: CredentialDialogPr
   };
 
   return (
-    <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog open={true} onOpenChange={(open) => { if (!open) void handleCancel(); }}>
       <DialogContent className="max-w-[420px] mx-4 p-0">
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle>

@@ -41,19 +41,20 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
   const [mounts, setMounts] = useState<Record<string, string>>({});
 
   // Poll mounts from backend
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const list = await rclone_list();
-        const map: Record<string, string> = {};
-        for (const m of list) map[m.tabId] = m.drive;
-        setMounts(map);
-      } catch {}
-    };
-    poll();
-    const id = setInterval(poll, 3000);
-    return () => clearInterval(id);
+  const refreshMounts = useCallback(async () => {
+    try {
+      const list = await rclone_list();
+      const map: Record<string, string> = {};
+      for (const m of list) map[m.tabId] = m.drive;
+      setMounts(map);
+    } catch {}
   }, []);
+
+  useEffect(() => {
+    refreshMounts();
+    const id = setInterval(refreshMounts, 3000);
+    return () => clearInterval(id);
+  }, [refreshMounts]);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const isSSH = activeTab?.session?.kind === "ssh" && activeTab?.status === "connected";
@@ -71,8 +72,10 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
       await rclone_mount(activeTabId);
     } catch (e: any) {
       setError("[SSHFS 挂载] " + (e?.toString?.() || String(e)));
+    } finally {
+      refreshMounts();
     }
-  }, [activeTabId, clearError, setError]);
+  }, [activeTabId, clearError, setError, refreshMounts]);
 
   const handleUnmount = useCallback(async () => {
     if (!activeTabId) return;
@@ -81,8 +84,10 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
       await rclone_unmount(activeTabId);
     } catch (e: any) {
       setError("[SSHFS 卸载] " + (e?.toString?.() || String(e)));
+    } finally {
+      refreshMounts();
     }
-  }, [activeTabId, clearError, setError]);
+  }, [activeTabId, clearError, setError, refreshMounts]);
 
   return (
     <header

@@ -32,6 +32,12 @@ function emptySession(): SessionConfig {
     last_used: null,
     group: "",
     kind: "ssh",
+    serial_port: "",
+    baud_rate: 115200,
+    data_bits: 8,
+    stop_bits: 1,
+    parity: "none",
+    flow_control: "none",
   };
 }
 
@@ -52,13 +58,20 @@ export default function ConnectDialog({
   // EditSessionDialog handles editing separately
   const [saving, setSaving] = useState(false);
 
-  const isValid = form.host.trim().length > 0;
+  const isValid = form.kind === "serial"
+    ? form.serial_port.trim().length > 0
+    : form.host.trim().length > 0;
+
+  const withAutoName = (s: SessionConfig): SessionConfig =>
+    s.kind === "serial" && !s.name.trim()
+      ? { ...s, name: `${s.serial_port.trim()} @${s.baud_rate}` }
+      : s;
 
   const handleConnect = () => {
     if (!isValid) return;
-    const session = form.auth === "key"
-      ? { ...form, password: keyPassphrase }
-      : form;
+    const session = withAutoName(
+      form.auth === "key" ? { ...form, password: keyPassphrase } : form
+    );
     onSave(session);
     onConnect(session);
     onClose();
@@ -68,9 +81,9 @@ export default function ConnectDialog({
     if (!isValid) return;
     setSaving(true);
     try {
-      const session = form.auth === "key"
-        ? { ...form, password: keyPassphrase }
-        : form;
+      const session = withAutoName(
+        form.auth === "key" ? { ...form, password: keyPassphrase } : form
+      );
       onSave(session);
       setForm(emptySession());
       setKeyPassphrase("");
@@ -88,6 +101,7 @@ export default function ConnectDialog({
     try {
       const selected = await open({
         multiple: false,
+        defaultPath: form.private_key_path || undefined,
         filters: [{
           name: "SSH Keys",
           extensions: ["pem", "key", "ppk"],
@@ -147,6 +161,62 @@ export default function ConnectDialog({
               </label>
             </div>
 
+            {form.kind === "serial" && (
+              <>
+                <div className="grid grid-cols-[1fr_120px] gap-4">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">串口号</span>
+                    <Input value={form.serial_port} onChange={(e) => setForm({ ...form, serial_port: e.target.value })} placeholder="COM3" className="h-8 text-sm" />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">波特率</span>
+                    <Input type="number" list="baud-presets" value={form.baud_rate} onChange={(e) => setForm({ ...form, baud_rate: Number(e.target.value) || 115200 })} className="h-8 text-sm" />
+                  </label>
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">数据位</span>
+                    <select value={form.data_bits} onChange={(e) => setForm({ ...form, data_bits: Number(e.target.value) })} className="h-8 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all">
+                      <option value={8}>8</option>
+                      <option value={7}>7</option>
+                      <option value={6}>6</option>
+                      <option value={5}>5</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">停止位</span>
+                    <select value={form.stop_bits} onChange={(e) => setForm({ ...form, stop_bits: Number(e.target.value) })} className="h-8 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all">
+                      <option value={1}>1</option>
+                      <option value={2}>2</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">校验</span>
+                    <select value={form.parity} onChange={(e) => setForm({ ...form, parity: e.target.value })} className="h-8 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all">
+                      <option value="none">无</option>
+                      <option value="odd">奇</option>
+                      <option value="even">偶</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">流控</span>
+                    <select value={form.flow_control} onChange={(e) => setForm({ ...form, flow_control: e.target.value })} className="h-8 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all">
+                      <option value="none">无</option>
+                      <option value="hardware">硬件</option>
+                      <option value="software">软件</option>
+                    </select>
+                  </label>
+                </div>
+                <datalist id="baud-presets">
+                  {[9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600].map((b) => (
+                    <option key={b} value={b} />
+                  ))}
+                </datalist>
+              </>
+            )}
+
+            {form.kind !== "serial" && (
+            <>
             {/* Host + Port */}
             <div className="grid grid-cols-[1fr_100px] gap-4">
               <label className="flex flex-col gap-1.5">
@@ -212,6 +282,8 @@ export default function ConnectDialog({
                 </>
               )}
             </div>
+            </>
+            )}
 
             {/* Actions */}
             <div className="flex items-center gap-3 mt-1 pt-2 border-t border-[var(--border-subtle)]">

@@ -140,9 +140,15 @@ pub fn reply_credential(
     password: Option<String>,
     remember: Option<bool>,
 ) -> Result<(), String> {
+    // Only (None, None) means cancel; a half-filled reply is valid because
+    // meatshell applies just the fields flagged by need_user/need_password.
     let reply = match (user, password) {
-        (Some(u), Some(p)) => Some((u, p, remember.unwrap_or(false))),
-        _ => None,
+        (None, None) => None,
+        (u, p) => Some((
+            u.unwrap_or_default(),
+            p.unwrap_or_default(),
+            remember.unwrap_or(false),
+        )),
     };
     prompts.reply_credential(&id, reply)
 }
