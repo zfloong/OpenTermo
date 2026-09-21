@@ -7,7 +7,7 @@ use std::process::Command;
 use std::os::windows::process::CommandExt;
 use std::sync::Arc;
 
-use parking_lot::Mutex;
+use parking_lot::{const_mutex, Mutex};
 use tauri::{AppHandle, Emitter};
 
 use meatshell::config::{Session as SessionConfig, SessionKind};
@@ -24,6 +24,28 @@ pub struct MountInfo {
     pub pid: u32,
     /// rclone config name (used to clean up the config entry)
     pub config_name: String,
+}
+
+/// Serializes rclone mount lifecycle operations (mount / unmount / disconnect
+/// cleanup / app close) — they all mutate the mounts table and drive letters.
+pub(crate) static MOUNT_OP: Mutex<()> = const_mutex(());
+
+/// Remove `tab_id`'s mount entry and tear the mount down: kill the rclone
+/// process and delete its config entry. Caller must hold `MOUNT_OP`.
+fn unmount_locked(mounts: &Mutex<HashMap<String, MountInfo>>, tab_id: &str) {
+    // Bound first so the mounts lock is released before the taskkill wait.
+    let mount = mounts.lock().remove(tab_id);
+    if let Some(mount) = mount {
+        let _ = Command::new("taskkill").creation_flags(0x08000000)
+            .args(["/F", "/PID", &mount.pid.to_string()])
+            .output();
+        // Brief wait for WinFsp to release the drive
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        // Clean up rclone config entry
+        let _ = Command::new(crate::get_rclone_path()).creation_flags(0x08000000)
+            .args(["config", "delete", &mount.config_name])
+            .output();
+    }
 }
 
 /// Manages the tokio runtime and active SSH/Serial/Telnet sessions.
@@ -101,9 +123,10 @@ impl SessionManager {
 
         // Spawn a task that forwards SessionEvents to Tauri events
         let sessions = self.sessions.clone();
+        let mounts = self.mounts.clone();
         let tid = tab_id_owned.clone();
         self.runtime.spawn(async move {
-            forward_events(app, sessions, tid, rx, prompts).await;
+            forward_events(app, sessions, mounts, tid, rx, prompts).await;
         });
 
         Ok(())
@@ -134,18 +157,10 @@ impl SessionManager {
 
     /// Disconnect and remove a session.
     pub fn disconnect(&self, tab_id: &str) -> Result<(), String> {
+        // Serialize with mount/unmount so a just-finished mount is never missed.
+        let _op = MOUNT_OP.lock();
         // Unmount rclone if mounted for this tab
-        if let Some(mount) = self.mounts.lock().remove(tab_id) {
-            let _ = Command::new("taskkill").creation_flags(0x08000000)
-                .args(["/F", "/PID", &mount.pid.to_string()])
-                .output();
-            // Brief wait for WinFsp to release
-            std::thread::sleep(std::time::Duration::from_millis(500));
-            // Clean up rclone config entry
-            let _ = Command::new(crate::get_rclone_path()).creation_flags(0x08000000)
-                .args(["config", "delete", &mount.config_name])
-                .output();
-        }
+        unmount_locked(&self.mounts, tab_id);
         // Close terminal session
         let mut sessions = self.sessions.lock();
         if let Some(handle) = sessions.remove(tab_id) {
@@ -157,6 +172,8 @@ impl SessionManager {
 
     /// Kill all active rclone mounts. Called on app close.
     pub fn unmount_all(&self) {
+        // Wait for an in-flight mount op so nothing is mounted after this.
+        let _op = MOUNT_OP.lock();
         let mounts: Vec<MountInfo> = self.mounts.lock().drain().map(|(_, m)| m).collect();
         for mount in &mounts {
             let _ = Command::new("taskkill").creation_flags(0x08000000)
@@ -180,6 +197,7 @@ impl SessionManager {
 async fn forward_events(
     app: AppHandle,
     sessions: Arc<Mutex<HashMap<String, SessionHandle>>>,
+    mounts: Arc<Mutex<HashMap<String, MountInfo>>>,
     tab_id: String,
     mut rx: tokio::sync::mpsc::UnboundedReceiver<SessionEvent>,
     prompts: Arc<PromptManager>,
@@ -198,6 +216,14 @@ async fn forward_events(
             SessionEvent::Closed(reason) => {
                 let _ = app.emit(&format!("terminal-closed:{tab_id}"), reason);
                 sessions.lock().remove(&tab_id);
+                // The frontend drops the tab on this event, so a mount left
+                // behind would have no way to be unmounted — tear it down.
+                let mounts = mounts.clone();
+                let tid = tab_id.clone();
+                tokio::task::spawn_blocking(move || {
+                    let _op = MOUNT_OP.lock();
+                    unmount_locked(&mounts, &tid);
+                });
                 break;
             }
             SessionEvent::HostKeyPrompt {

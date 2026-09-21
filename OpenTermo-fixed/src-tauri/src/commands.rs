@@ -12,7 +12,7 @@ use meatshell::system::{SystemSampler, SystemSnapshot};
 use tauri::State;
 
 use crate::prompts::PromptManager;
-use crate::session::{MountInfo, SessionManager};
+use crate::session::{MountInfo, SessionManager, MOUNT_OP};
 
 // -- Session CRUD -----------------------------------------------------------
 
@@ -113,7 +113,8 @@ pub fn resize_terminal(
     mgr.resize(&tab_id, cols, rows)
 }
 
-#[tauri::command]
+// Runs on the async runtime: disconnecting a mounted tab can wait ~1s.
+#[tauri::command(async)]
 pub fn disconnect_session(
     mgr: State<'_, SessionManager>,
     tab_id: String,
@@ -163,18 +164,16 @@ pub fn get_system_stats(
 
 
 /// Find the first free drive letter from M: through Z:.
-fn find_free_drive(mounts: &HashMap<String, MountInfo>) -> Result<String, String> {
-    let used: std::collections::HashSet<&str> = mounts
-        .values()
-        .map(|m| m.drive_letter.as_str())
-        .collect();
-
+///
+/// `used` is a caller-provided snapshot so the mounts lock is not held across
+/// the PowerShell query below.
+fn find_free_drive(used: &std::collections::HashSet<String>) -> Result<String, String> {
     // Query real physical/network drives via WMI (handles drives with no media)
     let occupied = get_occupied_drives();
 
     for letter in 'M'..='Z' {
         let drive = format!("{}:", letter);
-        if used.contains(drive.as_str()) || occupied.contains(&drive) {
+        if used.contains(&drive) || occupied.contains(&drive) {
             continue;
         }
         return Ok(drive);
@@ -239,48 +238,61 @@ fn create_rclone_config(
     Ok(())
 }
 
-#[tauri::command]
+// Runs on the async runtime: the rclone/PowerShell work below takes seconds.
+#[tauri::command(async)]
 pub fn rclone_mount(
     mgr: State<'_, SessionManager>,
     tab_id: String,
 ) -> Result<String, String> {
-    let configs = mgr.session_configs.lock();
-    let config = configs
-        .get(&tab_id)
-        .ok_or_else(|| format!("session {tab_id} not found"))?;
+    // Serialize with unmount/disconnect/close cleanup so the mounts table and
+    // drive letters can't race (main-thread execution used to provide this).
+    let _op = MOUNT_OP.lock();
 
-    let host = config.host.clone();
-    let port = config.port;
-    let user = config.user.clone();
+    // Snapshot what we need, then release the lock before the slow work.
+    let (host, port, user, password_opt, key_path_opt) = {
+        let configs = mgr.session_configs.lock();
+        let config = configs
+            .get(&tab_id)
+            .ok_or_else(|| format!("session {tab_id} not found"))?;
+
+        // Password vs key auth
+        let password_opt = if matches!(config.auth, meatshell::config::AuthMethod::Password) {
+            Some(config.password.clone())
+        } else {
+            None
+        };
+        let key_path_opt = if matches!(config.auth, meatshell::config::AuthMethod::Key) && !config.private_key_path.is_empty() {
+            Some(config.private_key_path.clone())
+        } else {
+            None
+        };
+
+        (config.host.clone(), config.port, config.user.clone(), password_opt, key_path_opt)
+    };
 
     // Already mounted?
-    {
-        let mounts = mgr.mounts.lock();
-        if let Some(existing) = mounts.get(&tab_id) {
-            return Err(format!("Already mounted at {}", existing.drive_letter));
-        }
+    let already_mounted = mgr
+        .mounts
+        .lock()
+        .get(&tab_id)
+        .map(|m| m.drive_letter.clone());
+    if let Some(existing) = already_mounted {
+        return Err(format!("Already mounted at {}", existing));
     }
 
-    // Find free drive letter
-    let drive_letter = {
-        let mounts = mgr.mounts.lock();
-        find_free_drive(&mounts)?
-    };
+    // Find free drive letter from a snapshot (the drive query below is slow)
+    let used: std::collections::HashSet<String> = mgr
+        .mounts
+        .lock()
+        .values()
+        .map(|m| m.drive_letter.clone())
+        .collect();
+    let drive_letter = find_free_drive(&used)?;
 
-    // Unique rclone config name per tab
-    let config_name = format!("ms_{}", &tab_id[..tab_id.len().min(12)]);
-
-    // Password vs key auth
-    let password_opt = if matches!(config.auth, meatshell::config::AuthMethod::Password) {
-        Some(config.password.as_str())
-    } else {
-        None
-    };
-    let key_path_opt = if matches!(config.auth, meatshell::config::AuthMethod::Key) && !config.private_key_path.is_empty() {
-        Some(config.private_key_path.as_str())
-    } else {
-        None
-    };
+    // Unique rclone config name per tab. Uses the full tab id: the old
+    // 12-char truncation made two tabs of the same session share one config
+    // entry, so unmounting one deleted the entry the other still referenced.
+    let config_name = format!("ms_{tab_id}");
 
     create_rclone_config(
         crate::get_rclone_path(),
@@ -288,8 +300,8 @@ pub fn rclone_mount(
         &host,
         port,
         &user,
-        password_opt,
-        key_path_opt,
+        password_opt.as_ref().map(|s| s.as_str()),
+        key_path_opt.as_deref(),
     )?;
 
     // Spawn rclone mount as background process
@@ -359,11 +371,13 @@ pub fn rclone_mount(
     Ok(format!("{} -> {}", drive_letter, host))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn rclone_unmount(
     mgr: State<'_, SessionManager>,
     tab_id: String,
 ) -> Result<String, String> {
+    let _op = MOUNT_OP.lock();
+
     let mount = {
         let mut mounts = mgr.mounts.lock();
         mounts.remove(&tab_id)

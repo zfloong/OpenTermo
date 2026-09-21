@@ -87,12 +87,57 @@ pub(crate) fn get_rclone_path() -> &'static str {
     RCLONE_PATH.get_or_init(|| discover_rclone())
 }
 
+/// Force-kills rclone mounts left over from a previous run. Only our own
+/// mounts match — each is started with `--volname ms_<host>` — so the user's
+/// unrelated rclone jobs are never touched.
+fn kill_stale_rclone() {
+    let script = "Get-CimInstance Win32_Process -Filter \"Name='rclone.exe'\" | Where-Object { $_.CommandLine -like '*--volname ms_*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }";
+    let _ = std::process::Command::new("powershell")
+        .creation_flags(0x08000000)
+        .args(["-NoProfile", "-Command", script])
+        .output();
+}
+
+/// Removes config entries this app left in rclone.conf when a previous run
+/// died before its cleanup. An entry is ours when its name carries the `ms_`
+/// prefix and it holds the exact options `create_rclone_config` writes, so a
+/// user's own remotes are never touched.
+fn clean_stale_rclone_configs() {
+    let rclone = get_rclone_path();
+    let Ok(out) = std::process::Command::new(rclone)
+        .creation_flags(0x08000000)
+        .args(["config", "dump"])
+        .output()
+    else {
+        return;
+    };
+    let Ok(json) = serde_json::from_slice::<serde_json::Value>(&out.stdout) else {
+        return;
+    };
+    let Some(entries) = json.as_object() else {
+        return;
+    };
+    for (name, cfg) in entries {
+        let ours = name.starts_with("ms_")
+            && cfg.get("type").and_then(|v| v.as_str()) == Some("sftp")
+            && cfg.get("shell_type").and_then(|v| v.as_str()) == Some("unix")
+            && cfg.get("set_modtime").and_then(|v| v.as_str()) == Some("false");
+        if ours {
+            let _ = std::process::Command::new(rclone)
+                .creation_flags(0x08000000)
+                .args(["config", "delete"])
+                .arg(name)
+                .output();
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Kill any stale rclone processes from previous runs
-    let _ = std::process::Command::new("taskkill").creation_flags(0x08000000)
-        .args(["/F", "/IM", "rclone.exe"])
-        .output();
+    // Runs before the window opens, so nothing this instance spawned can
+    // match yet — every hit is a leftover from a previous run.
+    kill_stale_rclone();
+    clean_stale_rclone_configs();
 
     // Prevent re-entrant close (the cleanup thread calls window.close()
     // which re-fires CloseRequested; the flag breaks the cycle).
