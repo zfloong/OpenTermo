@@ -51,6 +51,14 @@ serialport = "4"
 # ChaCha20-Poly1305 AEAD for encrypting passwords at rest in sessions.json.
 # rand (OsRng) and base64 are already pulled in by other deps above.
 chacha20poly1305 = "0.10"
+# PuTTY PPK v2/v3 private keys (src/ppk.rs): AES-256-CBC decryption, Argon2
+# key derivation and the HMAC-SHA1/SHA256 integrity check the format requires.
+aes = "0.8"
+argon2 = "0.5"
+cbc = "0.1"
+hmac = "0.12"
+sha1 = "0.10"
+sha2 = "0.10"
 
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"

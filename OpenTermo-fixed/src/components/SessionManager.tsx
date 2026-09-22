@@ -257,7 +257,7 @@ export default function SessionManager() {
             const connColor = connectedCount > 0 ? "text-[var(--color-success)]" : "text-[var(--text-muted)]";
 
             return (
-              <div key={group.path} className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]/50">
+              <div key={group.path} className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
                 {/* Group header bar - FULL WIDTH clickable */}
                 <button
                   onClick={() => toggleGroup(group.path)}
@@ -268,7 +268,7 @@ export default function SessionManager() {
                     null,
                     { label: "删除分组", icon: <Trash2 size={13} />, onClick: () => handleDeleteGroup(group.name), danger: true }
                   ])}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--surface-hover)] transition-colors group/gh"
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--surface-active)] transition-colors group/gh"
                 >
                   {/* Chevron */}
                   <span className={`shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-0" : "-rotate-90"}`}>
@@ -295,7 +295,7 @@ export default function SessionManager() {
 
                 {/* Expanded sessions */}
                 {isExpanded && group.sessions.length > 0 && (
-                  <div className="border-t border-[var(--border-subtle)] py-1.5 px-1 flex flex-col gap-1">
+                  <div className="border-t border-[var(--border-subtle)] bg-[var(--bg-sunken)] py-1.5 px-1 flex flex-col gap-1">
                     {group.sessions.map((s) => (
                       <div key={s.id} data-session-item>
                           <SessionItemMerged
@@ -360,19 +360,17 @@ function SessionItemMerged({
       onContextMenu={onContextMenu}
       className={`group/srow relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${
         isActive
-          ? "bg-[var(--surface-selected)] border border-[var(--color-success)] shadow-[0_0_8px_var(--color-success)]/20"
-          : isConnected
-            ? "bg-[var(--surface-selected)]/60 border border-[var(--accent-border)]"
-            : "border border-transparent hover:border-[var(--border-default)] hover:bg-[var(--surface-hover)] hover:shadow-sm"
+          ? "bg-[var(--surface-selected)] border border-[var(--accent-border)]"
+          : "border border-transparent hover:border-[var(--border-default)] hover:bg-[var(--surface-hover)] hover:shadow-sm"
       }`}
     >
-      {/* Left color bar */}
+      {/* Left color bar — blue marks the selected row, teal the live ones */}
       <span
         className={`absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full transition-all duration-300 ${
           isActive
-            ? "bg-[var(--color-success)] opacity-100"
+            ? "bg-[var(--accent)] opacity-100"
             : isConnected
-              ? "bg-[var(--accent)] opacity-60"
+              ? "bg-[var(--color-success)] opacity-70"
               : "bg-[var(--border-subtle)] opacity-0 group-hover/srow:opacity-100"
         }`}
       />
@@ -382,7 +380,7 @@ function SessionItemMerged({
         {icon}
         {(isConnected || isActive) && (
           <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-1 ring-[var(--bg-surface)] transition-all ${
-            isActive ? "bg-[var(--color-success)] shadow-[0_0_4px_var(--color-success)]" : "bg-[var(--accent)]"
+            isConnected ? "bg-[var(--color-success)] shadow-[0_0_4px_var(--color-success)]" : "bg-[var(--accent)]"
           }`} />
         )}
       </div>
@@ -391,9 +389,9 @@ function SessionItemMerged({
       <div className="flex-1 min-w-0">
         <div className={`text-sm truncate transition-colors duration-200 ${
           isActive
-            ? "text-[var(--color-success)] font-semibold"
+            ? "text-[var(--text-primary)] font-semibold"
             : isConnected
-              ? "text-[rgb(var(--accent-rgb)/0.80)] font-medium"
+              ? "text-[var(--color-success)] font-medium"
               : "text-[var(--text-primary)]"
         }`}>
           {session.name || session.host}
@@ -412,7 +410,7 @@ function SessionItemMerged({
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 transition-colors"
+          className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--color-danger)] hover:bg-danger/10 transition-colors"
           title="删除"
         >
           <Trash2 size={12} />

@@ -1,4 +1,4 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -11,20 +11,15 @@
   font-display: swap;
 }
 
-/* ━━━━━ Static tokens (never touched by JS) ━━━━━ */
+/* ━━━━━ Static tokens only ━━━━━
+   Every theme-dependent color (backgrounds, borders, text, semantic colors,
+   terminal canvas) is written by JS in lib/themeUtils.ts — :root holds
+   nothing that changes with the theme, so there is exactly one source. */
 :root {
-  --bg-overlay:    rgba(0,0,0,0.60);
-  --text-primary:   #e4e4e4;
-  --text-secondary: #888888;
-  --text-heading:   #f0f0f0;
-  --text-muted:     rgba(255,255,255,0.20);
-  --text-inverse:   #ffffff;
-  --border-focus:     rgba(139,157,195,0.42);
-  --shadow-lg:   0 8px 32px rgba(0,0,0,0.65);
-  --shadow-xl:   0 16px 48px rgba(0,0,0,0.75);
   --radius-sm:  6px;
   --radius-md:  8px;
   --radius-lg:  12px;
+  --radius-full: 9999px;
   --font-ui:    "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
   --text-sm:    0.875rem;
   --ease-default:  cubic-bezier(0.25,0.1,0.25,1);
@@ -32,22 +27,8 @@
   --ease-out:      cubic-bezier(0,0,0.2,1);
   --duration-fast:   120ms;
   --duration-slow:   280ms;
+  --wp-image: none;
 }
-
-/* ━━━━━ Light theme overrides (text/shadows only; colors via JS) ━━━━━ */
-[data-theme="light"] {
-  --bg-overlay:    rgba(0,0,0,0.20);
-  --text-primary:   #1a1d23;
-  --text-secondary: #6b7280;
-  --text-heading:   #0f1117;
-  --text-muted:     rgba(0,0,0,0.30);
-  --text-inverse:   #ffffff;
-  --border-focus:     rgba(59,130,246,0.40);
-  --shadow-lg:   0 8px 24px rgba(0,0,0,0.10);
-  --shadow-xl:   0 16px 40px rgba(0,0,0,0.12);
-}
-
-/* Tabby shares dark-mode text tokens (no special block needed) */
 
 /* ━━━━━ Base Reset ━━━━━ */
 html { font-size: 18px; }
@@ -63,6 +44,20 @@ body {
   font-family: var(--font-ui);
   font-weight: 400;
   line-height: 1.5;
+}
+
+/* Custom wallpaper — painted under every layer, so the translucent window and
+   panel tokens read as frost over it. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--wp-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  pointer-events: none;
 }
 
 /* Scrollbar */
@@ -107,6 +102,12 @@ body {
 .dialog-overlay {
   background:var(--bg-overlay);
   animation:fadeIn var(--duration-fast) var(--ease-out);
+}
+
+/* Terminal canvas — alpha is its own setting, so the wallpaper can read
+   through the terminal while panels stay frosted. */
+.term-canvas {
+  background: rgb(var(--term-bg-rgb) / var(--term-alpha, 1));
 }
 
 /* Terminal */

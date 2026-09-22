@@ -154,14 +154,6 @@ export async function saveCommand(entry: CommandEntry): Promise<CommandEntry> {
 export async function deleteCommand(id: string): Promise<void> {
   return invoke("delete_command", { id });
 }
-
-export async function reorderCommands(ids: string[]): Promise<void> {
-  return invoke("reorder_commands", { ids });
-}
-
-export async function reorderSessions(ids: string[]): Promise<void> {
-  return invoke("reorder_sessions", { ids });
-}
 // 鈹€鈹€ SSHFS remote filesystem 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 export async function rclone_mount(tabId: string): Promise<string> {
@@ -174,5 +166,21 @@ export async function rclone_list(): Promise<{ tabId: string; drive: string }[]>
 }
 export async function rclone_unmount(tabId: string): Promise<string> {
   return invoke<string>("rclone_unmount", { tabId });
+}
+
+// ── Appearance ─────────────────────────────────────────────────────────────
+
+/** Import a wallpaper; returns the stored copy as a data URL. */
+export async function setBackgroundImage(path: string): Promise<string> {
+  return invoke<string>("set_background_image", { path });
+}
+
+/** The stored wallpaper as a data URL, or null when none is set. */
+export async function getBackgroundImage(): Promise<string | null> {
+  return invoke<string | null>("get_background_image");
+}
+
+export async function clearBackgroundImage(): Promise<void> {
+  return invoke("clear_background_image");
 }
 

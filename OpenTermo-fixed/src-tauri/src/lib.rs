@@ -221,6 +221,9 @@ pub fn run() {
             commands::rclone_unmount,
             commands::rclone_list,
             commands::write_text_file,
+            commands::set_background_image,
+            commands::get_background_image,
+            commands::clear_background_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -16,8 +16,13 @@ export default {
         lg: "var(--radius-lg)",
         md: "var(--radius-md)",
         sm: "var(--radius-sm)",
-        xs: "var(--radius-xs)",
         full: "var(--radius-full)",
+      },
+      colors: {
+        accent: "rgb(var(--accent-rgb) / <alpha-value>)",
+        success: "rgb(var(--color-success-rgb) / <alpha-value>)",
+        warning: "rgb(var(--color-warning-rgb) / <alpha-value>)",
+        danger: "rgb(var(--color-danger-rgb) / <alpha-value>)",
       },
       fontFamily: {
         sans: ["Inter", "SF Pro Text", "Segoe UI", "system-ui", "sans-serif"],

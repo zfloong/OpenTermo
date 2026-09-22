@@ -592,7 +592,7 @@ export default function CommandPanel() {
         onClick={() => handleCmdClick(cmd)}
         onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
         className={`group flex items-center gap-2 pr-3 py-1.5 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer ${
-          cmd.pinned ? "bg-[var(--color-warning)]/[0.04]" : ""
+          cmd.pinned ? "bg-accent/[0.04]" : ""
         }`}
         style={{ paddingLeft: leftPad }}
       >
@@ -621,7 +621,7 @@ export default function CommandPanel() {
         <span className="flex-1 text-[14px] text-[var(--text-primary)] truncate">{cmd.label || cmd.command}</span>
 
         {/* Pinned star */}
-        {cmd.pinned && <Star size={10} className="text-[var(--color-warning)] shrink-0" fill="var(--color-warning)" />}
+        {cmd.pinned && <Star size={10} className="text-[var(--accent)] shrink-0" fill="var(--accent)" />}
 
       </div>
     ),
@@ -671,7 +671,7 @@ export default function CommandPanel() {
             <button
               onClick={batchExecute}
               disabled={!activeTabId}
-              className="flex items-center gap-1 px-3 py-2 text-sm rounded-md bg-[var(--accent-dim)] text-[var(--accent)] hover:bg-[var(--accent)]/25 transition-colors disabled:opacity-40"
+              className="flex items-center gap-1 px-3 py-2 text-sm rounded-md bg-[var(--accent-dim)] text-[var(--accent)] hover:bg-accent/25 transition-colors disabled:opacity-40"
             >
               <Send size={14} />
               执行 {selectedIds.size} 条
@@ -725,7 +725,7 @@ export default function CommandPanel() {
       </div>
 
       {importMsg && (
-        <div className='text-xs px-2 py-1.5 rounded mx-2 mb-1 text-[var(--color-success)] bg-[var(--color-success)]/10'>
+        <div className='text-xs px-2 py-1.5 rounded mx-2 mb-1 text-[var(--color-success)] bg-success/10'>
           {importMsg}
         </div>
       )}
@@ -757,7 +757,7 @@ export default function CommandPanel() {
                   <span className="text-[10px] tabular-nums text-[var(--text-secondary)] ml-auto bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded-full">{countCommands(node)}</span>
                 </button>
                 {isExpanded && (
-                  <div className="border-l border-r border-b border-[var(--border-subtle)] rounded-b-lg overflow-hidden">
+                  <div className="border-l border-r border-b border-[var(--border-subtle)] rounded-b-lg overflow-hidden bg-[var(--bg-sunken)]">
                     {node.commands.map((cmd) => renderCmd(cmd, 24))}
                     {renderChildFolders(node.children, 32)}
                   </div>

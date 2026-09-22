@@ -92,7 +92,7 @@ export default function CommandPalette() {
     <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh]">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-[var(--bg-overlay)] backdrop-blur-sm"
         onClick={() => setOpen(false)}
       />
 

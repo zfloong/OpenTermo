@@ -12,6 +12,7 @@ pub mod errlog;
 pub mod forward;
 pub mod i18n;
 pub mod known_hosts;
+pub mod ppk;
 pub mod proxy;
 pub mod serial;
 pub mod ssh;

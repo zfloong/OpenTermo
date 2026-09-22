@@ -1,7 +1,12 @@
 ﻿import { useState } from "react";
-import { Settings, Palette, Info, RotateCcw, ExternalLink, Terminal } from "lucide-react";
+import { Settings, Palette, Info, RotateCcw, ExternalLink, Terminal, Image as ImageIcon, Trash2, Droplet } from "lucide-react";
 import { useSettingsStore, type ThemeId } from "@/stores/settingsStore";
-import { applyTheme } from "@/lib/themeUtils";
+import { applyBackgroundImage, DEFAULT_BACKGROUND, THEME_SWATCH } from "@/lib/themeUtils";
+import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
+import {
+  setBackgroundImage,
+  clearBackgroundImage,
+} from "@/lib/tauriCommands";
 import {
   Dialog,
   DialogContent,
@@ -16,10 +21,9 @@ interface Props {
 
 type Section = "appearance" | "terminal" | "about";
 
-const THEMES: { id: ThemeId; label: string; color: string }[] = [
-  { id: "deep-blue", label: "默认", color: "#1a1a2e" },
-  { id: "light",     label: "白天", color: "#e8eaed" },
-  { id: "tabby",     label: "Tabby", color: "#1a1f2e" },
+const THEMES: { id: ThemeId; label: string }[] = [
+  { id: "deep-blue", label: "默认" },
+  { id: "light",     label: "白天" },
 ];
 
 const FONT_OPTIONS = [
@@ -84,7 +88,10 @@ export default function SettingsPanel({ open, onClose }: Props) {
   const cursorStyle = useSettingsStore((s) => s.cursorStyle);
   const cursorBlink = useSettingsStore((s) => s.cursorBlink);
   const glassAlpha = useSettingsStore((s) => s.glassAlpha);
+  const blurStrength = useSettingsStore((s) => s.blurStrength);
   const borderAlpha = useSettingsStore((s) => s.borderAlpha);
+  const terminalAlpha = useSettingsStore((s) => s.terminalAlpha);
+  const hasWallpaper = useSettingsStore((s) => s.hasWallpaper);
 
   const setTheme = useSettingsStore((s) => s.setTheme);
   const setFontSize = useSettingsStore((s) => s.setFontSize);
@@ -92,22 +99,66 @@ export default function SettingsPanel({ open, onClose }: Props) {
   const setCursorStyle = useSettingsStore((s) => s.setCursorStyle);
   const setCursorBlink = useSettingsStore((s) => s.setCursorBlink);
   const setGlassAlpha = useSettingsStore((s) => s.setGlassAlpha);
+  const setBlurStrength = useSettingsStore((s) => s.setBlurStrength);
   const setBorderAlpha = useSettingsStore((s) => s.setBorderAlpha);
+  const setTerminalAlpha = useSettingsStore((s) => s.setTerminalAlpha);
+  const setHasWallpaper = useSettingsStore((s) => s.setHasWallpaper);
+
+  const [bgMsg, setBgMsg] = useState<string | null>(null);
+  const [bgBusy, setBgBusy] = useState(false);
 
   const previewTheme = (tid: ThemeId) => {
     setTheme(tid);
-    document.documentElement.setAttribute("data-theme", tid);
-    applyTheme(tid, glassAlpha, borderAlpha);
   };
 
-  const handleResetAll = () => {
+  const handlePickBackground = async () => {
+    const picked = await openFileDialog({
+      multiple: false,
+      filters: [{ name: "图片", extensions: ["png", "jpg", "jpeg", "webp", "bmp"] }],
+    });
+    if (typeof picked !== "string") return;
+    setBgBusy(true);
+    setBgMsg(null);
+    try {
+      const url = await setBackgroundImage(picked);
+      applyBackgroundImage(url);
+      setHasWallpaper(true);
+    } catch (e: any) {
+      setBgMsg(e?.toString?.() || "背景图导入失败");
+    } finally {
+      setBgBusy(false);
+    }
+  };
+
+  const handleClearBackground = async () => {
+    setBgBusy(true);
+    try {
+      await clearBackgroundImage();
+      applyBackgroundImage(null);
+      setHasWallpaper(false);
+      setBgMsg(null);
+    } catch (e: any) {
+      setBgMsg(e?.toString?.() || "移除背景图失败");
+    } finally {
+      setBgBusy(false);
+    }
+  };
+
+  const handleResetAll = async () => {
     setTheme("deep-blue");
     setFontSize(14);
     setFontFamily("");
     setCursorStyle("bar");
     setCursorBlink(true);
-    setGlassAlpha(0.85);
-    setBorderAlpha(0.13);
+    setGlassAlpha(0.2);
+    setBlurStrength(40);
+    setBorderAlpha(0.15);
+    setTerminalAlpha(0.92);
+    // Drop the custom image before re-enabling, so the effect that loads the
+    // wallpaper can't pick up the old file on its way out.
+    await clearBackgroundImage().catch(() => {});
+    setHasWallpaper(true);
+    applyBackgroundImage(DEFAULT_BACKGROUND);
   };
 
   return (
@@ -164,7 +215,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
                           }`}
                       >
                         <span className="w-4 h-4 rounded-full border border-[var(--border-subtle)] flex-shrink-0"
-                          style={{ backgroundColor: t.color }} />
+                          style={{ backgroundColor: THEME_SWATCH[t.id] }} />
                         {t.label}
                       </button>
                     ))}
@@ -175,7 +226,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
 
 
                 {/* ── 窗口 ── */}
-                <section className="flex flex-col gap-2">
+                <section className="flex flex-col gap-3">
                   <div className="flex items-center gap-2">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--accent)]">
                       <rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="12" cy="12" r="3" />
@@ -184,19 +235,52 @@ export default function SettingsPanel({ open, onClose }: Props) {
                   </div>
                   {rangeSlider("透明度", 20, 95, 1, Math.round(glassAlpha * 100), (v) => {
                     setGlassAlpha(v / 100);
-                    applyTheme(theme, v / 100, borderAlpha);
                   }, (v) => `${v}%`)}
-                  {rangeSlider("边框柔和度", 5, 30, 1, Math.round(borderAlpha * 100), (v) => {
+                  {rangeSlider("磨砂强度", 0, 40, 1, blurStrength, setBlurStrength, (v) => (v === 0 ? "关闭" : `${v}px`))}
+                  {rangeSlider("边框柔和度", 15, 75, 1, Math.round(borderAlpha * 100), (v) => {
                     setBorderAlpha(v / 100);
-                    applyTheme(theme, glassAlpha, v / 100);
                   }, (v) => `${v}%`)}
+                </section>
+
+                <hr className="border-0 h-px bg-[var(--border-subtle)]" />
+
+                {/* ── 背景 ── */}
+                <section className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon size={14} className="text-[var(--accent)]" />
+                    <span className="text-sm font-medium text-[var(--text-heading)]">背景</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handlePickBackground}
+                      disabled={bgBusy}
+                      className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium text-[var(--accent)] border border-[var(--accent-border)] bg-[var(--accent-dim)] hover:bg-accent/20 disabled:opacity-50 transition-all"
+                    >
+                      <ImageIcon size={14} />
+                      {hasWallpaper ? "更换背景图" : "选择背景图"}
+                    </button>
+                    <button
+                      onClick={handleClearBackground}
+                      disabled={bgBusy || !hasWallpaper}
+                      className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 transition-all"
+                      title="移除背景图"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                    默认使用内置背景图；选了自己的图片会覆盖它。终端区透明度已移到「终端」页。
+                  </p>
+                  {bgMsg && (
+                    <p className="text-xs text-[var(--color-danger)]">{bgMsg}</p>
+                  )}
                 </section>
 
                 <hr className="border-0 h-px bg-[var(--border-subtle)]" />
 
                 {/* ── 重置 ── */}
                 <button onClick={handleResetAll}
-                  className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium text-[var(--color-danger)] border border-[var(--color-danger)]/25 hover:bg-[var(--color-danger)]/10 transition-all">
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium text-[var(--color-danger)] border border-danger/25 hover:bg-danger/10 transition-all">
                   <RotateCcw size={14} />
                   全部恢复默认
                 </button>
@@ -249,6 +333,22 @@ export default function SettingsPanel({ open, onClose }: Props) {
                     </button>
                   </label>
                 </section>
+
+                <hr className="border-0 h-px bg-[var(--border-subtle)]" />
+
+                {/* ── 终端区透明度 ── */}
+                <section className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <Droplet size={14} className="text-[var(--accent)]" />
+                    <span className="text-sm font-medium text-[var(--text-heading)]">背景透明</span>
+                  </div>
+                  {rangeSlider("终端区透明度", 20, 100, 1, Math.round(terminalAlpha * 100), (v) => {
+                    setTerminalAlpha(v / 100);
+                  }, (v) => `${v}%`)}
+                  <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                    只影响终端区域：数值越低，窗口背景图越明显。
+                  </p>
+                </section>
               </div>
             )}
 
@@ -263,7 +363,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
 
                 <div className="text-center">
                   <h2 className="text-xl font-bold text-[var(--text-primary)]">OpenTermo</h2>
-                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">v2.4.0</p>
+                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">v2.5.0</p>
                 </div>
 
                 <p className="text-sm text-[var(--text-secondary)] text-center max-w-xs leading-relaxed">
@@ -293,7 +393,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
                   GitHub 仓库
                 </a>
 
-                <p className="text-[10px] text-[var(--text-muted)]/50 mt-4">&copy; 2024 OpenTermo</p>
+                <p className="text-[10px] text-[var(--text-muted)] opacity-50 mt-4">&copy; 2024 OpenTermo</p>
               </div>
             )}
           </div>

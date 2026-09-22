@@ -1,10 +1,11 @@
-﻿import { useEffect, useState, useCallback } from "react";
+﻿import { useEffect, useState, useCallback, useLayoutEffect } from "react";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { applyTheme } from "@/lib/themeUtils";
+import { applyTheme, applyBackgroundImage, DEFAULT_BACKGROUND } from "@/lib/themeUtils";
 import TitleBar from "@/components/layout/TitleBar";
 import Sidebar from "@/components/layout/Sidebar";
 import TerminalView from "@/components/layout/TerminalView";
 import StatusBar from "@/components/layout/StatusBar";
+import NotificationLayer from "@/components/layout/NotificationLayer";
 import ConnectDialog from "@/components/ConnectDialog";
 import EditSessionDialog from "@/components/EditSessionDialog";
 import HostKeyDialog from "@/components/HostKeyDialog";
@@ -12,13 +13,18 @@ import CredentialDialog from "@/components/CredentialDialog";
 import CommandPalette from "@/components/CommandPalette";
 import SettingsPanel from "@/components/SettingsPanel";
 import { useSessionStore } from "@/stores/sessionStore";
+import { getBackgroundImage } from "@/lib/tauriCommands";
+import { Plus } from "lucide-react";
 
 
 
 export default function App() {
   const theme = useSettingsStore((s) => s.theme);
   const glassAlpha = useSettingsStore((s) => s.glassAlpha);
+  const blurStrength = useSettingsStore((s) => s.blurStrength);
   const borderAlpha = useSettingsStore((s) => s.borderAlpha);
+  const terminalAlpha = useSettingsStore((s) => s.terminalAlpha);
+  const hasWallpaper = useSettingsStore((s) => s.hasWallpaper);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const activeTabId = useSessionStore((s) => s.activeTabId);
@@ -45,17 +51,38 @@ export default function App() {
     setupGlobal();
   }, [loadSessions, setupGlobal]);
 
-  // Apply theme + overrides — JS is always the single source of truth
+  // Apply theme + overrides — JS is always the single source of truth.
+  // Layout effect so the first paint already carries the theme tokens.
   const applyAll = useCallback(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    applyTheme(theme, glassAlpha, borderAlpha);
-  }, [theme, glassAlpha, borderAlpha]);
+    applyTheme({
+      theme,
+      glassAlpha,
+      blurPx: blurStrength,
+      borderAlpha,
+      terminalAlpha,
+      hasWallpaper,
+    });
+  }, [theme, glassAlpha, blurStrength, borderAlpha, terminalAlpha, hasWallpaper]);
 
-  useEffect(() => { applyAll(); }, [applyAll]);
+  useLayoutEffect(() => { applyAll(); }, [applyAll]);
+
+  // A user-picked image wins; otherwise the bundled wallpaper is the default.
+  useEffect(() => {
+    if (!hasWallpaper) {
+      applyBackgroundImage(null);
+      return;
+    }
+    let cancelled = false;
+    getBackgroundImage()
+      .then((url) => { if (!cancelled) applyBackgroundImage(url || DEFAULT_BACKGROUND); })
+      .catch(() => { if (!cancelled) applyBackgroundImage(DEFAULT_BACKGROUND); });
+    return () => { cancelled = true; };
+  }, [hasWallpaper]);
 
   return (
     <div className="flex flex-col h-full w-full bg-[var(--bg-base)]">
-      <TitleBar onConnect={openConnect} onSettings={() => setSettingsOpen(true)} />
+      <TitleBar onSettings={() => setSettingsOpen(true)} />
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
@@ -74,11 +101,19 @@ export default function App() {
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-3">
                 <span className="text-2xl opacity-20">{String.fromCharCode(0x2328)}</span>
+                <button
+                  onClick={openConnect}
+                  className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-sm font-semibold text-[var(--accent)] bg-[var(--accent-dim)] border border-[var(--accent-border)] hover:bg-accent/25 transition-colors"
+                >
+                  <Plus size={15} />
+                  新建连接
+                </button>
                 <span className="text-sm text-[var(--text-muted)] select-none">
-                  按 <kbd className="px-1.5 py-0.5 text-[11px] bg-[var(--surface-hover)] rounded font-mono">Ctrl+K</kbd> 搜索命令
+                  或按 <kbd className="px-1.5 py-0.5 text-[11px] bg-[var(--surface-hover)] rounded font-mono">Ctrl+K</kbd> 搜索命令
                 </span>
               </div>
             )}
+            <NotificationLayer />
         </div>
       </div>
 

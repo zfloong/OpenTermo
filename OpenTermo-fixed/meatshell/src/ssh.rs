@@ -20,6 +20,57 @@ use tokio::task::JoinHandle;
 use crate::config::{AuthMethod, Session};
 use crate::i18n::t;
 
+// ── Legacy-algorithm compatibility ──────────────────────────────────────────
+// Key-exchange algorithms offered to the server, strongest first: the russh
+// default set plus the ecdh-sha2-nistp* curves and the legacy
+// diffie-hellman-group{14,1}-sha1 exchanges appended as last-resort fallbacks,
+// so old servers and network gear that only speak SHA-1 KEX still connect.
+// A modern server keeps picking a strong algorithm because the client's order
+// decides and SHA-1 comes last.
+pub(crate) const COMPAT_KEX: &[russh::kex::Name] = &[
+    russh::kex::CURVE25519,
+    russh::kex::CURVE25519_PRE_RFC_8731,
+    russh::kex::DH_G16_SHA512,
+    russh::kex::DH_G14_SHA256,
+    russh::kex::ECDH_SHA2_NISTP256,
+    russh::kex::ECDH_SHA2_NISTP384,
+    russh::kex::ECDH_SHA2_NISTP521,
+    russh::kex::DH_G14_SHA1, // legacy fallback
+    russh::kex::DH_G1_SHA1,  // legacy fallback
+    // Keep the ext-info / strict-kex markers so modern servers still negotiate
+    // both (mirrors russh's default tail).
+    russh::kex::EXTENSION_SUPPORT_AS_CLIENT,
+    russh::kex::EXTENSION_SUPPORT_AS_SERVER,
+    russh::kex::EXTENSION_OPENSSH_STRICT_KEX_AS_CLIENT,
+    russh::kex::EXTENSION_OPENSSH_STRICT_KEX_AS_SERVER,
+];
+
+// Ciphers offered to the server, strongest first: the AEAD/CTR defaults plus
+// the legacy CBC ciphers appended for old servers that only support CBC.
+pub(crate) const COMPAT_CIPHER: &[russh::cipher::Name] = &[
+    russh::cipher::CHACHA20_POLY1305,
+    russh::cipher::AES_256_GCM,
+    russh::cipher::AES_256_CTR,
+    russh::cipher::AES_192_CTR,
+    russh::cipher::AES_128_CTR,
+    russh::cipher::AES_256_CBC,    // legacy fallback
+    russh::cipher::AES_192_CBC,    // legacy fallback
+    russh::cipher::AES_128_CBC,    // legacy fallback
+    russh::cipher::TRIPLE_DES_CBC, // legacy fallback
+];
+
+/// Load a private key file. PuTTY PPK v2/v3 files — which `ssh-key` cannot
+/// parse — are detected by content and decoded into the same in-memory
+/// representation, so the caller does not care which format it handed us.
+fn load_session_private_key(path: &str, pass: Option<&str>) -> Result<russh::keys::PrivateKey> {
+    let bytes = std::fs::read(path).with_context(|| format!("failed to read key {path}"))?;
+    if crate::ppk::is_ppk(&bytes) {
+        return crate::ppk::decode_ppk(&bytes, pass.unwrap_or_default())
+            .with_context(|| format!("failed to load PuTTY key {path}"));
+    }
+    load_secret_key(Path::new(path), pass).with_context(|| format!("failed to load key {path}"))
+}
+
 // ---------------------------------------------------------------------------
 // SFTP-related shared types
 // ---------------------------------------------------------------------------
@@ -478,6 +529,13 @@ async fn run_session(
 
     let config = Arc::new(client::Config {
         inactivity_timeout: Some(std::time::Duration::from_secs(60 * 10)),
+        // Offer the compatibility algorithm lists so old servers and network
+        // gear still negotiate; see COMPAT_KEX / COMPAT_CIPHER above.
+        preferred: russh::Preferred {
+            kex: std::borrow::Cow::Borrowed(COMPAT_KEX),
+            cipher: std::borrow::Cow::Borrowed(COMPAT_CIPHER),
+            ..russh::Preferred::DEFAULT
+        },
         ..<_>::default()
     });
 
@@ -552,11 +610,10 @@ async fn run_session(
             // An encrypted private key needs its passphrase; we reuse the
             // session's password field for it (empty = unencrypted key) (#90).
             let pass = password.as_str();
-            let keypair = load_secret_key(
-                Path::new(&key_path),
+            let keypair = load_session_private_key(
+                &key_path,
                 if pass.is_empty() { None } else { Some(pass) },
-            )
-            .with_context(|| format!("failed to load key {key_path}"))?;
+            )?;
             // RSA keys must be signed with an explicit SHA-2 hash; every other
             // key type carries its own algorithm, so no override is needed.
             let hash = keypair.algorithm().is_rsa().then_some(HashAlg::Sha256);

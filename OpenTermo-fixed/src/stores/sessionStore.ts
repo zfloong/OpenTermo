@@ -51,6 +51,8 @@ interface SessionState {
   credentialPrompts: CredentialPromptPayload[];
   /** Last connection error message (auto-clears). */
   lastError: string | null;
+  /** Transient success notice, auto-clears after a few seconds. */
+  lastInfo: string | null;
   /** Incremented to force terminal scroll-to-bottom from command panels. */
   scrollTrigger: Record<string, number>;
   /** File explorer stats for status bar. */
@@ -59,6 +61,8 @@ interface SessionState {
   loadSessions: () => Promise<void>;
   /** Set a persistent error message (for mount errors etc). Call clearError to dismiss. */
   setError: (msg: string) => void;
+  /** Show a transient success notice, replacing any current one. */
+  setInfo: (msg: string) => void;
   /** Copy the current error to clipboard. */
   copyError: () => void;
   save: (session: SessionConfig) => Promise<void>;
@@ -70,6 +74,7 @@ interface SessionState {
   resize: (tabId: string, cols: number, rows: number) => Promise<void>;
   setActiveTab: (tabId: string) => void;
   clearError: () => void;
+  clearInfo: () => void;
   triggerScroll: (tabId: string) => void;
 
   // Dialog controls
@@ -96,13 +101,23 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   hostKeyPrompts: [],
   credentialPrompts: [],
   lastError: null,
+  lastInfo: null,
   scrollTrigger: {},
   _unlisteners: new Map(),
 
   // ── Session CRUD ───────────────────────────────────────────────────────
 
   setError(msg: string) {
-    set({ lastError: msg });
+    // Drop any success notice: the error banner takes precedence, and a stale
+    // one would pop back once the error is dismissed.
+    set({ lastError: msg, lastInfo: null });
+  },
+
+  setInfo(msg: string) {
+    set({ lastInfo: msg });
+    window.setTimeout(() => {
+      if (get().lastInfo === msg) set({ lastInfo: null });
+    }, 4000);
   },
 
   copyError() {
@@ -205,6 +220,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   clearError() {
     set({ lastError: null });
+  },
+
+  clearInfo() {
+    set({ lastInfo: null });
   },
 
   triggerScroll(tabId) {

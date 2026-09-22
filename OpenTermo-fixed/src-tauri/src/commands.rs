@@ -9,7 +9,7 @@ use std::sync::Arc;
 use meatshell::command::{CommandEntry, CommandStore};
 use meatshell::config::{ConfigStore, Session as SessionConfig};
 use meatshell::system::{SystemSampler, SystemSnapshot};
-use tauri::State;
+use tauri::{Manager, State};
 
 use crate::prompts::PromptManager;
 use crate::session::{MountInfo, SessionManager, MOUNT_OP};
@@ -472,4 +472,58 @@ pub fn rclone_list(
 #[tauri::command]
 pub fn write_text_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, &content).map_err(|e| format!("写入文件失败: {}", e))
+}
+
+// -- Appearance --------------------------------------------------------------
+
+/// Where the imported background image lives inside the app data directory.
+fn background_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建应用数据目录: {}", e))?;
+    Ok(dir.join("background.jpg"))
+}
+
+fn background_data_url(path: &std::path::Path) -> Result<String, String> {
+    use base64::Engine;
+    let bytes = std::fs::read(path).map_err(|e| format!("无法读取背景图: {}", e))?;
+    Ok(format!(
+        "data:image/jpeg;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
+}
+
+/// Import a wallpaper: decode whatever the user picked, downscale it to a
+/// sane size, re-encode as JPEG and hand it back as a data URL the webview
+/// can paint from CSS. Nothing but the re-encoded copy is ever stored.
+#[tauri::command(async)]
+pub fn set_background_image(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    let dest = background_path(&app)?;
+    let img = image::open(&path).map_err(|e| format!("无法读取图片: {}", e))?;
+    let img = img
+        .resize(2560, 1440, image::imageops::FilterType::Lanczos3)
+        .into_rgb8();
+    let file = std::fs::File::create(&dest).map_err(|e| format!("无法写入背景图: {}", e))?;
+    let mut writer = std::io::BufWriter::new(file);
+    img.write_with_encoder(image::codecs::jpeg::JpegEncoder::new_with_quality(&mut writer, 85))
+        .map_err(|e| format!("无法编码背景图: {}", e))?;
+    background_data_url(&dest)
+}
+
+/// The stored wallpaper as a data URL, or `None` when none was ever imported.
+#[tauri::command(async)]
+pub fn get_background_image(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let dest = background_path(&app)?;
+    if !dest.exists() {
+        return Ok(None);
+    }
+    background_data_url(&dest).map(Some)
+}
+
+#[tauri::command]
+pub fn clear_background_image(app: tauri::AppHandle) -> Result<(), String> {
+    let dest = background_path(&app)?;
+    if dest.exists() {
+        std::fs::remove_file(&dest).map_err(|e| format!("无法删除背景图: {}", e))?;
+    }
+    Ok(())
 }

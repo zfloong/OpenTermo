@@ -6,13 +6,15 @@ import "xterm/css/xterm.css";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 
-// Terminal themes keyed by ThemeId — avoids getComputedStyle timing issues
+// Terminal themes keyed by ThemeId — avoids getComputedStyle timing issues.
+// The canvas background is transparent on purpose: the container paints it
+// through --term-bg-rgb / --term-alpha so the wallpaper can read through.
 const TERMINAL_THEMES: Record<string, Record<string, string>> = {
   "deep-blue": {
-    background: "#000000",
-    foreground: "#e4e4e4",
-    cursor: "#e4e4e4",
-    cursorAccent: "#000000",
+    background: "rgba(0,0,0,0)",
+    foreground: "#d4d4d4",
+    cursor: "#d4d4d4",
+    cursorAccent: "#0e0f13",
     selectionBackground: "rgba(139,157,195,0.28)",
     selectionForeground: "#ffffff",
     black: "#000000",
@@ -33,10 +35,10 @@ const TERMINAL_THEMES: Record<string, Record<string, string>> = {
     brightWhite: "#ffffff",
   },
   "light": {
-    background: "#f8f9fb",
-    foreground: "#1a1d23",
-    cursor: "#1a1d23",
-    cursorAccent: "#f8f9fb",
+    background: "rgba(0,0,0,0)",
+    foreground: "#2d2d2f",
+    cursor: "#2d2d2f",
+    cursorAccent: "#fafafa",
     selectionBackground: "rgba(59,130,246,0.22)",
     selectionForeground: "#ffffff",
     black: "#f8f9fb",
@@ -55,30 +57,6 @@ const TERMINAL_THEMES: Record<string, Record<string, string>> = {
     brightMagenta: "#d8b4fe",
     brightCyan: "#67e8f9",
     brightWhite: "#374151",
-  },
-  "tabby": {
-    background: "#13171d",
-    foreground: "#e2e6ed",
-    cursor: "#e2e6ed",
-    cursorAccent: "#13171d",
-    selectionBackground: "rgba(123,104,238,0.28)",
-    selectionForeground: "#ffffff",
-    black: "#13171d",
-    red: "#f06278",
-    green: "#50d890",
-    yellow: "#f0c060",
-    blue: "#7b68ee",
-    magenta: "#c084fc",
-    cyan: "#22d3ee",
-    white: "#e2e6ed",
-    brightBlack: "#4a5568",
-    brightRed: "#fca5a5",
-    brightGreen: "#86efac",
-    brightYellow: "#fde68a",
-    brightBlue: "#9b8cf0",
-    brightMagenta: "#d8b4fe",
-    brightCyan: "#67e8f9",
-    brightWhite: "#ffffff",
   },
 };
 
@@ -217,6 +195,7 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
     const term = new Terminal({
         scrollback: 25000,
       theme: getTerminalTheme(theme),
+      allowTransparency: true,
       fontFamily: fontFamily || "'Meatshell Mono', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace",
       fontSize,
       lineHeight: 1.2,
@@ -551,7 +530,7 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
     <div className="absolute inset-0">
       <div
         ref={containerCallback}
-        className="absolute inset-0"
+        className="absolute inset-0 term-canvas"
       />
 
       {/* ── Search bar ───────────────────────────────────────────────── */}

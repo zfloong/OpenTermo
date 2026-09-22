@@ -38,7 +38,7 @@ function MenuItem({ item, onClose, depth = 0 }: { item: ContextMenuItem; onClose
       <button
         onClick={handleClick}
         disabled={item.disabled}
-        className={`dropdown-item w-full justify-between ${item.danger ? "text-[var(--color-danger)] hover:bg-[rgba(217,83,79,0.08)]" : ""}`}
+        className={`dropdown-item w-full justify-between ${item.danger ? "text-[var(--color-danger)] hover:bg-danger/10" : ""}`}
       >
         <span className="flex items-center gap-2">
           {item.icon && <span className="w-4 flex-shrink-0">{item.icon}</span>}

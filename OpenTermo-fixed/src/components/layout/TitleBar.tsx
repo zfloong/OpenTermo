@@ -1,44 +1,39 @@
 ﻿import { useCallback, useState, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Minus, Square, X, Cable, HardDrive, HardDriveUpload, Settings } from "lucide-react";
+import { Minus, Square, X, HardDrive, HardDriveUpload, Settings, Loader2 } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { rclone_mount, rclone_unmount, rclone_list } from "@/lib/tauriCommands";
 import { useUIStore } from "@/stores/uiStore";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { applyTheme } from "@/lib/themeUtils";
 
 interface TitleBarProps {
-  onConnect: () => void;
   onSettings: () => void;
 }
 
-export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
+export default function TitleBar({ onSettings }: TitleBarProps) {
   const tabs = useSessionStore((s) => s.tabs);
   const activeTabId = useSessionStore((s) => s.activeTabId);
   const setActiveTab = useSessionStore((s) => s.setActiveTab);
   const disconnect = useSessionStore((s) => s.disconnect);
   const setError = useSessionStore((s) => s.setError);
   const clearError = useSessionStore((s) => s.clearError);
+  const setInfo = useSessionStore((s) => s.setInfo);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
-  const glassAlpha = useSettingsStore((s) => s.glassAlpha);
-  const borderAlpha = useSettingsStore((s) => s.borderAlpha);
 
-  const cycleTheme = useCallback(() => {
-    const order: Array<"deep-blue" | "light" | "tabby"> = ["deep-blue", "light", "tabby"];
-    const idx = order.indexOf(theme);
-    const next = order[(idx + 1) % order.length];
-    setTheme(next);
-    document.documentElement.setAttribute("data-theme", next);
-    applyTheme(next, glassAlpha, borderAlpha);
-  }, [theme, setTheme, glassAlpha, borderAlpha]);
+  const toggleTheme = useCallback(() => {
+    setTheme(theme === "light" ? "deep-blue" : "light");
+  }, [theme, setTheme]);
 
   const themeIcon = theme === "light"
     ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
     : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>;
   // tabId -> drive letter (e.g. "M:")
   const [mounts, setMounts] = useState<Record<string, string>>({});
+  // Mount/unmount takes 2-3s; without this the button looks inert and a second
+  // click only earns an "Already mounted" error.
+  const [busy, setBusy] = useState<null | "mount" | "unmount">(null);
 
   // Poll mounts from backend
   const refreshMounts = useCallback(async () => {
@@ -66,28 +61,35 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
   const currentDrive = activeTabId ? mounts[activeTabId] : null;
 
   const handleMount = useCallback(async () => {
-    if (!activeTabId) return;
+    if (!activeTabId || busy) return;
     clearError();
+    setBusy("mount");
     try {
-      await rclone_mount(activeTabId);
+      const res = await rclone_mount(activeTabId);
+      setInfo(`已挂载到 ${res.split(" -> ")[0]}`);
     } catch (e: any) {
       setError("[SSHFS 挂载] " + (e?.toString?.() || String(e)));
     } finally {
+      setBusy(null);
       refreshMounts();
     }
-  }, [activeTabId, clearError, setError, refreshMounts]);
+  }, [activeTabId, busy, clearError, setError, setInfo, refreshMounts]);
 
   const handleUnmount = useCallback(async () => {
-    if (!activeTabId) return;
+    if (!activeTabId || busy) return;
+    const drive = currentDrive;
     clearError();
+    setBusy("unmount");
     try {
       await rclone_unmount(activeTabId);
+      setInfo(`已卸载 ${drive}`);
     } catch (e: any) {
       setError("[SSHFS 卸载] " + (e?.toString?.() || String(e)));
     } finally {
+      setBusy(null);
       refreshMounts();
     }
-  }, [activeTabId, clearError, setError, refreshMounts]);
+  }, [activeTabId, busy, currentDrive, clearError, setError, setInfo, refreshMounts]);
 
   return (
     <header
@@ -125,20 +127,22 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
               onMouseDown={(e) => e.stopPropagation()}
               className={`no-drag group relative flex items-center gap-1.5 h-8 px-3 text-xs cursor-pointer rounded-md transition-all duration-200 ${
                 tab.status === "connecting"
-                  ? "bg-[var(--color-warning)]/8 border border-[var(--color-warning)]/30 text-[var(--color-warning)]"
+                  ? "bg-warning/[0.08] border border-warning/30 text-warning"
                   : isActive
-                    ? "bg-[var(--surface-selected)] border border-[var(--color-success)] text-[var(--color-success)] font-semibold shadow-[0_0_6px_var(--color-success)]/20"
-                    : "border border-[var(--accent-border)]/40 bg-[var(--accent-dim)]/40 text-[var(--accent)]"
+                    ? "bg-[var(--tab-active-bg)] border border-[var(--tab-active-border)] text-[var(--text-primary)] font-semibold"
+                    : "border border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
               }`}
             >
               {/* Status dot */}
-              {tab.status === "connecting" ? (
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-warning)] flex-shrink-0 shadow-[0_0_6px_var(--color-warning)] animate-pulse" />
-              ) : isActive ? (
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] flex-shrink-0 shadow-[0_0_6px_var(--color-success)]" />
-              ) : (
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] flex-shrink-0 shadow-[0_0_4px_var(--accent)]" />
-              )}
+              <span
+                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                  tab.status === "connecting"
+                    ? "bg-[var(--color-warning)] shadow-[0_0_6px_var(--color-warning)] animate-pulse"
+                    : tab.status === "connected"
+                      ? "bg-[var(--color-success)] shadow-[0_0_6px_var(--color-success)]"
+                      : "bg-[var(--color-danger)]"
+                }`}
+              />
               <span className="truncate max-w-[130px]">
                 {tab.session.name || tab.session.host}
               </span>
@@ -150,7 +154,7 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
                   disconnect(tab.id);
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
-                className={`shrink-0 w-4 h-4 flex items-center justify-center rounded-full transition-all hover:!opacity-100 hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/15 ${
+                className={`shrink-0 w-4 h-4 flex items-center justify-center rounded-full transition-all hover:!opacity-100 hover:text-[var(--color-danger)] hover:bg-danger/15 ${
                   isActive
                     ? "opacity-40 hover:opacity-100"
                     : "opacity-0 group-hover:opacity-50"
@@ -161,16 +165,6 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
             </div>
           );
         })}
-
-        {/* Connect button — green pill style */}
-        <button
-          onClick={onConnect}
-          onMouseDown={(e) => e.stopPropagation()}
-          className="no-drag flex items-center gap-1.5 px-3 h-8 text-sm text-[var(--text-muted)] bg-[var(--color-success)]/8 hover:text-[var(--color-success)] hover:bg-[var(--color-success)]/18 rounded-md transition-all duration-150 active:scale-95 ml-0.5 flex-shrink-0"
-        >
-          <Cable size={17} />
-          <span className="hidden sm:inline font-semibold">连接</span>
-        </button>
       </div>
 
       {/* SSHFS mount button — per session */}
@@ -179,21 +173,23 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
           {currentDrive ? (
             <button
               onClick={handleUnmount}
+              disabled={busy !== null}
               onMouseDown={(e) => e.stopPropagation()}
-              className="flex items-center gap-1.5 px-2.5 h-8 text-xs text-[var(--color-success)] hover:bg-[var(--color-success)]/10 rounded-md transition-all"
+              className={"flex items-center gap-1.5 px-2.5 h-8 text-xs rounded-md transition-all disabled:cursor-default " + (busy === "unmount" ? "text-[var(--color-warning)]" : "text-[var(--accent)] hover:bg-[var(--accent-dim)]")}
             >
-              <HardDriveUpload size={14} />
-              <span className="hidden sm:inline">卸载 {currentDrive}</span>
-              <span className="sm:hidden">{currentDrive}</span>
+              {busy === "unmount" ? <Loader2 size={14} className="animate-spin" /> : <HardDriveUpload size={14} />}
+              <span className="hidden sm:inline">{busy === "unmount" ? "卸载中…" : `卸载 ${currentDrive}`}</span>
+              {busy !== "unmount" && <span className="sm:hidden">{currentDrive}</span>}
             </button>
           ) : (
             <button
               onClick={handleMount}
+              disabled={busy !== null}
               onMouseDown={(e) => e.stopPropagation()}
-              className="flex items-center gap-1.5 px-2.5 h-8 text-xs text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-dim)] rounded-md transition-all"
+              className={"flex items-center gap-1.5 px-2.5 h-8 text-xs rounded-md transition-all disabled:cursor-default " + (busy === "mount" ? "text-[var(--color-warning)]" : "text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-dim)]")}
             >
-              <HardDrive size={14} />
-              <span className="hidden sm:inline">挂载</span>
+              {busy === "mount" ? <Loader2 size={14} className="animate-spin" /> : <HardDrive size={14} />}
+              <span className="hidden sm:inline">{busy === "mount" ? "挂载中…" : "挂载"}</span>
             </button>
           )}
         </div>
@@ -209,11 +205,11 @@ export default function TitleBar({ onConnect, onSettings }: TitleBarProps) {
         <Settings size={15} />
       </button>
 
-          {/* Theme cycle */}
+          {/* Theme toggle */}
           <button
-            onClick={cycleTheme}
+            onClick={toggleTheme}
             className="no-drag flex items-center justify-center w-9 h-8 rounded-md text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-dim)] transition-colors flex-shrink-0"
-            title={theme === "light" ? "切换到默认" : theme === "tabby" ? "切换到白天" : "切换到Tabby"}
+            title={theme === "light" ? "切换到夜间" : "切换到白天"}
           >
             {themeIcon}
           </button>
