@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 
 /**
  * Central UI state store.
@@ -13,7 +13,7 @@ interface UIState {
   savedSidebarWidth: number;
   setSidebarWidth: (width: number) => void;
 
-  /** Session launcher overlay (opened from the title-bar `+` / Ctrl+T). */
+  /** Session launcher overlay (opened from the title-bar `+` / Ctrl+Shift+T). */
   isLauncherOpen: boolean;
   openLauncher: () => void;
   closeLauncher: () => void;

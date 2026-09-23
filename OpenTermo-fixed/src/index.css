@@ -87,15 +87,39 @@ body::before {
 @keyframes fadeIn { from{opacity:0} to{opacity:1} }
 
 /* Utility classes */
+/* 磨砂面板的分界线不用 1px 实线：实线在 1x DPI 上永远是「刀片」，而且它正好
+   压在 backdrop-blur 的边界上。改成两端渐隐的羽化边，观感从「画了一条线」变成
+   「玻璃边缘的一道光」。 */
 .sidebar-glass {
+  position:relative;
   background:var(--bg-glass);
   backdrop-filter:blur(var(--glass-blur,18px));
   -webkit-backdrop-filter:blur(var(--glass-blur,18px));
-  border-right:1px solid var(--border-strong);
+  /* 外阴影交代面板体积，让边界靠光晕而不是靠线来读 */
+  box-shadow:0 0 28px rgba(0,0,0,0.30);
 }
+.sidebar-glass::after {
+  content:""; position:absolute; top:0; bottom:0; right:0; width:1px;
+  background:var(--frame-border);
+  -webkit-mask-image:linear-gradient(to bottom, transparent 0%, #000 14%, #000 86%, transparent 100%);
+          mask-image:linear-gradient(to bottom, transparent 0%, #000 14%, #000 86%, transparent 100%);
+  pointer-events:none;
+}
+
+/* 贴边的横向分界（标题栏底 / 状态栏顶）：同样是两端渐隐 */
+.frame-edge-b, .frame-edge-t { position:relative; }
+.frame-edge-b::after, .frame-edge-t::after {
+  content:""; position:absolute; left:0; right:0; height:1px;
+  background:var(--frame-border);
+  -webkit-mask-image:linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%);
+          mask-image:linear-gradient(to right, transparent 0%, #000 12%, #000 88%, transparent 100%);
+  pointer-events:none;
+}
+.frame-edge-b::after { bottom:0; }
+.frame-edge-t::after { top:0; }
 .dialog-glass {
   background:var(--bg-elevated);
-  border:1px solid var(--border-default);
+  border:1px solid var(--frame-border);
   border-radius:var(--radius-lg);
   box-shadow:var(--shadow-xl);
   animation:dialogIn var(--duration-slow) var(--ease-out) both;
@@ -127,7 +151,7 @@ body::before {
 .status-dot.disconnected { background:var(--color-danger); color:var(--color-danger); }
 .dropdown-menu {
   background:var(--bg-elevated);
-  border:1px solid var(--border-default);
+  border:1px solid var(--frame-border);
   border-radius:var(--radius-md);
   box-shadow:var(--shadow-lg);
   padding:4px;

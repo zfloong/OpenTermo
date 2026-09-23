@@ -130,15 +130,59 @@ const ZMODEM_CANCEL: [u8; 16] = [
     0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
 ];
 
-/// Detect the start of a ZMODEM transfer (sz/rz) in a raw channel chunk.
+/// Detect the start of a **download** ZMODEM transfer (`sz`) in a raw channel
+/// chunk.
 ///
-/// Every ZMODEM frame begins with ZDLE (0x18) followed by a type byte; the
-/// `sz` handshake leads with a ZRQINIT hex header (`**\x18B00...`). Matching
-/// ZDLE followed by `B` (hex frame) or `C` (binary frame) reliably catches the
-/// handshake without false-positiving on a lone 0x18 (Ctrl-X) in normal output.
+/// A ZModem hex header is `ZDLE (0x18) 'B' <2 hex digits of the frame type>`; a
+/// download is offered with ZRQINIT (type 0), which is what `sz` sends on its
+/// handshake (`**\x18B00…`). Matching the full header — instead of the previous
+/// "0x18 followed by B or C" two-byte test — keeps ordinary output that happens
+/// to contain those bytes (progress-bar escapes, binary-ish text) from hijacking
+/// the session into the ZMODEM receiver, which would silently swallow the
+/// terminal stream until the transfer times out.
 fn contains_zmodem_init(data: &[u8]) -> bool {
-    data.windows(2)
-        .any(|w| w[0] == 0x18 && (w[1] == b'B' || w[1] == b'C'))
+    data.windows(4).any(|w| {
+        w[0] == 0x18
+            && w[1] == b'B'
+            && matches!(
+                (zmodem_hex_nibble(w[2]), zmodem_hex_nibble(w[3])),
+                (Some(high), Some(low)) if ((high << 4) | low) == 0
+            )
+    })
+}
+
+/// Decode one hex digit of a ZModem header, or `None` if it isn't one.
+fn zmodem_hex_nibble(value: u8) -> Option<u8> {
+    match value {
+        b'0'..=b'9' => Some(value - b'0'),
+        b'a'..=b'f' => Some(value - b'a' + 10),
+        b'A'..=b'F' => Some(value - b'A' + 10),
+        _ => None,
+    }
+}
+
+/// Append `data` to `pending` and decode every complete UTF-8 character.
+///
+/// An SSH channel delivers a byte stream, so a multibyte character (CJK, emoji)
+/// can straddle two `ChannelMsg::Data` packets. Decoding each packet on its own
+/// with `from_utf8_lossy` turns both halves into U+FFFD — the character is lost
+/// and an extra cell is drawn. Bytes that form an incomplete sequence at the end
+/// are kept in `pending` and prepended to the next packet instead.
+pub(crate) fn decode_utf8_chunk(pending: &mut Vec<u8>, data: &[u8]) -> String {
+    pending.extend_from_slice(data);
+    let keep = match std::str::from_utf8(pending) {
+        Ok(_) => 0,
+        // `error_len() == None` → the error is an incomplete sequence at the very
+        // end; hold those bytes (at most 3) back for the next packet.
+        Err(e) if e.error_len().is_none() => pending.len() - e.valid_up_to(),
+        // Anything else is genuinely invalid input; let from_utf8_lossy place the
+        // replacement characters.
+        Err(_) => 0,
+    };
+    let split = pending.len() - keep;
+    let text = String::from_utf8_lossy(&pending[..split]).into_owned();
+    pending.drain(..split);
+    text
 }
 
 /// Extract the remote path from an OSC 7 sequence embedded in `text`.
@@ -240,34 +284,30 @@ pub fn extract_osc_command(text: &str) -> Option<(String, std::ops::Range<usize>
 
 /// Percent-decode a URL path segment (e.g. `%20` → space).
 fn url_decode(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    let mut chars = s.chars();
-    while let Some(c) = chars.next() {
-        if c == '%' {
-            let h1 = chars.next();
-            let h2 = chars.next();
-            match (h1, h2) {
-                (Some(a), Some(b)) => {
-                    let hex = format!("{a}{b}");
-                    if let Ok(byte) = u8::from_str_radix(&hex, 16) {
-                        result.push(byte as char);
-                    } else {
-                        result.push('%');
-                        result.push(a);
-                        result.push(b);
-                    }
-                }
-                (Some(a), None) => {
-                    result.push('%');
-                    result.push(a);
-                }
-                _ => result.push('%'),
+    let bytes = s.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        // Percent-escapes carry the *bytes* of the path's UTF-8 encoding, so
+        // collect them as bytes and decode once at the end: pushing each byte as
+        // a `char` turned "%E4%B8%AD" into three Latin-1 characters instead of 中,
+        // so any non-ASCII directory appeared mangled in the file panel.
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && bytes[i + 1].is_ascii_hexdigit()
+            && bytes[i + 2].is_ascii_hexdigit()
+        {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or_default();
+            if let Ok(byte) = u8::from_str_radix(hex, 16) {
+                out.push(byte);
+                i += 3;
+                continue;
             }
-        } else {
-            result.push(c);
         }
+        out.push(bytes[i]);
+        i += 1;
     }
-    result
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Commands posted to the worker task by the UI.
@@ -672,6 +712,15 @@ async fn run_session(
     // Buffers output while `suppress_echo` so the (long) echoed setup line can be
     // stripped even when it splits across reads (#98).
     let mut echo_buf = String::new();
+    // How long to keep buffering when the injected setup line never reports back
+    // (a shell without PROMPT_COMMAND, a mangled echo, …). Without this the
+    // window only ends on the 16 KiB cap, so a shell that goes quiet shows
+    // nothing at all until it happens to print 16 KiB.
+    const ECHO_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+    // When the suppression window started, so ECHO_TIMEOUT can be applied.
+    let mut suppress_echo_at: Option<std::time::Instant> = None;
+    // Trailing bytes of an incomplete UTF-8 character, held until the next chunk.
+    let mut pending_utf8: Vec<u8> = Vec::new();
     // After a ZMODEM transfer finishes we briefly ignore ZMODEM detection so the
     // sender's lingering close frames can't spawn a spurious second receive (#76).
     let mut zmodem_done_at: Option<std::time::Instant> = None;
@@ -861,12 +910,13 @@ async fn run_session(
                             continue;
                         }
 
-                        let chunk = String::from_utf8_lossy(&data).into_owned();
+                        let chunk = decode_utf8_chunk(&mut pending_utf8, &data);
 
                         // Inject PROMPT_COMMAND after the first real shell output.
                         if !prompt_injected && !chunk.trim().is_empty() {
                             prompt_injected = true;
                             suppress_echo = true;
+                            suppress_echo_at = Some(std::time::Instant::now());
                             let _ = channel.data(prompt_setup.as_bytes()).await;
                             // Fall through: this chunk is buffered below so the
                             // echoed setup line is stripped as a single piece.
@@ -902,7 +952,10 @@ async fn run_session(
                                     buf[..cmd_pos].rfind('\n').map(|i| i + 1).unwrap_or(0);
                                 buf.replace_range(line_start..osc_end, "");
                                 buf
-                            } else if echo_buf.len() >= ECHO_BUF_CAP {
+                            } else if echo_buf.len() >= ECHO_BUF_CAP
+                                || suppress_echo_at
+                                    .is_some_and(|at| at.elapsed() >= ECHO_TIMEOUT)
+                            {
                                 suppress_echo = false;
                                 std::mem::take(&mut echo_buf)
                             } else {
@@ -932,7 +985,10 @@ async fn run_session(
                         let _ = events.send(SessionEvent::Output(text));
                     }
                     Some(ChannelMsg::ExtendedData { data, ext: _ }) => {
-                        let text = String::from_utf8_lossy(&data).into_owned();
+                        // Same decoder as stdout: the terminal interleaves both
+                        // streams, so a character split across the two would be
+                        // corrupted just like one split across two packets.
+                        let text = decode_utf8_chunk(&mut pending_utf8, &data);
                         let _ = events.send(SessionEvent::Output(text));
                     }
                     Some(ChannelMsg::ExitStatus { exit_status }) => {

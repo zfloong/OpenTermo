@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   type SessionConfig,
@@ -201,12 +201,21 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     for (const p of get().credentialPrompts.filter((p) => p.tab_id === tabId)) {
       void replyCredential(p.prompt_id, null, null, null).catch(() => {});
     }
-    set((s) => ({
-      tabs: s.tabs.filter((t) => t.id !== tabId),
-      activeTabId: s.activeTabId === tabId ? null : s.activeTabId,
-      hostKeyPrompts: s.hostKeyPrompts.filter((p) => p.tab_id !== tabId),
-      credentialPrompts: s.credentialPrompts.filter((p) => p.tab_id !== tabId),
-    }));
+    set((s) => {
+      const tabs = s.tabs.filter((t) => t.id !== tabId);
+      // 关掉当前标签时把焦点交给相邻标签（Linux 终端行为），而不是留下空白页
+      let activeTabId = s.activeTabId;
+      if (activeTabId === tabId) {
+        const idx = s.tabs.findIndex((t) => t.id === tabId);
+        activeTabId = tabs[Math.min(idx, tabs.length - 1)]?.id ?? null;
+      }
+      return {
+        tabs,
+        activeTabId,
+        hostKeyPrompts: s.hostKeyPrompts.filter((p) => p.tab_id !== tabId),
+        credentialPrompts: s.credentialPrompts.filter((p) => p.tab_id !== tabId),
+      };
+    });
   },
 
   async sendInput(tabId, data) {

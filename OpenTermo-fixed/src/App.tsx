@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback, useLayoutEffect } from "react";
+import { useEffect, useState, useCallback, useLayoutEffect } from "react";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { applyTheme, applyBackgroundImage, DEFAULT_BACKGROUND, effectivePreset } from "@/lib/themeUtils";
 import TitleBar from "@/components/layout/TitleBar";
@@ -50,11 +50,42 @@ export default function App() {
   const dismissHostKey = useSessionStore((s) => s.dismissHostKey);
   const dismissCredential = useSessionStore((s) => s.dismissCredential);
   const setupGlobal = useSessionStore((s) => s._setupGlobalListeners);
+  const setActiveTab = useSessionStore((s) => s.setActiveTab);
+  const disconnect = useSessionStore((s) => s.disconnect);
 
   useEffect(() => {
     loadSessions();
     setupGlobal();
   }, [loadSessions, setupGlobal]);
+
+  // ── 标签页快捷键（经典 Linux 终端约定）─────────────────────────────────
+  // 挂在 window 上而不是 xterm 的 key handler 里：切换/关闭标签页必须在任何
+  // 焦点状态下都生效，也不能被某一个终端实例吞掉。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.altKey || e.metaKey) return;
+
+      // Ctrl+Shift+W — 关闭当前标签页
+      if (e.shiftKey && (e.key === "w" || e.key === "W")) {
+        if (!activeTabId) return;
+        e.preventDefault();
+        void disconnect(activeTabId);
+        return;
+      }
+      if (e.shiftKey) return;
+
+      // Ctrl+PageUp / Ctrl+PageDown — 上一个 / 下一个标签页
+      if (e.key !== "PageUp" && e.key !== "PageDown") return;
+      if (tabs.length < 2) return;
+      const idx = tabs.findIndex((t) => t.id === activeTabId);
+      const delta = e.key === "PageDown" ? 1 : -1;
+      const base = idx < 0 ? (delta > 0 ? -1 : 0) : idx;
+      e.preventDefault();
+      setActiveTab(tabs[(base + delta + tabs.length) % tabs.length].id);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [tabs, activeTabId, setActiveTab, disconnect]);
 
   // Apply theme + overrides — JS is always the single source of truth.
   // Layout effect so the first paint already carries the theme tokens.
@@ -116,7 +147,7 @@ export default function App() {
                   新建会话
                 </button>
                 <span className="text-sm text-[var(--text-muted)] select-none">
-                  或按 <kbd className="px-1.5 py-0.5 text-[11px] bg-[var(--surface-hover)] rounded font-mono">Ctrl+T</kbd> 打开启动台，<kbd className="px-1.5 py-0.5 text-[11px] bg-[var(--surface-hover)] rounded font-mono">Ctrl+K</kbd> 搜索命令
+                  或按 <kbd className="px-1.5 py-0.5 text-[11px] bg-[var(--surface-hover)] rounded font-mono">Ctrl+Shift+T</kbd> 打开启动台，<kbd className="px-1.5 py-0.5 text-[11px] bg-[var(--surface-hover)] rounded font-mono">Ctrl+Shift+K</kbd> 搜索命令
                 </span>
               </div>
             )}

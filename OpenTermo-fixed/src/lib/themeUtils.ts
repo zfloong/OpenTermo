@@ -138,6 +138,13 @@ const rgba = (c: Rgb, a: number) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
+/**
+ * 非外框类边框（分隔线 / 控件边框 / 滚动条 / 滑轨）的固定强度 —— 取「边框柔和度」
+ * 滑块的下限，等于该设置的历史默认值：这些角色不随滑块变化，所以默认外观不变，
+ * 而滑块只作用在 `--frame-border` 上。滑块的最小值必须与此保持一致。
+ */
+const BASE_BORDER_ALPHA = 0.15;
+
 export interface ThemeOptions {
   theme: ThemeId;
   /** 自定义档的基底与强调色；其余主题忽略 */
@@ -189,16 +196,34 @@ export function applyTheme({
   // ── Surfaces ─────────────────────────────────────────────────────────────
   r.setProperty("--surface-hover", p.light ? "rgba(0,0,0,0.045)" : "rgba(255,255,255,0.055)");
   r.setProperty("--surface-active", p.light ? "rgba(0,0,0,0.075)" : "rgba(255,255,255,0.09)");
+  // 列表行的「极淡背景板」：比 --bg-surface 轻得多，只够把一行从磨砂底上分出来。
+  // 层级靠这个 + 间距堆出来，而不是再套一层深色大背景。
+  r.setProperty("--surface-row", p.light ? "rgba(0,0,0,0.028)" : "rgba(255,255,255,0.035)");
   r.setProperty("--tab-active-bg", `rgb(${p.tabActiveBg.join(",")})`);
   r.setProperty("--tab-active-border", `rgb(${p.tabActiveBorder.join(",")})`);
 
   // ── Borders ──────────────────────────────────────────────────────────────
+  // Two independent groups, so one control can no longer move everything:
+  //   • `--frame-border` — 只有「窗口/浮层外框」这一个角色，是「边框柔和度」
+  //     滑块唯一驱动的东西：侧栏分界、标题栏、状态栏、对话框、弹出菜单、浮层。
+  //   • 其余 token（分隔线、控件边框、滚动条、滑块轨道）由主题固定，不再随滑块
+  //     变化 —— 否则把外框调明显会顺带把输入框、开关、滑轨一起加深。
+  //    • 外框线本身是「边缘光」而不是灰蓝实线：中亮灰蓝（borderBase）画成 1px
+  //      会读成一条数字感的硬线；换成低强度的中性色，暗色主题用白、亮色主题用
+  //      黑，才像玻璃的反光边。强度仍由「边框柔和度」滑块驱动。
   const ba = round2(borderAlpha);
-  r.setProperty("--border-subtle", rgba(p.borderBase, round2(ba * 0.66)));
-  r.setProperty("--border-default", rgba(p.borderBase, ba));
-  r.setProperty("--border-strong", rgba(p.borderBase, round2(Math.min(1, ba * 1.38))));
-  r.setProperty("--scrollbar-thumb", rgba(p.borderBase, round2(ba * 0.55)));
-  r.setProperty("--scrollbar-thumb-hover", rgba(p.borderBase, round2(ba * 0.9)));
+  const fixed = BASE_BORDER_ALPHA;
+  r.setProperty(
+    "--frame-border",
+    p.light ? rgba([0, 0, 0], round2(ba * 0.45)) : rgba([255, 255, 255], round2(ba * 0.55)),
+  );
+  r.setProperty("--border-subtle", rgba(p.borderBase, round2(fixed * 0.66)));
+  r.setProperty("--border-default", rgba(p.borderBase, fixed));
+  r.setProperty("--border-strong", rgba(p.borderBase, round2(Math.min(1, fixed * 1.38))));
+  r.setProperty("--scrollbar-thumb", rgba(p.borderBase, round2(fixed * 0.55)));
+  r.setProperty("--scrollbar-thumb-hover", rgba(p.borderBase, round2(fixed * 0.9)));
+  // Fills that merely borrowed a border token (slider track, toggle off-state).
+  r.setProperty("--track-bg", rgba(p.borderBase, round2(fixed * 1.38)));
 
   // ── Text ─────────────────────────────────────────────────────────────────
   r.setProperty("--text-primary", p.textPrimary);

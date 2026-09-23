@@ -146,6 +146,8 @@ async fn run_telnet(
 
     let mut state = TnState::Data;
     let mut buf = [0u8; 4096];
+    // Bytes of a UTF-8 character split across two reads, held for the next one.
+    let mut pending_utf8: Vec<u8> = Vec::new();
 
     loop {
         tokio::select! {
@@ -186,7 +188,7 @@ async fn run_telnet(
                             let _ = wr.flush().await;
                         }
                         if !data.is_empty() {
-                            let text = String::from_utf8_lossy(&data).into_owned();
+                            let text = crate::ssh::decode_utf8_chunk(&mut pending_utf8, &data);
                             let _ = events.send(SessionEvent::Output(text));
                         }
                     }

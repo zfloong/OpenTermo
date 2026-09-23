@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { Search, CornerDownLeft } from "lucide-react";
 import { useCommandStore } from "@/stores/commandStore";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -42,7 +42,9 @@ export default function CommandPalette() {
   // Global keyboard listener
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      // Ctrl+Shift+K — needs Shift because plain Ctrl+K is readline's
+      // kill-to-end-of-line and must stay with the shell.
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === "k" || e.key === "K")) {
         e.preventDefault();
         setOpen((prev) => {
           if (!prev) {
@@ -61,7 +63,7 @@ export default function CommandPalette() {
     (entry: CommandEntry) => {
       if (!activeTabId) return;
       const resolved = resolveCommandTemplate(entry.command, activeTab?.session);
-      sendInput(activeTabId, resolved + "\n");
+      sendInput(activeTabId, resolved + "\r");
       triggerScroll(activeTabId);
       setOpen(false);
       setTimeout(() => {
@@ -97,7 +99,7 @@ export default function CommandPalette() {
       />
 
       {/* Panel */}
-      <div className="relative w-full max-w-xl bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl shadow-2xl overflow-hidden animate-scale-in">
+      <div className="relative w-full max-w-xl bg-[var(--bg-elevated)] border border-[var(--frame-border)] rounded-xl shadow-2xl overflow-hidden animate-scale-in">
         {/* Search input */}
         <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[var(--border-subtle)]">
           <Search size={16} className="text-[var(--text-muted)] shrink-0" />

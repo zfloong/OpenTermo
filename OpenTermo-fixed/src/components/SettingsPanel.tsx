@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Settings, Palette, Info, RotateCcw, ExternalLink, Terminal, Image as ImageIcon, Trash2, Droplet } from "lucide-react";
 import { useSettingsStore, THEME_ORDER, THEME_LABELS, type ThemeId, type PresetThemeId } from "@/stores/settingsStore";
 import { applyBackgroundImage, DEFAULT_BACKGROUND, THEME_SWATCH, THEME_ACCENT_HEX } from "@/lib/themeUtils";
@@ -70,7 +70,7 @@ function rangeSlider(
         min={min} max={max} step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-[var(--border-strong)]
+        className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-[var(--track-bg)]
           [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
           [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--accent)]
           [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md
@@ -296,9 +296,15 @@ export default function SettingsPanel({ open, onClose }: Props) {
                     setGlassAlpha(v / 100);
                   }, (v) => `${v}%`)}
                   {rangeSlider("磨砂强度", 0, 40, 1, blurStrength, setBlurStrength, (v) => (v === 0 ? "关闭" : `${v}px`))}
+                  {/* 15 = themeUtils.BASE_BORDER_ALPHA：滑块只驱动 --frame-border，
+                      下限必须是其它边框角色的固定值，否则默认外观会漂移 */}
                   {rangeSlider("边框柔和度", 15, 75, 1, Math.round(borderAlpha * 100), (v) => {
                     setBorderAlpha(v / 100);
                   }, (v) => `${v}%`)}
+                  <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                    只作用于窗口外框：侧栏分界、标题栏、状态栏、对话框与弹出菜单。
+                    分隔线、输入框、滚动条与滑轨由主题固定，不受这里影响。
+                  </p>
                 </section>
 
                 <hr className="border-0 h-px bg-[var(--border-subtle)]" />
@@ -387,7 +393,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
                   <label className="flex items-center justify-between py-1">
                     <span className="text-xs text-[var(--text-secondary)]">闪烁</span>
                     <button onClick={() => setCursorBlink(!cursorBlink)}
-                      className={`relative w-10 h-5 rounded-full transition-colors ${cursorBlink ? "bg-[var(--accent)]" : "bg-[var(--border-strong)]"}`}>
+                      className={`relative w-10 h-5 rounded-full transition-colors ${cursorBlink ? "bg-[var(--accent)]" : "bg-[var(--track-bg)]"}`}>
                       <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${cursorBlink ? "translate-x-5" : "translate-x-0"}`} />
                     </button>
                   </label>

@@ -1,6 +1,6 @@
-﻿import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Minus, Square, X, HardDrive, HardDriveUpload, Settings, Loader2, Palette, Plus } from "lucide-react";
+import { Minus, Square, X, HardDrive, HardDriveUpload, Settings, Loader2, Palette, Plus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { rclone_mount, rclone_unmount, rclone_list } from "@/lib/tauriCommands";
 import { useUIStore } from "@/stores/uiStore";
@@ -19,6 +19,7 @@ export default function TitleBar({ onSettings }: TitleBarProps) {
   const clearError = useSessionStore((s) => s.clearError);
   const setInfo = useSessionStore((s) => s.setInfo);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const isSidebarOpen = useUIStore((s) => s.isSidebarOpen);
   const openLauncher = useUIStore((s) => s.openLauncher);
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
@@ -98,10 +99,10 @@ export default function TitleBar({ onSettings }: TitleBarProps) {
   return (
     <header
       data-tauri-drag-region
-      className="flex h-11 items-center bg-[var(--bg-glass)] backdrop-blur-[var(--glass-blur,18px)] border-b border-[var(--border-subtle)] select-none flex-shrink-0"
+      className="flex h-11 items-center bg-[var(--bg-glass)] backdrop-blur-[var(--glass-blur,18px)] frame-edge-b select-none flex-shrink-0"
     >
       {/* Logo + app name */}
-      <div onClick={toggleSidebar} className="flex items-center gap-2.5 pl-4 pr-3 flex-shrink-0 no-drag cursor-pointer">
+      <div className="flex items-center gap-2.5 pl-4 pr-2 flex-shrink-0 no-drag">
         <svg viewBox="0 0 64 64" className="w-7 h-7 rounded-lg flex-shrink-0" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <linearGradient id="logo-bg" x1="0" y1="0" x2="1" y2="1">
@@ -120,6 +121,18 @@ export default function TitleBar({ onSettings }: TitleBarProps) {
         </span>
       </div>
 
+      {/* 侧栏开关：原来挂在 Logo 上，既没有可点击的暗示，收起后也只能靠猜。
+          现在给它一个独立按钮，图标随开合两态变化。 */}
+      <button
+        onClick={toggleSidebar}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="no-drag flex items-center justify-center w-9 h-8 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors flex-shrink-0"
+        title={isSidebarOpen ? "收起侧栏" : "展开侧栏"}
+        aria-label={isSidebarOpen ? "收起侧栏" : "展开侧栏"}
+      >
+        {isSidebarOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
+      </button>
+
       {/* Tabs — pill style */}
       <div className="flex items-center flex-1 overflow-hidden h-full gap-1.5 px-1">
         {tabs.map((tab) => {
@@ -128,7 +141,18 @@ export default function TitleBar({ onSettings }: TitleBarProps) {
             <div
               key={tab.id}
               onClick={(e) => { e.stopPropagation(); setActiveTab(tab.id); }}
-              onMouseDown={(e) => e.stopPropagation()}
+              // X11 约定：中键点标签页 = 关闭它
+              onAuxClick={(e) => {
+                if (e.button !== 1) return;
+                e.stopPropagation();
+                disconnect(tab.id);
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                // 中键在 WebView 里会触发自动滚动，压掉它
+                if (e.button === 1) e.preventDefault();
+              }}
+              title={`${tab.session.name || tab.session.host}（中键关闭）`}
               className={`no-drag group relative flex items-center gap-1.5 h-8 px-3 text-xs cursor-pointer rounded-md transition-all duration-200 ${
                 tab.status === "connecting"
                   ? "bg-warning/[0.08] border border-warning/30 text-warning"
@@ -174,7 +198,7 @@ export default function TitleBar({ onSettings }: TitleBarProps) {
         <button
           onClick={openLauncher}
           onMouseDown={(e) => e.stopPropagation()}
-          title="新建会话 (Ctrl+T)"
+          title="新建会话 (Ctrl+Shift+T)"
           aria-label="新建会话"
           className="no-drag shrink-0 flex items-center justify-center w-8 h-8 rounded-md text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-dim)] transition-colors"
         >

@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 import {
   type CommandEntry,
   listCommands,
@@ -184,13 +184,25 @@ export const useCommandStore = create<CommandState>((set, get) => ({
     let skipped = 0;
     const importedCats: string[] = [];
 
+    // 导出文件不带 id（导入时重新生成），所以「同一份文件导入两次」不会被 id
+    // 拦住 —— 必须在导入时按 label+command+category 去重，否则库会静默翻倍。
+    const seen = new Set(
+      get().entries.map((e) => `${e.label}\u0000${e.command}\u0000${e.category}`),
+    );
+
     for (const item of parsedCommands) {
-      if (!item.command) { skipped++; continue; }
+      // command 必须是非空字符串：数字/对象/空白都算无效数据，直接跳过
+      if (typeof item.command !== "string" || !item.command.trim()) { skipped++; continue; }
+      const label = typeof item.label === "string" && item.label.trim() ? item.label : item.command;
+      const category = typeof item.category === "string" ? item.category : "";
+      const key = `${label}\u0000${item.command}\u0000${category}`;
+      if (seen.has(key)) { skipped++; continue; }
+      seen.add(key);
       const entry: CommandEntry = {
         id: crypto.randomUUID(),
-        label: item.label || item.command,
+        label,
         command: item.command,
-        category: item.category || "",
+        category,
         pinned: item.pinned ?? false,
         last_used: item.last_used || null,
         icon: item.icon || null,

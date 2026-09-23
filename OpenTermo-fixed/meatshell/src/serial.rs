@@ -146,11 +146,13 @@ async fn run_serial(
     let reader_handle = std::thread::spawn(move || {
         let mut port = port;
         let mut buf = [0u8; 4096];
+        // Bytes of a UTF-8 character split across two reads, held for the next one.
+        let mut pending_utf8: Vec<u8> = Vec::new();
         while reader_running.load(Ordering::Relaxed) {
             match port.read(&mut buf) {
                 Ok(0) => {}
                 Ok(n) => {
-                    let text = String::from_utf8_lossy(&buf[..n]).into_owned();
+                    let text = crate::ssh::decode_utf8_chunk(&mut pending_utf8, &buf[..n]);
                     if reader_events.send(SessionEvent::Output(text)).is_err() {
                         break;
                     }

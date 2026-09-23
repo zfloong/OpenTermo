@@ -25,15 +25,9 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar-glass flex flex-col flex-shrink-0 overflow-hidden relative" style={{ width: sidebarWidth }}>
-      {/* 只有一条极简标题栏，窗口拖拽区仍然连得上 */}
-      <div
-        className="flex items-center px-3 h-8 flex-shrink-0 select-none border-b border-[var(--border-strong)]"
-        data-tauri-drag-region
-      >
-        <span className="text-xs font-semibold text-[var(--text-muted)] tracking-wide">命令</span>
-      </div>
-
-      <div className="flex-1 min-h-0 flex flex-col px-2 py-1.5">
+      {/* 标题「命令」已下沉到 CommandPanel 的面板头，这里不再单独占一行。
+          窗口拖拽由上方通栏的 TitleBar 负责，不需要在侧栏里保留拖拽区。 */}
+      <div className="flex-1 min-h-0 flex flex-col">
         <CommandPanel />
       </div>
 

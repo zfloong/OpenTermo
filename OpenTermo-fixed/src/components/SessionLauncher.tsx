@@ -82,7 +82,7 @@ const sortByName = (a: SessionConfig, b: SessionConfig) =>
   (a.name || a.host).localeCompare(b.name || b.host, "en");
 
 /**
- * Session launcher overlay (title-bar `+` / Ctrl+T).
+ * Session launcher overlay (title-bar `+` / Ctrl+Shift+T).
  *
  * Sits at z-40 — below the dialog layer (z-50) so confirm/edit dialogs raised
  * from here render on top, and above the app content.
@@ -125,10 +125,12 @@ export default function SessionLauncher() {
     focusTerminal();
   }, [closeLauncher, focusTerminal]);
 
-  // Ctrl+T — 全局开合
+  // Ctrl+Shift+T — 全局开合。必须带 Shift：裸 Ctrl+T 是 readline 的
+  // transpose-chars，被应用抢走会让终端行为不像终端（Windows Terminal
+  // 同样把 Ctrl+Shift+T 留给「新建标签页」）。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === "t" || e.key === "T")) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key === "t" || e.key === "T")) {
         e.preventDefault();
         if (useUIStore.getState().isLauncherOpen) closeLauncher();
         else openLauncher();
@@ -439,7 +441,7 @@ export default function SessionLauncher() {
       <div
         role="dialog"
         aria-label="会话启动台"
-        className="relative flex flex-col w-full max-w-4xl max-h-[72vh] bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl shadow-2xl overflow-hidden animate-scale-in"
+        className="relative flex flex-col w-full max-w-4xl max-h-[72vh] bg-[var(--bg-elevated)] border border-[var(--frame-border)] rounded-xl shadow-2xl overflow-hidden animate-scale-in"
       >
         {/* Search + 新建连接 */}
         <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[var(--border-subtle)] flex-shrink-0">

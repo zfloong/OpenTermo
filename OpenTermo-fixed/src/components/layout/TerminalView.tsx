@@ -1,10 +1,11 @@
-﻿import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import { SearchAddon } from "xterm-addon-search";
 import "xterm/css/xterm.css";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore, type PresetThemeId, type ThemeId } from "@/stores/settingsStore";
+import { useUIStore } from "@/stores/uiStore";
 import { effectivePreset } from "@/lib/themeUtils";
 
 // Terminal themes keyed by preset ThemeId — avoids getComputedStyle timing issues.
@@ -68,6 +69,9 @@ function getTerminalTheme(theme: ThemeId, customBase: PresetThemeId) {
 /** Duration (ms) of the green selection flash after copy. */
 const COPY_FLASH_MS = 200;
 
+/** Default font size, kept in step with settingsStore's loadNum() default. */
+const DEFAULT_FONT_SIZE = 14;
+
 const SEARCH_HISTORY_KEY = "opentermo-search-history";
 const MAX_HISTORY = 20;
 
@@ -81,8 +85,11 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const sendInput = useSessionStore((s) => s.sendInput);
   const onResize = useSessionStore((s) => s.resize);
+  const disconnect = useSessionStore((s) => s.disconnect);
+  const setFontSize = useSettingsStore((s) => s.setFontSize);
   const theme = useSettingsStore((s) => s.theme);
   const customBase = useSettingsStore((s) => s.customBase);
+  const tabStatus = useSessionStore((s) => s.tabs.find((t) => t.id === tabId)?.status);
   const fontSize = useSettingsStore((s) => s.fontSize);
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const cursorStyle = useSettingsStore((s) => s.cursorStyle);
@@ -220,15 +227,16 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
     });
     fitAddon.fit();
 
-    // Block double-click entirely — WebView2 generates fake Ctrl+C when it
-    // detects selection after a double-click. By preventing xterm from handling
-    // dblclick (capture phase), no word selection = no fake Ctrl+C.
-    const blockDblClick = (e: MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-    };
-    container.addEventListener('dblclick', blockDblClick, true);
+    // Report every grid change to the backend. `fit()` runs from several places
+    // (initial layout, font load, settings changes, container resize) and each
+    // one can change cols/rows. The remote PTY must track the *same* grid: if it
+    // keeps wrapping at an older width while we render a wider one, readline's
+    // cursor maths drift from the rendered cells, long lines land on the wrong
+    // column and the prompt looks frozen until a history recall redraws it.
+    const resizeSub = term.onResize(({ cols, rows }) => {
+      if (cols > 0 && rows > 0) onResize(tabId, cols, rows);
+    });
+
     document.fonts?.ready?.then(() => { try { fitAddon.fit(); } catch {} });
 
 
@@ -242,11 +250,13 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
       sendInput(tabId, data);
     });
 
-    // ── Custom key handler: Ctrl+F / Esc ──────────────────────────────
+    // ── Custom key handler (Linux terminal conventions) ───────────────
     term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
       if (e.type !== "keydown") return true;
 
-      if (e.ctrlKey && e.key === "f") {
+      // Ctrl+Shift+F — search lives on Shift because plain Ctrl+F is readline's
+      // forward-char, which the terminal must not take away from the shell.
+      if (e.ctrlKey && e.shiftKey && (e.key === "f" || e.key === "F")) {
         e.preventDefault();
         if (searchOpenRef.current) {
           // Already open — just focus & select all
@@ -264,31 +274,80 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
         return false;
       }
 
-      if (e.ctrlKey && e.shiftKey && (e.key === "c" || e.key === "C")) {
-        const sel = term.getSelection();
-        if (sel) {
-          navigator.clipboard.writeText(sel).catch(() => {});
-        }
+      // Ctrl+Shift+C / Ctrl+Insert: copy. Always swallowed, so the key never
+      // reaches the shell (Ctrl+C stays reserved for the interrupt signal).
+      if (
+        (e.ctrlKey && e.shiftKey && (e.key === "c" || e.key === "C")) ||
+        (e.ctrlKey && e.key === "Insert")
+      ) {
+        e.preventDefault();
+        copySelection();
         return false;
       }
 
+      // Ctrl+Shift+V / Shift+Insert: paste (only Shift keeps Ctrl+V free for
+      // readline's quoted-insert).
+      if (
+        (e.ctrlKey && e.shiftKey && (e.key === "v" || e.key === "V")) ||
+        (e.shiftKey && e.key === "Insert")
+      ) {
+        e.preventDefault();
+        pasteClipboard();
+        return false;
+      }
 
+      // Ctrl+plus / Ctrl+minus / Ctrl+0: font zoom, as in GNOME Terminal.
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "+" || e.key === "=")) {
+        e.preventDefault();
+        setFontSize((term.options.fontSize ?? DEFAULT_FONT_SIZE) + 1);
+        return false;
+      }
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && (e.key === "-" || e.key === "_")) {
+        e.preventDefault();
+        setFontSize((term.options.fontSize ?? DEFAULT_FONT_SIZE) - 1);
+        return false;
+      }
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === "0") {
+        e.preventDefault();
+        setFontSize(DEFAULT_FONT_SIZE);
+        return false;
+      }
 
+      // Ctrl+Shift+A: select the whole buffer, as in GNOME Terminal.
+      if (e.ctrlKey && e.shiftKey && (e.key === "a" || e.key === "A")) {
+        e.preventDefault();
+        term.selectAll();
+        return false;
+      }
 
+      // Ctrl+Shift+K / Ctrl+Shift+T belong to the app (palette / launcher), and so
+      // do Ctrl+PageUp/PageDown (tab switch) and Ctrl+Shift+W (close tab). Let
+      // xterm ignore them — but don't preventDefault, so the window-level
+      // listeners still see the key and the shell never gets a stray escape
+      // sequence (Ctrl+PageUp would otherwise forward ESC[5;5~ to the remote).
+      if (e.ctrlKey && e.shiftKey && ["k", "K", "t", "T", "w", "W"].includes(e.key)) {
+        return false;
+      }
+      if (e.ctrlKey && (e.key === "PageUp" || e.key === "PageDown")) {
+        return false;
+      }
 
+      // Ctrl+C is never intercepted: it must always reach the shell as SIGINT.
+      // Copying is Ctrl+Shift+C, and the right-click menu offers it too.
       return true;
     });
 
-    // ── Select-to-copy ────────────────────────────────────────────────
-    let mouseDown = false;
-
-    const flashCopy = () => {
+    // ── Copy / paste helpers ──────────────────────────────────────────
+    /** Copy the current selection (if any) and flash it green for feedback.
+     *  The selection is kept, as in every classic terminal — an explicit
+     *  click elsewhere is what clears it. */
+    const copySelection = () => {
       const sel = term.getSelection();
-      if (!sel) return;
+      if (!sel) return false;
 
       navigator.clipboard.writeText(sel).catch(() => {});
 
-      // Brief green flash to distinguish from normal blue selection
+      // Brief green flash to confirm the copy
       term.options.theme = {
         ...getTerminalTheme(themeRef.current, customBaseRef.current),
         selectionBackground: "rgba(34, 197, 94, 0.40)",
@@ -296,48 +355,117 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
       setTimeout(() => {
         term.options.theme = getTerminalTheme(themeRef.current, customBaseRef.current);
       }, COPY_FLASH_MS);
+      return true;
     };
 
-    const onMouseDown = (e: MouseEvent) => {
-      if (e.button === 0) mouseDown = true;
-    };
-    const onMouseUp = (e: MouseEvent) => {
-      if (e.button !== 0 || !mouseDown) return;
-      mouseDown = false;
-      flashCopy();
-    };
-    const onMouseLeave = () => {
-      if (mouseDown) {
-        mouseDown = false;
-        flashCopy();
-      }
+    // Paste through xterm (`term.paste`) rather than raw sendInput: only that
+    // path honours bracketed-paste mode, so a multi-line paste arrives as one
+    // block instead of executing line by line.
+    const pasteClipboard = () => {
+      navigator.clipboard.readText().then((t) => { if (t) term.paste(t); }).catch(() => {});
     };
 
-    container.addEventListener("mousedown", onMouseDown);
-    container.addEventListener("mouseup", onMouseUp);
-    container.addEventListener("mouseleave", onMouseLeave);
+    // ── Middle-click paste (X11/Ubuntu convention) ────────────────────
+    // Capture phase + stopPropagation so xterm cannot also act on the button.
+    const onMiddleDown = (e: MouseEvent) => {
+      if (e.button !== 1) return;
+      // A full-screen program that owns the mouse (vim, htop, mc) gets the
+      // click instead — xterm has already forwarded it in that case.
+      if (term.modes.mouseTrackingMode !== "none") return;
+      e.preventDefault();
+      e.stopPropagation();
+      pasteClipboard();
+    };
+    container.addEventListener("mousedown", onMiddleDown, true);
 
-      // Right-click context menu for copy/paste
+      // ── Right-click menu ─────────────────────────────────────────────
     container.addEventListener("contextmenu", (e: MouseEvent) => {
         e.preventDefault();
-        const sel = term.getSelection();
-        const hasSel = sel.length > 0;
+        const hasSel = term.getSelection().length > 0;
         const menu = document.createElement("div");
         menu.className = "dropdown-menu";
         menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;z-index:200`;
-        const addItem = (label: string, action: () => void) => {
+        const addItem = (
+          label: string,
+          shortcut: string | null,
+          action: () => void,
+          enabled = true,
+        ) => {
           const btn = document.createElement("button");
+          btn.type = "button";
           btn.className = "dropdown-item";
-          btn.textContent = label;
-          btn.onmousedown = (ev) => { ev.preventDefault(); ev.stopPropagation(); action(); menu.remove(); };
+          btn.style.display = "flex";
+          btn.style.alignItems = "center";
+          const text = document.createElement("span");
+          text.textContent = label;
+          btn.appendChild(text);
+          if (shortcut) {
+            const hint = document.createElement("span");
+            hint.textContent = shortcut;
+            hint.style.cssText = "margin-left:auto;padding-left:24px;font-size:11px;opacity:0.55";
+            btn.appendChild(hint);
+          }
+          if (!enabled) {
+            btn.disabled = true;
+            btn.style.opacity = "0.45";
+          }
+          btn.onmousedown = (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (!btn.disabled) action();
+            menu.remove();
+          };
           menu.appendChild(btn);
         };
-        addItem("复制", async () => { if (hasSel) await navigator.clipboard.writeText(sel); });
-        addItem("粘贴", () => { navigator.clipboard.readText().then((t) => { if (t) sendInput(tabId, t); }); });
-        if (hasSel) addItem("复制并粘贴", async () => { await navigator.clipboard.writeText(sel); navigator.clipboard.readText().then((t) => { if (t) sendInput(tabId, t); }); });
+        const separator = () => {
+          const hr = document.createElement("div");
+          hr.style.cssText = "height:1px;margin:4px 0;background:var(--border-subtle)";
+          menu.appendChild(hr);
+        };
+
+        addItem("复制", "Ctrl+Shift+C", () => { copySelection(); }, hasSel);
+        addItem("粘贴", "Ctrl+Shift+V", pasteClipboard);
+        addItem("全选", "Ctrl+Shift+A", () => term.selectAll());
+        addItem("查找…", "Ctrl+Shift+F", openSearch);
+        separator();
+        // Ctrl+L is sent to the shell rather than clearing our buffer locally:
+        // bash repaints the prompt afterwards, whereas a local-only clear would
+        // leave readline drawing on a screen it no longer owns (the same desync
+        // that garbles long lines).
+        addItem("清屏", "Ctrl+L", () => sendInput(tabId, "\x0c"));
+        separator();
+        addItem("放大字号", "Ctrl++", () =>
+          setFontSize((term.options.fontSize ?? DEFAULT_FONT_SIZE) + 1));
+        addItem("缩小字号", "Ctrl+-", () =>
+          setFontSize((term.options.fontSize ?? DEFAULT_FONT_SIZE) - 1));
+        addItem("重置字号", "Ctrl+0", () => setFontSize(DEFAULT_FONT_SIZE));
+        separator();
+        addItem("新建标签页", "Ctrl+Shift+T", () => useUIStore.getState().openLauncher());
+        addItem("关闭标签页", "Ctrl+Shift+W", () => { void disconnect(tabId); });
+
         document.body.appendChild(menu);
-        const close = () => { menu.remove(); document.removeEventListener("mousedown", close); };
-        setTimeout(() => document.addEventListener("mousedown", close), 0);
+        // Measured after mounting: getBoundingClientRect() is 0 until the node
+        // is in the document. Keep the menu inside the viewport so a right-click
+        // near the bottom-right corner doesn't clip it.
+        const box = menu.getBoundingClientRect();
+        const margin = 8;
+        menu.style.left = `${Math.max(margin, Math.min(e.clientX, window.innerWidth - box.width - margin))}px`;
+        menu.style.top = `${Math.max(margin, Math.min(e.clientY, window.innerHeight - box.height - margin))}px`;
+        const onMenuKey = (ev: KeyboardEvent) => {
+          if (ev.key === "Escape") {
+            ev.preventDefault();
+            close();
+          }
+        };
+        const close = () => {
+          menu.remove();
+          document.removeEventListener("mousedown", close);
+          document.removeEventListener("keydown", onMenuKey, true);
+        };
+        setTimeout(() => {
+          document.addEventListener("mousedown", close);
+          document.addEventListener("keydown", onMenuKey, true);
+        }, 0);
       });
 
     terminalRef.current = term;
@@ -353,17 +481,15 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
     window.addEventListener(`terminal-data:${tabId}`, onData);
 
     return () => {
-      container.removeEventListener("mousedown", onMouseDown);
-      container.removeEventListener("mouseup", onMouseUp);
-      container.removeEventListener("mouseleave", onMouseLeave);
-      container.removeEventListener("dblclick", blockDblClick, true);
+      container.removeEventListener("mousedown", onMiddleDown, true);
+      resizeSub.dispose();
       window.removeEventListener(`terminal-data:${tabId}`, onData);
       term.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [tabId, sendInput, openSearch, closeSearch]);
+  }, [tabId, sendInput, onResize, openSearch, closeSearch]);
 
   // ── Watch theme changes and update terminal colors ───────
   useEffect(() => {
@@ -386,6 +512,9 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
     const term = terminalRef.current;
     if (term) {
       term.options.fontFamily = fontFamily || "'Meatshell Mono', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace";
+      // The new font has different metrics — recompute the grid so cols/rows
+      // (and therefore the backend PTY size) match what is on screen.
+      try { fitAddonRef.current?.fit(); } catch {}
     }
   }, [fontFamily]);
 
@@ -432,32 +561,32 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
     const area = document.getElementById("terminal-area");
     if (!area) return;
     const ro = new ResizeObserver(() => {
-      const fitAddon = fitAddonRef.current;
-      const term = terminalRef.current;
-      if (!fitAddon || !term) return;
-      try { fitAddon.fit(); } catch {}
-      // Never send resize with 0 cols/rows — breaks SSH channel
-      if (term.cols > 0 && term.rows > 0) {
-        onResize(tabId, term.cols, term.rows);
-      }
+      // fit() notifies the backend through the term.onResize subscription.
+      try { fitAddonRef.current?.fit(); } catch {}
     });
     ro.observe(area);
     resizeObserverRef.current = ro;
     return () => ro.disconnect();
-  }, [tabId, onResize]);
+  }, []);
 
   // Refit when this tab becomes visible: a resize that happened while the tab
   // was hidden never reached this terminal (fit() is a no-op while hidden).
   useEffect(() => {
     if (!active) return;
-    const fitAddon = fitAddonRef.current;
+    try { fitAddonRef.current?.fit(); } catch {}
+  }, [active]);
+
+  // The backend PTY starts at its default 80x24 and only learns our grid from a
+  // resize command — which the very first fit() can easily fire before the SSH
+  // session exists (the command is then dropped). Re-assert the grid once the
+  // tab actually reports "connected" so the remote can never keep a stale width.
+  useEffect(() => {
+    if (tabStatus !== "connected") return;
     const term = terminalRef.current;
-    if (!fitAddon || !term) return;
-    try { fitAddon.fit(); } catch {}
-    if (term.cols > 0 && term.rows > 0) {
-      onResize(tabId, term.cols, term.rows);
-    }
-  }, [active, tabId, onResize]);
+    if (!term) return;
+    try { fitAddonRef.current?.fit(); } catch {}
+    if (term.cols > 0 && term.rows > 0) onResize(tabId, term.cols, term.rows);
+  }, [tabStatus, tabId, onResize]);
 
   // navigation in history dropdown ───────────────────
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -544,7 +673,7 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
           style={{ minWidth: 280 }}
         >
           <div
-            className="flex items-center gap-1.5 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-md px-2.5 py-1.5 shadow-lg"
+            className="flex items-center gap-1.5 bg-[var(--bg-elevated)] border border-[var(--frame-border)] rounded-md px-2.5 py-1.5 shadow-lg"
           >
             {/* Search icon */}
             <svg
@@ -618,7 +747,7 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
 
           {/* ── History dropdown ─────────────────────────────────────── */}
           {historyVisible && searchHistory.length > 0 && (
-            <div className="mt-1 bg-[var(--bg-elevated)] border border-[var(--border-subtle)] rounded-md shadow-lg overflow-hidden">
+            <div className="mt-1 bg-[var(--bg-elevated)] border border-[var(--frame-border)] rounded-md shadow-lg overflow-hidden">
               <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border-subtle)]">
                 Recent
               </div>

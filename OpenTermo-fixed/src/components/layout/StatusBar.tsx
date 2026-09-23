@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { getSystemStats, type SystemSnapshot } from "@/lib/tauriCommands";
 
@@ -18,7 +18,7 @@ export default function StatusBar() {
   }, []);
 
   return (
-    <footer className="flex h-8 items-center bg-[var(--bg-glass)] backdrop-blur-[var(--glass-blur,18px)] border-t border-[var(--border-strong)] px-3 flex-shrink-0 gap-3">
+    <footer className="flex h-8 items-center bg-[var(--bg-glass)] backdrop-blur-[var(--glass-blur,18px)] frame-edge-t px-3 flex-shrink-0 gap-3">
       <div className="flex items-center gap-2 flex-shrink-0">
         {activeTab ? (
           <div className="flex items-center gap-2 bg-[var(--surface-hover)] rounded-full px-2.5 py-0.5">

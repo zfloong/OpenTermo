@@ -1,6 +1,5 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ChevronDown,
   ChevronRight,
   Send,
   Plus,
@@ -21,6 +20,8 @@ import {
   Upload,
   CheckSquare,
   Square,
+  Search,
+  X,
 } from "lucide-react";
 import { useCommandStore } from "@/stores/commandStore";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -91,8 +92,12 @@ export default function CommandPanel() {
   const [ctx, setCtx] = useState<CtxState | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ ids: string[] } | null>(null);
   const [newFolderPrompt, setNewFolderPrompt] = useState<{ parentPath: string } | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const [dataMsg, setDataMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const msgTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searching = query.trim().length > 0;
 
   // Click-delay discrimination: single-click = send, double-click = send+execute
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -129,47 +134,43 @@ export default function CommandPanel() {
 
   // ═══ Import handler ══════════════════════════════════════════════════════════
 
+  /** 库级数据操作的统一反馈：一次只可能有一条消息，重复触发时重置计时器。 */
+  const flashDataMsg = useCallback((text: string, ok: boolean) => {
+    if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
+    setDataMsg({ text, ok });
+    msgTimerRef.current = setTimeout(() => setDataMsg(null), ok ? 3000 : 5000);
+  }, []);
+
   const handleImport = useCallback(
     async (file: File) => {
       try {
         const text = await file.text();
         const result = await importCommands(text);
-        setImportMsg("已导入 " + result.imported + " 条命令" + (result.skipped > 0 ? "（" + result.skipped + " 条跳过）" : ""));
-        setTimeout(() => setImportMsg(null), 3000);
+        flashDataMsg(
+          `已导入 ${result.imported} 条命令${result.skipped > 0 ? `（跳过 ${result.skipped} 条：重复或无效）` : ""}`,
+          true,
+        );
       } catch (e: any) {
-        setImportMsg(e.message || "导入失败");
-        setTimeout(() => setImportMsg(null), 4000);
+        flashDataMsg(e?.message || "导入失败", false);
       }
     },
-    [importCommands],
+    [importCommands, flashDataMsg],
   );
 
-  // ═══ Batch execute ═══════════════════════════════════════════════════════════
-
-  const batchExecute = useCallback(() => {
-    if (!activeTabId || selectedIds.size === 0) return;
-    const selected = entries.filter((e) => selectedIds.has(e.id));
-    const commands = selected.map((e) => resolveCommandTemplate(e.command, activeTab?.session ?? null)).join("\n");
-    sendInput(activeTabId, commands);
-    triggerScroll(activeTabId);
-    setSelectedIds(new Set());
-  }, [activeTabId, activeTab, selectedIds, entries, sendInput]);
-
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const toggleSelectAll = useCallback(() => {
-    if (entries.every((e) => selectedIds.has(e.id))) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(entries.map((e) => e.id)));
+  /** 导出整个命令库。写盘失败必须让用户看到，不能只留一个未处理的 Promise。 */
+  const handleExportAll = useCallback(async () => {
+    try {
+      const filePath = await save({
+        filters: [{ name: "JSON", extensions: ["json"] }],
+        defaultPath: "opentermo-commands.json",
+      });
+      if (!filePath) return; // 用户取消
+      await invoke("write_text_file", { path: filePath, content: exportAll() });
+      flashDataMsg(`已导出 ${entries.length} 条命令`, true);
+    } catch (e: any) {
+      flashDataMsg(`导出失败：${e?.message || e}`, false);
     }
-  }, [entries,  selectedIds]);
+  }, [exportAll, entries.length, flashDataMsg]);
 
   // ═══ Sort commands within a group ════════════════════════════════════════════
 
@@ -190,12 +191,27 @@ export default function CommandPanel() {
     [sortMode],
   );
 
+  // ── Search filter ─────────────────────────────────────────────────────
+
+  /** 命中 label / 命令本体 / 描述 / 分组名，任意一项包含即算命中。 */
+  const visibleEntries = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return entries;
+    return entries.filter((e) =>
+      `${e.label} ${e.command} ${e.description ?? ""} ${e.category}`.toLowerCase().includes(q),
+    );
+  }, [entries, query]);
+
+  /** 搜索时执行的第一条（回车用）。 */
+
   // ── Build tree ────────────────────────────────────────────────────────
 
   const tree = useMemo(() => {
+    // 搜索态只按命中结果建树，空文件夹不参与（它没有可匹配的内容）
+    const folderSource = searching ? [] : emptyFolders;
     // Group commands by category path
     const cmdByPath = new Map<string, CommandEntry[]>();
-    for (const e of entries) {
+    for (const e of visibleEntries) {
       const cat = e.category.trim() || "未分类";
       if (!cmdByPath.has(cat)) cmdByPath.set(cat, []);
       cmdByPath.get(cat)!.push(e);
@@ -210,7 +226,7 @@ export default function CommandPanel() {
         folderPaths.add(parts.slice(0, i + 1).join("/"));
       }
     }
-    for (const p of emptyFolders) {
+    for (const p of folderSource) {
       folderPaths.add(p);
     }
 
@@ -245,7 +261,7 @@ export default function CommandPanel() {
 
         const childPath = prefix + childName;
         const cmds = cmdByPath.get(childPath) || [];
-        const isExplicitEmpty = emptyFolders.includes(childPath);
+        const isExplicitEmpty = folderSource.includes(childPath);
         const isEmpty = cmds.length === 0 && isExplicitEmpty;
 
 
@@ -272,7 +288,17 @@ export default function CommandPanel() {
     }
 
     return rootNodes;
-  }, [entries, emptyFolders, sortCommands]);
+  }, [visibleEntries, emptyFolders, searching, sortCommands]);
+
+  /** 搜索时回车执行的第一条命中。放在 tree 之后，否则会撞上 TDZ。 */
+  const firstMatch = useMemo(() => {
+    if (!searching) return null;
+    for (const node of tree) {
+      if (node.commands[0]) return node.commands[0];
+      for (const child of node.children) if (child.commands[0]) return child.commands[0];
+    }
+    return null;
+  }, [searching, tree]);
 
   // Auto-expand all cards on first load
   useEffect(() => {
@@ -564,6 +590,19 @@ export default function CommandPanel() {
         },
       },
       null,
+      // 库级数据操作：作用于整份命令库，所以放在面板空白处的右键菜单里，
+      // 而不是命令或文件夹的菜单里。
+      {
+        label: "导出全部命令",
+        icon: <Download size={12} />,
+        onClick: () => void handleExportAll(),
+      },
+      {
+        label: "导入全部命令",
+        icon: <Upload size={12} />,
+        onClick: () => fileInputRef.current?.click(),
+      },
+      null,
       // Sort header (non-clickable)
       {
         label: "排序方式",
@@ -586,7 +625,7 @@ export default function CommandPanel() {
         },
       },
     ],
-    [sortMode, openNewCommandDialog],
+    [sortMode, openNewCommandDialog, handleExportAll],
   );
 
   // ── Collect folder paths for move-to dropdown ─────────────────────────
@@ -606,69 +645,61 @@ export default function CommandPanel() {
       <div key={cmd.id}
         onClick={() => handleCmdClick(cmd)}
         onContextMenu={(e) => showCtx(e, cmdCtx(cmd))}
-        className={`group flex items-center gap-2 pr-3 py-1.5 hover:bg-[var(--surface-hover)] transition-colors cursor-pointer ${
-          cmd.pinned ? "bg-accent/[0.04]" : ""
-        }`}
+        title="单击填入 · 双击直接执行"
+        // 命令是叶子节点，不能做成卡片 —— 卡片是「容器」的语言，父项和子项形态
+        // 一样就废掉了树状层级。静止时没有背景，只靠缩进挂在所属文件夹里，
+        // 鼠标经过才浮出一层淡底，用落点而不是形状来定位。
+        // 置顶不加任何底色：蓝色星星本身就是唯一标记，再上色就是双重强调。
+        className="group flex items-center gap-2 pr-2 py-1.5 rounded-md transition-colors cursor-pointer hover:bg-[var(--surface-hover)]"
         style={{ paddingLeft: leftPad }}
       >
-        {/* Checkbox */}
-        <button
-          onClick={(e2) => { e2.stopPropagation(); toggleSelect(cmd.id); }}
-          className={`shrink-0 w-3.5 h-3.5 flex items-center justify-center rounded-[3px] border transition-all ${
-            selectedIds.has(cmd.id)
-              ? "bg-[var(--accent)] border-[var(--accent)] text-white"
-              : "border-[var(--border-default)] hover:border-[var(--border-strong)]"
-          }`}
-        >
-          {selectedIds.has(cmd.id) && (
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20,6 9,17 4,12" />
-            </svg>
-          )}
-        </button>
-
         {/* Icon */}
         {cmd.icon && (
           <span className="shrink-0 w-4 text-center text-xs leading-none">{cmd.icon}</span>
         )}
 
-        {/* Label */}
-        <span className="flex-1 text-[14px] text-[var(--text-primary)] truncate">{cmd.label || cmd.command}</span>
+        {/* Label — 正文层：比文件夹标题小一档、淡一档，权重让给容器 */}
+        <span className="flex-1 text-[13px] text-[var(--text-secondary)] truncate">{cmd.label || cmd.command}</span>
 
         {/* Pinned star */}
         {cmd.pinned && <Star size={10} className="text-[var(--accent)] shrink-0" fill="var(--accent)" />}
 
       </div>
     ),
-    [selectedIds, handleCmdClick, toggleSelect, showCtx, cmdCtx]
+    [handleCmdClick, showCtx, cmdCtx]
   );
 
   // ── Nested folder rows (level 2) ──────────────────────────────────────
 
   const renderChildFolders = (nodes: TreeNode[], pad: number): React.ReactNode =>
     nodes.map((child) => {
-      const isExpanded = expandedCards.has(child.path);
+      const isExpanded = searching || expandedCards.has(child.path);
       return (
-        <div key={child.path}>
+        // 子文件夹同样是「容器」：整块背景板 + 展开体包在板子里，
+        // 于是命令行看起来是「这个文件夹里的内容」，而不是并排的独立按钮。
+        // 层级深度靠整块的缩进（marginLeft）表达，越深越靠右。
+        <div
+          key={child.path}
+          style={{ marginLeft: pad }}
+          className="rounded-md border border-[var(--border-subtle)] bg-[var(--surface-row)] overflow-hidden"
+        >
           <button
             onClick={() => setExpandedCards((prev) => { const n = new Set(prev); if (n.has(child.path)) n.delete(child.path); else n.add(child.path); return n; })}
             onContextMenu={(e) => showCtx(e, folderCtx(child))}
-            className="w-full flex items-center gap-2 pr-3 py-2 text-left transition-colors hover:bg-[var(--surface-hover)]"
-            style={{ paddingLeft: pad }}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-[var(--surface-hover)]"
           >
-            <ChevronDown size={14} className={`shrink-0 text-[var(--text-muted)] transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
             {isExpanded
-              ? <FolderOpen size={15} className="shrink-0 text-[var(--text-secondary)]" />
-              : <FolderClosed size={15} className="shrink-0 text-[var(--text-secondary)]" />
+              ? <FolderOpen size={14} className="shrink-0 text-[var(--accent)]" />
+              : <FolderClosed size={14} className="shrink-0 text-[var(--text-secondary)]" />
             }
-            <span className="text-[15px] font-medium text-[var(--text-primary)]">{child.name}</span>
-            <span className="text-[10px] tabular-nums text-[var(--text-secondary)] ml-auto bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded-full">{countCommands(child)}</span>
+            <span className="text-[13px] font-medium text-[var(--text-secondary)] truncate">{child.name}</span>
+            <span className="text-[11px] tabular-nums text-[var(--text-muted)] border border-[var(--border-subtle)] ml-auto px-1.5 rounded-full shrink-0">{countCommands(child)}</span>
           </button>
           {isExpanded && (
-            <>
-              {child.commands.map((cmd) => renderCmd(cmd, pad + 12))}
-              {renderChildFolders(child.children, pad + 20)}
-            </>
+            <div className="pb-1">
+              {child.commands.map((cmd) => renderCmd(cmd, 26))}
+              {renderChildFolders(child.children, 12)}
+            </div>
           )}
         </div>
       );
@@ -679,102 +710,89 @@ export default function CommandPanel() {
   return (
     <div className="flex flex-col h-full" onContextMenu={(e) => { e.preventDefault(); showCtx(e, emptyCtx()); }}>
 
-      {/* Toolbar: batch select + import/export */}
-      <div className="flex items-center gap-1 px-2 pb-1">
-        {selectedIds.size > 0 ? (
-          <>
-            <button
-              onClick={batchExecute}
-              disabled={!activeTabId}
-              className="flex items-center gap-1 px-3 py-2 text-sm rounded-md bg-[var(--accent-dim)] text-[var(--accent)] hover:bg-accent/25 transition-colors disabled:opacity-40"
-            >
-              <Send size={14} />
-              执行 {selectedIds.size} 条
-            </button>
-            <button
-              onClick={() => setSelectedIds(new Set())}
-              className="px-3 py-2 text-sm rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
-            >
-                            取消
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={toggleSelectAll}
-              className="flex items-center gap-1 px-3 py-2 text-sm rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
-              title="全选可见"
-            >
-              <CheckSquare size={15} />
-            </button>
-            <div className="w-px h-4 bg-[var(--border-subtle)] mx-0.5" />
-            <button
-              onClick={async () => {
-                const filePath = await save({
-                  filters: [{ name: "JSON", extensions: ["json"] }],
-                  defaultPath: "opentermo-commands.json",
-                });
-                if (filePath) {
-                  await invoke("write_text_file", { path: filePath, content: exportAll() });
-                }
-              }}
-              className="flex items-center gap-1 px-3 py-2 text-sm rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
-              title="导出全部命令"
-            >
-              <Download size={15} />
-            </button>
-            <label
-              className="flex items-center gap-1 px-3 py-2 text-sm rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
-              title="从 JSON 导入命令"
-            >
-              <Upload size={15} />
-              <input
-                type="file"
-                accept=".json"
-                className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}
-              />
-            </label>
-          </>
-        )}
+      {/* 面板头：纯文本，不给底色不给图标 —— 上面是标签栏、下面是列表，
+          这一行只是分区名，任何强调色块都会压过真正需要点击的命令列表。 */}
+      <div className="flex items-center pl-3 pr-2.5 pt-2 pb-1 shrink-0">
+        <span className="text-[11px] font-semibold tracking-wide text-[var(--text-muted)]">命令集</span>
       </div>
 
-      {importMsg && (
-        <div className='text-xs px-2 py-1.5 rounded mx-2 mb-1 text-[var(--color-success)] bg-success/10'>
-          {importMsg}
+      {/* 库级导入的文件选择器：由右键菜单的「导入全部命令」触发 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }}
+      />
+
+      {/* Search — 面板内过滤，命中 label / 命令 / 描述 / 分组 */}
+      <div className="px-2 pb-1.5">
+        <div className="flex items-center gap-2 h-8 px-2.5 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] focus-within:border-[var(--border-focus)] transition-[border-color]">
+          <Search size={14} className="shrink-0 text-[var(--text-muted)]" />
+          <input
+            ref={searchRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && firstMatch) handleExecute(firstMatch);
+              if (e.key === "Escape") { e.stopPropagation(); setQuery(""); }
+            }}
+            placeholder={`搜索 ${entries.length} 条命令…`}
+            className="flex-1 min-w-0 bg-transparent outline-none text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+          />
+          {searching && (
+            <button
+              onClick={() => { setQuery(""); searchRef.current?.focus(); }}
+              className="shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+              title="清空"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {dataMsg && (
+        <div className={`text-xs px-2 py-1.5 rounded mx-2 mb-1 ${
+          dataMsg.ok
+            ? "text-[var(--color-success)] bg-success/10"
+            : "text-[var(--color-danger)] bg-danger/10"
+        }`}>
+          {dataMsg.text}
         </div>
       )}
 
       {/* Command cards */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-2 py-1.5 space-y-1.5">
+      <div className="flex-1 overflow-y-auto min-h-0 px-2 pb-1.5 space-y-2">
         {tree.length === 0 ? (
-          <div className="flex items-center justify-center h-20 text-sm text-[var(--text-muted)]">
-            "暂无保存的命令"
+          <div className="flex items-center justify-center h-20 text-[13px] text-[var(--text-muted)] px-3 text-center">
+            {searching ? "没有匹配的命令" : "暂无保存的命令"}
           </div>
         ) : (
           tree.map((node) => {
-            const isExpanded = expandedCards.has(node.path);
+            const isExpanded = searching || expandedCards.has(node.path);
             return (
-              <div key={node.path} className="mb-2">
+              // 文件夹 = 容器 = 唯一的背景板。展开体包在同一块板子里，
+              // 命令作为「叶行」缩进排在板子内部，母子的从属关系由形状本身说明。
+              <div key={node.path} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] overflow-hidden">
                 <button
                   onClick={() => setExpandedCards((prev) => { const n = new Set(prev); if (n.has(node.path)) n.delete(node.path); else n.add(node.path); return n; })}
                   onContextMenu={(e) => showCtx(e, folderCtx(node))}
-                  className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors border border-[var(--border-subtle)] bg-[var(--bg-surface)] ${
-                    isExpanded ? "rounded-t-lg" : "rounded-lg"
-                  } hover:bg-[var(--surface-hover)]`}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-[var(--surface-hover)]"
                 >
-                  <ChevronDown size={14} className={`shrink-0 text-[var(--text-muted)] transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
+                  {/* 展开/折叠不靠箭头提示：开合两态的文件夹图标本身已经区分得很清楚，
+                      去掉箭头后文件夹左对齐，父级感反而更强。 */}
                   {isExpanded
-                    ? <FolderOpen size={15} className="shrink-0 text-[var(--text-secondary)]" />
+                    ? <FolderOpen size={15} className="shrink-0 text-[var(--accent)]" />
                     : <FolderClosed size={15} className="shrink-0 text-[var(--text-secondary)]" />
                   }
-                  <span className="text-[15px] font-medium text-[var(--text-primary)]">{node.name}</span>
-                  <span className="text-[10px] tabular-nums text-[var(--text-secondary)] ml-auto bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded-full">{countCommands(node)}</span>
+                  <span className="text-[15px] font-semibold text-[var(--text-heading)] truncate">{node.name}</span>
+                  <span className="text-[11px] tabular-nums text-[var(--text-muted)] border border-[var(--border-subtle)] ml-auto px-1.5 py-0.5 rounded-full shrink-0">{countCommands(node)}</span>
                 </button>
                 {isExpanded && (
-                  <div className="border-l border-r border-b border-[var(--border-subtle)] rounded-b-lg overflow-hidden bg-[var(--bg-sunken)]">
-                    {node.commands.map((cmd) => renderCmd(cmd, 24))}
-                    {renderChildFolders(node.children, 32)}
+                  <div className="pb-1.5">
+                    {node.commands.map((cmd) => renderCmd(cmd, 26))}
+                    {renderChildFolders(node.children, 12)}
                   </div>
                 )}
               </div>
