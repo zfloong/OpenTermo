@@ -1,5 +1,5 @@
-﻿import { useState } from "react";
-import { FolderOpen } from "lucide-react";
+﻿import { useEffect, useRef, useState } from "react";
+import { Check, Copy, FolderOpen } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { type SessionConfig } from "@/lib/tauriCommands";
+import { formatSessionInfo } from "@/lib/sessionInfo";
 import { useSessionStore } from "@/stores/sessionStore";
 
 interface EditSessionDialogProps {
@@ -25,6 +26,27 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
     session.auth === "key" ? session.password || "" : ""
   );
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
+  }, []);
+
+  const handleCopyInfo = () => {
+    navigator.clipboard
+      .writeText(formatSessionInfo(form))
+      .then(() => {
+        setCopied(true);
+        if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
+        copyTimer.current = window.setTimeout(() => setCopied(false), 1200);
+      })
+      .catch(() => {});
+  };
+
+  const copyBtnClass = copied
+    ? "text-[var(--color-success)]"
+    : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]";
 
   const isValid = form.kind === "serial"
     ? form.serial_port.trim().length > 0
@@ -75,8 +97,19 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-[540px] mx-4 p-0">
-        <DialogHeader className="px-6 py-4 border-b border-[var(--border-subtle)]">
+        <DialogHeader className="px-6 py-4 border-b border-[var(--border-subtle)] flex-row items-center justify-between space-y-0">
           <DialogTitle className="text-lg">编辑连接</DialogTitle>
+          {form.kind !== "serial" && (
+            <button
+              onClick={handleCopyInfo}
+              disabled={!form.host.trim()}
+              title="复制 主机 / 端口 / 用户名 / 密钥"
+              className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[var(--border-subtle)] text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${copyBtnClass}`}
+            >
+              {copied ? <Check size={13} /> : <Copy size={13} />}
+              {copied ? "已复制" : "复制"}
+            </button>
+          )}
         </DialogHeader>
 
         <div className="flex flex-col gap-5 p-6">
