@@ -1,38 +1,27 @@
 
 
-## 2026-06-23 ? ????????
+## 2026-06-23 — 命令面板编辑对话框（原文已损坏，见下）
 
-### ??????
-????????????????????????????????????
-????? JSON ??????????CommandEntry ???? `icon` ?????
-???????? UI ??????????
+> ⚠️ **本节原始中文文本已在早期编码事故中丢失**（文件里只剩 `?`，git 全部历史版本都一样，无法还原）。
+> 下面只保留可核实的事实，不再复述丢失的细节。
 
-### ??????????
-??????????????????????????????????
-?? `label` ??????????????????
-?? JSON ?????? `label`???????/?????
+- 涉及文件：`src/components/CommandPanel.tsx` 的 `CommandEditDialog`（该文件与对话框**至今存在**）。
+- 本次改动的功能面（可核实）：命令条目新增 `icon` 字段（JSON 导入导出携带）、标签 `label` 的回退规则、对话框的若干交互调整（快捷键/焦点/排序选项）。
+- 教训（与第 31 行「编码警告」同源）：**不要用 PowerShell 处理含中文的文件**；当时的做法是手写 `\uXXXX` 转义，这个做法本身也是后来乱码的直接原因之一。
 
-### ????????????
-1. ?? ? ????????autofocus?
-2. ?? ? ??????
-3. ?? ? ????
-4. ?? ? ???????? datalist ?????
-5. ????? ? checkbox
-6. ?? / ??
-
-### ????
-- `src/components/CommandPanel.tsx` ? CommandEditDialog ??
-
-### ????
-- ??????????? Python + UTF-8??? PowerShell ??????
-- ?? Unicode ?????\uXXXX?????????????
-
----
 ---
 
 ## 2026-06-23 — Encoding Warning (编码警告)
 
 ### 所有含中文的源文件必须是 UTF-8 without BOM
+
+> ⚠️ **本节与下方 2026-07-12「编码加固」一节的 BOM 结论互相矛盾，两条都不要再照做。**
+> 实际约束与现状（2026-09-24 核对）：
+> - **硬约束只有一条：JSON 绝不能带 BOM**（`tauri.conf.json`、`capabilities/*.json`）——`serde_json` 与 PostCSS 都会报 `expected value at line 1`。
+> - TS/TSX/Rust/CSS 带不带 BOM 都能正常构建；但**编辑工具会按自己的默认行为写盘**，
+>   所以 2026-07-12 那次「25 个文件统一加 BOM」已被后续若干次编辑（含 Vzfl2.9）**部分回退**，仓库当前是混合状态。
+> - **不要再批量加 BOM，也不要批量清理**——两种都能跑，反复横跳只会制造巨大的无意义 diff。
+> - 真正要守住的纪律是：**不要用 PowerShell 的 `Get-Content` / `Set-Content` / `-replace` 处理含中文的文件**（见下）。
 
 **切勿使用 PowerShell 操作含中文的文件。用 Python + `encoding='utf-8'` 代替。**
 
@@ -50,60 +39,34 @@ with open(path, 'w', encoding='utf-8') as f:
     f.write(content)
 ```
 
-**含中文的源文件列表（修改时务必用 Python）：**
-- `src/components/CommandPanel.tsx` — 命令面板，右键菜单中文标签
-- `src/components/ConnectDialog.tsx` — 连接对话框
-- `src/components/EditSessionDialog.tsx` — 编辑会话对话框
-- `src/components/SessionManager.tsx` — 会话管理
-- `src/components/SettingsPanel.tsx` — 设置面板
-- `src/App.tsx`
-- `src/index.css` — CSS 变量注释含中文
-- `index.html`
-- `src-tauri/src/lib.rs` — 注释含中文
-- `src-tauri/tauri.conf.json` — JSON 文件不能有 BOM
+**含中文的源文件列表：不再手工维护——它一定会过时。**（2026-09-24 核对：这份清单里的 `SessionManager.tsx` 已在 Vzfl2.8 删除，另有一批新文件从未入列。）
+要判断某个文件是否含中文，直接查：
+
+```bash
+# 列出所有含 CJK 字符的源文件
+grep -rlP '[\x{4e00}-\x{9fff}]' --include='*.ts' --include='*.tsx' --include='*.rs' --include='*.css' --include='*.html' .
+```
+
+**当前事实（2026-09-24）**：含中文的文件已经**不止源文件**——`DEVLOG.md` 自己的第 1~26、59~104 行就死在早期编码事故里（只剩 `?`，git 全历史无法还原，见本节上方说明）。**这就是"再也不要让中文经过 PowerShell"最有力的证据。**
 
 ### CommandPanel.tsx 乱码已修复
 
 原始源文件中部分 Unicode 符号 (✓ 等) 在 git 传输中丢失变成 `??`。已修复为正常中文和 Unicode 字符。
+（⚠️ 同一批次的其他段落没能救回来，见上方 01~12 行与本段下方。）
 ﻿
 
 
-## 2026-06-23 ? CommandPanel ????????
+## 2026-06-23 — 右键菜单排序模式 / Unicode 图标（原文已损坏，见下）
 
-### ??
-????????????????????????? ?????
+> ⚠️ **本节原始中文文本同样在早期编码事故中丢失**（文件里只剩 `?`，git 全部历史版本都一样，无法还原）。
+> 下面只保留可从代码与灰度残留推断出的事实，不再复述丢失的细节。
 
-### ??
-??????? Unicode ???? ??? ??? git ??/??????????? `??`????????????
-
-### ????
-- `????` ? ???????????????
-- ?????? ? ?? `CheckSquare`/`Square` ??????? Unicode ??
-- ?????? ? `???` ??????
-
-### ????????
-**????** ???????????????????? ? ???????
-```
-Sort: Name ?  /  ?: ??
-Sort: Last Used ?  /  ?: ????
-```
-
-**????** ???? + ??????
-```
-  ????              ? ??????????
-  ? ??               ? CheckSquare/Square ?? + ??
-    ????            ? CheckSquare/Square ?? + ??
-```
-?? `lucide-react` ? `CheckSquare`/`Square` ????? `sortMode` ???????
-
-### ????
-- `src/components/CommandPanel.tsx` ? ???????????
-- `src/components/ui/context-menu.tsx` ? ????????? icon ???
-
-### ????
-- ?????/Unicode ?????????? Python + UTF-8 ??
-- `CheckSquare` ? `Square` ???? lucide-react ???
-- ?????? `localStorage.getItem("cmd-sort")` ???
+- 涉及文件：`src/components/CommandPanel.tsx`（右键菜单 + 排序逻辑）、`src/components/ui/context-menu.tsx`（菜单项支持图标）。
+- 改动面（可核实）：
+  - 命令集新增/调整了**排序模式**（`sortMode`，持久化键 `localStorage["cmd-sort"]`）：`Sort: Name`（按名称）/ `Sort: Last Used`（按最近使用）。
+  - 菜单项支持带图标（`icon`），用到 `lucide-react` 的 `CheckSquare` / `Square` 作为**单选态**标记。
+- 注：`Sort: Last Used` 所依赖的「使用次数统计」已在 **Vzfl2.2 被整体移除**（见下），因此这条排序模式是否仍生效，需以当前代码为准。
+- 教训（同上方编码警告）：**Unicode 与中文符号不要经过 PowerShell**，用显式 UTF-8 的编辑器 / Python 处理。
 
 
 ## 2026-07-12 — Vzfl2.2 导出修复 + 编码加固
@@ -136,8 +99,8 @@ Sort: Last Used ?  /  ?: ????
 ## 2026-07-12 — Vzfl2.2 后续修复 + 经验教训
 
 ### 修复
-- 命令面板搜索框已删除（无使用场景）
-- 会话面板搜索框已删除（无使用场景）
+- 命令面板搜索框已删除（无使用场景）　→ ⚠️ **此决定已在 Vzfl2.9 回退**：搜索框重新引入，且承担"37 条命令"这类总数提示（作为 placeholder）。见下方 Vzfl2.9 条目。
+- 会话面板搜索框已删除（无使用场景）　→ ⚠️ **同样已回退**：Vzfl2.8 启动台（`SessionLauncher.tsx`）重新带上了搜索框。
 - Star 图标增加 fill 属性，从空心边框变为实心金色填充
 - 命令面板白天模式对比度修复（使用次数/命令数徽标/子文件夹标签）
 
@@ -163,15 +126,14 @@ text.replace('abc\n', 'xyz')  # 实际匹配的是 'abc\r\n'，替换失败
 
 #### 正确做法
 ```
-// ✅ 使用 Node.js REPL (mcp__node_repl__js) 直接操作文件
-var fs = await import('fs');
-var text = fs.readFileSync(fp, 'utf8');
-// 直接修改字符串，不用考虑 PowerShell 转义
-fs.writeFileSync(fp, text, 'utf8');
+// ✅ 用 Node 一行脚本直接操作文件（不经 PowerShell 转义）
+node -e "const fs=require('fs');const p=process.argv[1];let t=fs.readFileSync(p,'utf8');/* 改 t */fs.writeFileSync(p,t,'utf8')" <file>
 
 // ✅ 或写入独立 .py 文件后用 python 执行（不用管道传递）
 // 文件内容显式 encoding='utf-8'，不含 \n
 ```
+
+> 📌 2026-09-24 附注：本节原引用的是 `mcp__node_repl__js`（当时的 Node REPL MCP 工具），**该工具已不存在**。当前实际做法是**直接用编辑器的精确字符串替换**（Edit 工具），必要时才落 `node -e` / 独立 `.py`。核心纪律不变：**别让中文进 PowerShell 管道**。
 
 #### 核心原则
 1. **永远不要用 PowerShell 管道传代码给 Python** — \n、-- 等都会被 PowerShell 拦截
@@ -196,7 +158,7 @@ fs.writeFileSync(fp, text, 'utf8');
 - `TitleBar.tsx`：主题按钮从两态 toggle 改为按 `THEME_ORDER` 三态循环，自定义档显示 `Palette` 图标，title 文案取 `THEME_LABELS[nextTheme]`。
 
 **2. 会话面板 → 启动台（浮层）**
-- 新增 `src/components/SessionLauncher.tsx`（767 行），**删除 `SessionManager.tsx`（422 行）**；入口为标题栏 `+` 与 `Ctrl+T`（`uiStore` 加 `isLauncherOpen/openLauncher/closeLauncher`，`App.tsx` 挂快捷键并渲染 `<SessionLauncher />`）。
+- 新增 `src/components/SessionLauncher.tsx`（767 行），**删除 `SessionManager.tsx`（422 行）**；入口为标题栏 `+` 与 `Ctrl+Shift+T`（`uiStore` 加 `isLauncherOpen/openLauncher/closeLauncher`，`App.tsx` 挂快捷键并渲染 `<SessionLauncher />`）。
 - 层级：启动台 `z-40`，低于 radix Dialog 的 `z-50` 与 ContextMenu 的 `z-100` —— 从启动台里弹出的确认/编辑框不会被它挡住，context-menu 也无需特殊处理。
 - 卡片第二行只显示 host（串口会话显示串口名），搜索平铺行同步精简、右侧保留分组标签；复制按钮常驻可见（不是 hover 才出现）。
 - 组头右键：在此新建连接 / 折叠·展开 / 上移 / 下移 / 按名称重排 / 重命名 / 删除分组；卡片右键：连接 / 编辑 / 移动到分组 / 重命名 / 删除。
@@ -267,8 +229,87 @@ fs.writeFileSync(fp, text, 'utf8');
 
 - 分组**拖拽**排序（第二步）—— 先上看得到、可点的手动排序。
 - 分组作为一等对象（独立存储、随导入导出走）—— 名册只在当前机器。
-- 侧栏命令面板展开区"层级糊"—— 等命令面板重构一起处理。
+- 侧栏命令面板展开区"层级糊"—— ✅ **已在 Vzfl2.9 完成**（见下）。
 - `animate-scale-in` 死类是否清掉 —— 待拍板。
 - xterm OSC-8 链接的原生确认框 —— 终端库内部行为。
 - 打包分发字体（把 Noto Sans SC subset 进 `public/fonts/`）—— 现在只是"引用本机已装字体"，别人机器上没有就回退雅黑；真要保证跨机一致得下载 woff2 子集进仓库（OFL 允许随包分发），约 0.9–1.5 MB/字重。
+
+
+---
+
+## 2026-09-23/24 — Vzfl2.9：终端交互对齐 / 命令面板层级重建 / 内核三处修复 / 文档修补
+
+> 标签 `Vzfl2.9`；发布链路 = push `zfl` 或标签 `Vzfl*` → CI 构建 → 打 tag 时发 Release（`.github/workflows/ci.yml`）。
+> commit：`c1ad400`（内核 + UI）、`63ffdb3`（版本号 2.8.0 → 2.9.0）。
+
+### 一、终端交互对齐 Ubuntu/GNOME Terminal
+
+`src/components/layout/TerminalView.tsx`：
+
+- **复制**：`Ctrl+Shift+C` 与 `Ctrl+Insert`；**粘贴**：`Ctrl+Shift+V` / `Shift+Insert` / **鼠标中键**。
+- **中断恒为 SIGINT**：`Ctrl+C` 不再被任何自定义逻辑截走，永远发给 PTY（这是与"选中即复制"类终端最本质的区别）。
+- **查找**：`Ctrl+Shift+F`（xterm-search addon）；**缩放**：`Ctrl+Shift++` / `-` / `0`。
+- **明确不做"选中即复制"**：选区保留到下次点击，与 GNOME Terminal 一致。
+- **粘贴走 `term.paste()`**（不是手写 `\n` 注入）：确保 bracketed paste 包裹，避免多行粘贴被逐行执行。
+- **13 项右键菜单**：分 4 组，含快捷键提示与禁用态，Esc 关闭。
+- **`term.onResize` 上报**：PTY 尺寸与本地窗口网格同步（此前光标位置/显示会错位）。
+
+### 二、命令面板（CommandPanel.tsx）层级重建
+
+问题清单（用户逐条否决）：蓝色胶囊标题"喧宾夺主"、导入导出"太大了"、命令与文件夹卡片形态雷同、"命令"两字重复出现两次、置顶命令"双重强调"、展开/折叠箭头多余、搜索框曾被删（无场景）但总数无处安放。
+
+最终形态：
+
+- 面板头是**纯文本"命令集"**（无胶囊、无图标）；总数下沉为搜索框 placeholder：`` `搜索 ${entries.length} 条命令…` ``。
+- **父子靠形态质变 + 缩进**，不靠色差：
+  - **文件夹 = 容器**：`rounded-lg border bg-[var(--bg-surface)]`，**唯一有背景板的元素**，展开体 `<div className="pb-1.5">` **包在板内**（不是散落在外）。
+  - **命令 = 叶子**：静止**无背景**，`hover:bg-[var(--surface-hover)]` 才浮底；仅靠 `paddingLeft` 缩进（26px）区分层级。
+  - 子文件夹：`style={{ marginLeft: pad }}` + `bg-[var(--surface-row)]` 表达深度。
+- 新增主题 token `--surface-row`（极淡列表行板，`themeUtils.ts`）。
+- 置顶命令**只用蓝色星标**，不再叠色（去双重强调）。
+- **导入/导出降权**：不再占 header，改为面板空白处右键菜单的「**导出全部命令 / 导入全部命令**」（针对整个命令库的数据操作），与单条命令/文件夹命令分属不同层级。
+- `Sidebar.tsx` 删掉整条 h-8 的「命令」标题行（省 32px）。
+- `TitleBar.tsx` 侧栏开关从 Logo 上摘出，改为独立 `PanelLeftClose` / `PanelLeftOpen` 按钮。
+
+### 三、导入导出的审计与修复（发现 3 个真实缺陷）
+
+- **导出无任何错误处理** → `handleExportAll` 加 try/catch，成功/失败都走 `flashDataMsg(text, ok)`，不再静默失败。
+- **导入不去重** → `commandStore.ts` 按 `label\u0000command\u0000category` 建 `Set`，重复项计 `skipped`，库不再静默翻倍。
+- **`command` 字段无类型校验** → 非字符串/空串项跳过并计数。
+
+### 四、内核（meatshell）修复 —— 对应 SSH/串口/Telnet 三个会话后端
+
+> 均已核验在远端 `git show c1ad400:` 中存在。
+
+- **ZMODEM 误判**（`ssh.rs`）：判定从前置宽松匹配收紧为 **4 字节窗口 + hex + 帧类型 0（ZRQINIT）**。此前进度条/二进制输出会被误触发，**劫持主循环**（会话卡死）。新增 `zmodem_hex_nibble`（126 行改动主体）。
+- **跨包 UTF-8 乱码**（`ssh.rs` / `serial.rs` / `telnet.rs`）：新增 `decode_utf8_chunk`，把**不完整尾字节留到下一包**处理。此前跨包 CJK/emoji 会被切成 `U+FFFD`（``）。
+- **回显抑制窗口无兜底**（`ssh.rs`）：`ECHO_TIMEOUT = 2s`，超时强制放行，避免抑制窗口吞掉后续正常输出。
+- **`url_decode` 多字节**（`ssh.rs`）：改用 `from_utf8_lossy`，修复 `%E4%B8%AD` 这类转义被逐字节拼坏。
+
+### 五、文档修补（本文件）
+
+- 第 1~26、59~104 行**原始中文已在早期编码事故中丢失**（只剩 `?`，git 全历史一致，**无法还原**）：替换为"可核实事实"块 + 保留原始教训。
+- 修掉重复标题（`## 2026-06-23 — Encoding Warning (编码警告)` 曾出现两次）。
+- **裁决 BOM 自相矛盾**：06-23 节说"必须 without BOM"、07-12 节说"统一加 BOM"。结论：**硬约束只有一条 —— JSON 绝不能带 BOM**；TS/TSX/Rust/CSS 带不带都能构建；**不再批量加、也不批量清**。
+- 上述 06-23 / 07-12 两节点均已就地加 ⚠️ 引用块，避免后人照做。
+- 把过时的硬编码"含中文源文件列表"（含已删除的 `SessionManager.tsx`）换成 grep 命令。
+- 修正 `Ctrl+T` → `Ctrl+Shift+T`；标注 Vzfl2.2"搜索框已删除"已被回退；更新已失效的 `mcp__node_repl__js` 引用。
+
+### 六、改动文件
+
+| 文件 | 变化 |
+| --- | --- |
+| `meatshell/src/ssh.rs` | 126 行（ZMODEM / UTF-8 / ECHO_TIMEOUT / url_decode） |
+| `meatshell/src/serial.rs` `telnet.rs` | 各 4 行（接 `decode_utf8_chunk`） |
+| `src/components/CommandPanel.tsx` | 层级重建 + 导入导出降权 + 审计修复 |
+| `src/stores/commandStore.ts` | 导入去重 + 字段校验 |
+| `src/components/layout/TitleBar.tsx` `layout/Sidebar.tsx` | 侧栏开关独立化 / 删标题行 |
+| `src/lib/themeUtils.ts` | 新增 `--surface-row` |
+| `package.json` `src-tauri/tauri.conf.json` `package-lock.json` | 版本 2.8.0 → 2.9.0 |
+| `DEVLOG.md` | 文档修补（本节） |
+
+### 七、本版本有意未做
+
+- 分组拖拽排序、分组作为一等对象 —— 同 Vzfl2.8，未动。
+- 打包分发字体（Noto Sans SC subset）—— 未动。
 
