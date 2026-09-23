@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { type SessionConfig } from "@/lib/tauriCommands";
 import { formatSessionInfo } from "@/lib/sessionInfo";
+import { GroupField } from "@/components/GroupField";
 import { useSessionStore } from "@/stores/sessionStore";
 
 interface EditSessionDialogProps {
@@ -20,6 +21,7 @@ interface EditSessionDialogProps {
 export default function EditSessionDialog({ session, onClose }: EditSessionDialogProps) {
   const save = useSessionStore((s) => s.save);
   const connect = useSessionStore((s) => s.connect);
+  const sessions = useSessionStore((s) => s.sessions);
 
   const [form, setForm] = useState<SessionConfig>({ ...session });
   const [keyPassphrase, setKeyPassphrase] = useState(
@@ -119,19 +121,15 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
               <span className="text-xs font-medium text-[var(--text-secondary)]">会话名称</span>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="我的服务器" className="h-9 text-sm" />
             </label>
-            <label className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5">
               <span className="text-xs font-medium text-[var(--text-secondary)]">分组</span>
-              <select
+              <GroupField
                 value={form.group}
-                onChange={(e) => setForm({ ...form, group: e.target.value })}
-                className="h-9 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all"
-              >
-                <option value="">Default</option>
-                {[...new Set(useSessionStore.getState().sessions.map((s) => s.group).filter(Boolean))].map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </select>
-            </label>
+                onChange={(group) => setForm({ ...form, group })}
+                usedGroups={sessions.map((s) => s.group)}
+                selectClass="h-9 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all"
+              />
+            </div>
           </div>
 
           {form.kind === "serial" && (

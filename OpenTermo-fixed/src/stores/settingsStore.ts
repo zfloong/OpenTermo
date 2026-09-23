@@ -1,7 +1,18 @@
 import { create } from "zustand";
 
-export type ThemeId = "deep-blue" | "light";
+/** 预设主题：有自己的色板和滑杆默认档。 */
+export type PresetThemeId = "deep-blue" | "light";
+/** 用户可见的主题：两个预设 + 自定义自由档。 */
+export type ThemeId = PresetThemeId | "custom";
 export type CursorStyle = "bar" | "block" | "underline";
+
+/** 主题的展示顺序（设置面板按钮 + 标题栏循环切主题共用）。 */
+export const THEME_ORDER: ThemeId[] = ["deep-blue", "light", "custom"];
+export const THEME_LABELS: Record<ThemeId, string> = {
+  "deep-blue": "夜晚",
+  light: "白天",
+  custom: "自定义",
+};
 
 interface SettingsState {
   theme: ThemeId;
@@ -18,6 +29,10 @@ interface SettingsState {
   terminalAlpha: number;
   /** background image enabled — the custom one if set, else the bundled default */
   hasWallpaper: boolean;
+  /** 自定义主题的基底色板 */
+  customBase: PresetThemeId;
+  /** 自定义主题的强调色 hex；空串 = 跟随基底 */
+  customAccent: string;
 
   setTheme: (t: ThemeId) => void;
   setFontSize: (s: number) => void;
@@ -29,6 +44,8 @@ interface SettingsState {
   setBorderAlpha: (a: number) => void;
   setTerminalAlpha: (a: number) => void;
   setHasWallpaper: (b: boolean) => void;
+  setCustomBase: (b: PresetThemeId) => void;
+  setCustomAccent: (hex: string) => void;
 }
 
 function loadStr(key: string, fallback: string): string {
@@ -48,12 +65,64 @@ function loadBool(key: string, fallback: boolean): boolean {
 }
 function loadTheme(): ThemeId {
   // Retired ids (e.g. the old "tabby") fall back to the default theme.
-  return loadStr("opentermo-theme", "deep-blue") === "light" ? "light" : "deep-blue";
+  const v = loadStr("opentermo-theme", "deep-blue");
+  return v === "light" || v === "custom" ? v : "deep-blue";
+}
+function loadPresetThemeId(key: string): PresetThemeId {
+  return loadStr(key, "deep-blue") === "light" ? "light" : "deep-blue";
+}
+function loadAccent(): string {
+  const v = loadStr("opentermo-custom-accent", "");
+  return /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : "";
 }
 function loadCursorStyle(): CursorStyle {
   const v = loadStr("opentermo-cursor-style", "bar");
   if (v === "block" || v === "underline") return v as CursorStyle;
   return "bar";
+}
+
+// 窗口 / 终端区透明度是全局单值（不按主题分存），但每个主题有自己的默认档：
+// 切换主题时按这张表改写。暗色：窗口 20% / 终端区 80%；白天：窗口 95% / 终端区 20%。
+// 自定义档没有默认值 —— 它的定义就是"永不改写"。
+const THEME_ALPHA_DEFAULTS: Record<PresetThemeId, { glassAlpha: number; terminalAlpha: number }> = {
+  "deep-blue": { glassAlpha: 0.2, terminalAlpha: 0.8 },
+  light: { glassAlpha: 0.95, terminalAlpha: 0.2 },
+};
+
+const CUSTOM_SLOT_KEY = "opentermo-custom-appearance";
+
+/** 自定义档自己那套滑杆值：离开自定义时快照，再次进入时回灌。 */
+interface CustomSlot {
+  glassAlpha: number;
+  terminalAlpha: number;
+  blurStrength: number;
+  borderAlpha: number;
+}
+
+function loadCustomSlot(): Partial<CustomSlot> {
+  try {
+    const raw = localStorage.getItem(CUSTOM_SLOT_KEY);
+    if (!raw) return {};
+    const o = JSON.parse(raw) as Record<string, unknown>;
+    const num = (k: keyof CustomSlot, min: number, max: number) => {
+      const v = Number(o[k]);
+      return Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : undefined;
+    };
+    return {
+      glassAlpha: num("glassAlpha", 0.2, 0.95),
+      terminalAlpha: num("terminalAlpha", 0.2, 1),
+      blurStrength: num("blurStrength", 0, 40),
+      borderAlpha: num("borderAlpha", 0.15, 0.75),
+    };
+  } catch {
+    return {};
+  }
+}
+
+function saveCustomSlot(slot: CustomSlot) {
+  try {
+    localStorage.setItem(CUSTOM_SLOT_KEY, JSON.stringify(slot));
+  } catch {}
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -62,17 +131,55 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   fontFamily: loadStr("opentermo-font-family", ""),
   cursorStyle: loadCursorStyle(),
   cursorBlink: loadBool("opentermo-cursor-blink", true),
-  glassAlpha: loadNum("opentermo-glass-alpha", 0.2, 0.2, 0.95),
+  glassAlpha: loadNum("opentermo-glass-alpha", THEME_ALPHA_DEFAULTS["deep-blue"].glassAlpha, 0.2, 0.95),
   blurStrength: loadNum("opentermo-blur-strength", 40, 0, 40),
   // Stored values below 0.15 come from the older 0.05-0.30 scale — lift them
   // onto the current range so borders stay visible.
   borderAlpha: loadNum("opentermo-border-alpha", 0.15, 0.15, 0.75),
-  terminalAlpha: loadNum("opentermo-terminal-alpha", 0.92, 0.2, 1),
+  terminalAlpha: loadNum("opentermo-terminal-alpha", THEME_ALPHA_DEFAULTS["deep-blue"].terminalAlpha, 0.2, 1),
   hasWallpaper: loadBool("opentermo-background", true),
+  customBase: loadPresetThemeId("opentermo-custom-base"),
+  customAccent: loadAccent(),
 
   setTheme: (t) => {
     localStorage.setItem("opentermo-theme", t);
-    set({ theme: t });
+    set((s) => {
+      // 点当前已选的主题不算切换，不动手动调过的透明度。
+      if (t === s.theme) return { theme: t };
+
+      if (t === "custom") {
+        // 进自定义：回灌存档，首次为空就拿当前值当起点。
+        const saved = loadCustomSlot();
+        const next = {
+          theme: t,
+          glassAlpha: saved.glassAlpha ?? s.glassAlpha,
+          terminalAlpha: saved.terminalAlpha ?? s.terminalAlpha,
+          blurStrength: saved.blurStrength ?? s.blurStrength,
+          borderAlpha: saved.borderAlpha ?? s.borderAlpha,
+        };
+        // 自定义态下全局键是权威来源（重启直接读回），所以这里要一并落盘。
+        localStorage.setItem("opentermo-glass-alpha", String(next.glassAlpha));
+        localStorage.setItem("opentermo-terminal-alpha", String(next.terminalAlpha));
+        localStorage.setItem("opentermo-blur-strength", String(next.blurStrength));
+        localStorage.setItem("opentermo-border-alpha", String(next.borderAlpha));
+        return next;
+      }
+
+      // 离开自定义：把当前这套快照回存档，下次进来还在。
+      if (s.theme === "custom") {
+        saveCustomSlot({
+          glassAlpha: s.glassAlpha,
+          terminalAlpha: s.terminalAlpha,
+          blurStrength: s.blurStrength,
+          borderAlpha: s.borderAlpha,
+        });
+      }
+
+      const d = THEME_ALPHA_DEFAULTS[t];
+      localStorage.setItem("opentermo-glass-alpha", String(d.glassAlpha));
+      localStorage.setItem("opentermo-terminal-alpha", String(d.terminalAlpha));
+      return { theme: t, glassAlpha: d.glassAlpha, terminalAlpha: d.terminalAlpha };
+    });
   },
   setFontSize: (s) => {
     const clamped = Math.max(10, Math.min(28, Math.round(s)));
@@ -114,5 +221,13 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setHasWallpaper: (b) => {
     localStorage.setItem("opentermo-background", String(b));
     set({ hasWallpaper: b });
+  },
+  setCustomBase: (b) => {
+    localStorage.setItem("opentermo-custom-base", b);
+    set({ customBase: b });
+  },
+  setCustomAccent: (hex) => {
+    localStorage.setItem("opentermo-custom-accent", hex);
+    set({ customAccent: hex });
   },
 }));

@@ -1,4 +1,4 @@
-import type { ThemeId } from "@/stores/settingsStore";
+import type { PresetThemeId, ThemeId } from "@/stores/settingsStore";
 
 type Rgb = [number, number, number];
 
@@ -44,7 +44,7 @@ const DARK_LADDER: Rgb = [27, 29, 35]; // #1b1d23 root window
 const DARK_BORDER: Rgb = [122, 130, 150];
 const LIGHT_BORDER: Rgb = [60, 60, 67];
 
-const PALETTES: Record<ThemeId, Palette> = {
+const PALETTES: Record<PresetThemeId, Palette> = {
   "deep-blue": {
     light: false,
     bgBase: DARK_LADDER,
@@ -100,10 +100,38 @@ const PALETTES: Record<ThemeId, Palette> = {
 };
 
 /** Base hex per theme — used for the settings swatches. */
-export const THEME_SWATCH: Record<ThemeId, string> = {
+export const THEME_SWATCH: Record<PresetThemeId, string> = {
   "deep-blue": "#1b1d23",
   light: "#f5f5f7",
 };
+
+const rgbToHex = (c: Rgb) => "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
+
+/** 各预设的强调色 hex —— 自定义档的取色器与色点拿它当基准。 */
+export const THEME_ACCENT_HEX: Record<PresetThemeId, string> = {
+  "deep-blue": rgbToHex(PALETTES["deep-blue"].accent),
+  light: rgbToHex(PALETTES.light.accent),
+};
+
+/** 自定义档套用的预设色板 —— 按"预设"索引的地方（终端 ANSI、data-theme）复用它。 */
+export function effectivePreset(theme: ThemeId, customBase: PresetThemeId): PresetThemeId {
+  return theme === "custom" ? customBase : theme;
+}
+
+function parseHex(hex: string): Rgb | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+/** 主题 → 实际色板。自定义 = 基底色板 + 覆盖强调色；其余 token（含终端 ANSI）不开放。 */
+function resolvePalette(theme: ThemeId, customBase: PresetThemeId, customAccent: string): Palette {
+  const base = PALETTES[effectivePreset(theme, customBase)] ?? PALETTES["deep-blue"];
+  if (theme !== "custom") return base;
+  const accent = parseHex(customAccent);
+  return accent ? { ...base, accent } : base;
+}
 
 const rgbTriplet = (c: Rgb) => `${c[0]} ${c[1]} ${c[2]}`;
 const rgba = (c: Rgb, a: number) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
@@ -112,6 +140,9 @@ const round2 = (v: number) => Math.round(v * 100) / 100;
 
 export interface ThemeOptions {
   theme: ThemeId;
+  /** 自定义档的基底与强调色；其余主题忽略 */
+  customBase: PresetThemeId;
+  customAccent: string;
   /** panel/window background opacity (0.2-0.95) */
   glassAlpha: number;
   /** backdrop-blur radius of the panel layer, px (0-40) */
@@ -130,6 +161,8 @@ export interface ThemeOptions {
  */
 export function applyTheme({
   theme,
+  customBase,
+  customAccent,
   glassAlpha,
   blurPx,
   borderAlpha,
@@ -137,7 +170,7 @@ export function applyTheme({
   hasWallpaper,
 }: ThemeOptions) {
   const r = document.documentElement.style;
-  const p = PALETTES[theme] ?? PALETTES["deep-blue"];
+  const p = resolvePalette(theme, customBase, customAccent);
 
   // ── Window / panel layers ────────────────────────────────────────────────
   // With a wallpaper the root layer thins out so the image reads through it,

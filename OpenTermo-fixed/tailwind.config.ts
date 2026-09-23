@@ -25,7 +25,9 @@ export default {
         danger: "rgb(var(--color-danger-rgb) / <alpha-value>)",
       },
       fontFamily: {
-        sans: ["Inter", "SF Pro Text", "Segoe UI", "system-ui", "sans-serif"],
+        // 唯一声明源是 index.css 的 --font-ui；这里只是让 preflight 与 body 一致，
+        // 不要再写第二套字体栈。
+        sans: ["var(--font-ui)"],
         mono: ["JetBrains Mono", "Source Code Pro", "Cascadia Code", "Consolas", "monospace"],
       },
     },

@@ -1,10 +1,10 @@
 ﻿import { useCallback, useState, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Minus, Square, X, HardDrive, HardDriveUpload, Settings, Loader2 } from "lucide-react";
+import { Minus, Square, X, HardDrive, HardDriveUpload, Settings, Loader2, Palette, Plus } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { rclone_mount, rclone_unmount, rclone_list } from "@/lib/tauriCommands";
 import { useUIStore } from "@/stores/uiStore";
-import { useSettingsStore } from "@/stores/settingsStore";
+import { useSettingsStore, THEME_ORDER, THEME_LABELS } from "@/stores/settingsStore";
 
 interface TitleBarProps {
   onSettings: () => void;
@@ -19,15 +19,19 @@ export default function TitleBar({ onSettings }: TitleBarProps) {
   const clearError = useSessionStore((s) => s.clearError);
   const setInfo = useSessionStore((s) => s.setInfo);
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
+  const openLauncher = useUIStore((s) => s.openLauncher);
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
 
+  const nextTheme = THEME_ORDER[(THEME_ORDER.indexOf(theme) + 1) % THEME_ORDER.length];
   const toggleTheme = useCallback(() => {
-    setTheme(theme === "light" ? "deep-blue" : "light");
-  }, [theme, setTheme]);
+    setTheme(nextTheme);
+  }, [nextTheme, setTheme]);
 
   const themeIcon = theme === "light"
     ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
+    : theme === "custom"
+    ? <Palette size={14} />
     : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg>;
   // tabId -> drive letter (e.g. "M:")
   const [mounts, setMounts] = useState<Record<string, string>>({});
@@ -165,6 +169,17 @@ export default function TitleBar({ onSettings }: TitleBarProps) {
             </div>
           );
         })}
+
+        {/* 新建会话 — 浏览器式 + */}
+        <button
+          onClick={openLauncher}
+          onMouseDown={(e) => e.stopPropagation()}
+          title="新建会话 (Ctrl+T)"
+          aria-label="新建会话"
+          className="no-drag shrink-0 flex items-center justify-center w-8 h-8 rounded-md text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-dim)] transition-colors"
+        >
+          <Plus size={15} />
+        </button>
       </div>
 
       {/* SSHFS mount button — per session */}
@@ -209,7 +224,7 @@ export default function TitleBar({ onSettings }: TitleBarProps) {
           <button
             onClick={toggleTheme}
             className="no-drag flex items-center justify-center w-9 h-8 rounded-md text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-dim)] transition-colors flex-shrink-0"
-            title={theme === "light" ? "切换到夜间" : "切换到白天"}
+            title={`切换到${THEME_LABELS[nextTheme]}`}
           >
             {themeIcon}
           </button>

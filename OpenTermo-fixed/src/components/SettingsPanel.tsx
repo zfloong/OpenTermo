@@ -1,8 +1,9 @@
-﻿import { useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Settings, Palette, Info, RotateCcw, ExternalLink, Terminal, Image as ImageIcon, Trash2, Droplet } from "lucide-react";
-import { useSettingsStore, type ThemeId } from "@/stores/settingsStore";
-import { applyBackgroundImage, DEFAULT_BACKGROUND, THEME_SWATCH } from "@/lib/themeUtils";
+import { useSettingsStore, THEME_ORDER, THEME_LABELS, type ThemeId, type PresetThemeId } from "@/stores/settingsStore";
+import { applyBackgroundImage, DEFAULT_BACKGROUND, THEME_SWATCH, THEME_ACCENT_HEX } from "@/lib/themeUtils";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
+import { getVersion } from "@tauri-apps/api/app";
 import {
   setBackgroundImage,
   clearBackgroundImage,
@@ -21,10 +22,10 @@ interface Props {
 
 type Section = "appearance" | "terminal" | "about";
 
-const THEMES: { id: ThemeId; label: string }[] = [
-  { id: "deep-blue", label: "默认" },
-  { id: "light",     label: "白天" },
-];
+const THEMES: { id: ThemeId; label: string }[] = THEME_ORDER.map((id) => ({
+  id,
+  label: THEME_LABELS[id],
+}));
 
 const FONT_OPTIONS = [
   { value: "", label: "默认 (Meatshell Mono)" },
@@ -81,6 +82,11 @@ function rangeSlider(
 
 export default function SettingsPanel({ open, onClose }: Props) {
   const [section, setSection] = useState<Section>("appearance");
+  // 关于页曾经硬编码版本号，连续两个版本都是错的 —— 改成运行时向 Tauri 取。
+  const [appVersion, setAppVersion] = useState("");
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => {});
+  }, []);
 
   const theme = useSettingsStore((s) => s.theme);
   const fontSize = useSettingsStore((s) => s.fontSize);
@@ -92,6 +98,8 @@ export default function SettingsPanel({ open, onClose }: Props) {
   const borderAlpha = useSettingsStore((s) => s.borderAlpha);
   const terminalAlpha = useSettingsStore((s) => s.terminalAlpha);
   const hasWallpaper = useSettingsStore((s) => s.hasWallpaper);
+  const customBase = useSettingsStore((s) => s.customBase);
+  const customAccent = useSettingsStore((s) => s.customAccent);
 
   const setTheme = useSettingsStore((s) => s.setTheme);
   const setFontSize = useSettingsStore((s) => s.setFontSize);
@@ -103,6 +111,8 @@ export default function SettingsPanel({ open, onClose }: Props) {
   const setBorderAlpha = useSettingsStore((s) => s.setBorderAlpha);
   const setTerminalAlpha = useSettingsStore((s) => s.setTerminalAlpha);
   const setHasWallpaper = useSettingsStore((s) => s.setHasWallpaper);
+  const setCustomBase = useSettingsStore((s) => s.setCustomBase);
+  const setCustomAccent = useSettingsStore((s) => s.setCustomAccent);
 
   const [bgMsg, setBgMsg] = useState<string | null>(null);
   const [bgBusy, setBgBusy] = useState(false);
@@ -110,6 +120,9 @@ export default function SettingsPanel({ open, onClose }: Props) {
   const previewTheme = (tid: ThemeId) => {
     setTheme(tid);
   };
+
+  const swatchColor = (id: ThemeId) =>
+    id === "custom" ? customAccent || THEME_ACCENT_HEX[customBase] : THEME_SWATCH[id];
 
   const handlePickBackground = async () => {
     const picked = await openFileDialog({
@@ -145,6 +158,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
   };
 
   const handleResetAll = async () => {
+    // 只回预设；自定义档的存档刻意保留 —— 那是用户自己调的一套，不该被「恢复默认」清掉。
     setTheme("deep-blue");
     setFontSize(14);
     setFontFamily("");
@@ -153,7 +167,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
     setGlassAlpha(0.2);
     setBlurStrength(40);
     setBorderAlpha(0.15);
-    setTerminalAlpha(0.92);
+    setTerminalAlpha(0.8);
     // Drop the custom image before re-enabling, so the effect that loads the
     // wallpaper can't pick up the old file on its way out.
     await clearBackgroundImage().catch(() => {});
@@ -215,11 +229,56 @@ export default function SettingsPanel({ open, onClose }: Props) {
                           }`}
                       >
                         <span className="w-4 h-4 rounded-full border border-[var(--border-subtle)] flex-shrink-0"
-                          style={{ backgroundColor: THEME_SWATCH[t.id] }} />
+                          style={{ backgroundColor: swatchColor(t.id) }} />
                         {t.label}
                       </button>
                     ))}
                   </div>
+
+                  {theme === "custom" && (
+                    <div className="flex flex-col gap-3 mt-1 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-sunken)] px-3 py-3">
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-xs text-[var(--text-secondary)]">基底</span>
+                        <div className="flex gap-2">
+                          {(["deep-blue", "light"] as PresetThemeId[]).map((b) => (
+                            <button
+                              key={b}
+                              onClick={() => setCustomBase(b)}
+                              className={`flex-1 py-1.5 rounded-md text-xs font-medium border transition-all
+                                ${customBase === b
+                                  ? "bg-[var(--surface-selected)] text-[var(--accent)] border-[var(--accent-border)]"
+                                  : "text-[var(--text-secondary)] border-[var(--border-default)] hover:bg-[var(--surface-hover)]"
+                                }`}
+                            >
+                              {THEME_LABELS[b]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <label className="flex items-center justify-between">
+                        <span className="text-xs text-[var(--text-secondary)]">强调色</span>
+                        <span className="flex items-center gap-2">
+                          {customAccent && (
+                            <button
+                              onClick={() => setCustomAccent("")}
+                              className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)] underline"
+                            >
+                              跟随基底
+                            </button>
+                          )}
+                          <input
+                            type="color"
+                            value={customAccent || THEME_ACCENT_HEX[customBase]}
+                            onChange={(e) => setCustomAccent(e.target.value)}
+                            className="w-9 h-6 p-0 rounded border border-[var(--border-default)] bg-transparent cursor-pointer"
+                          />
+                        </span>
+                      </label>
+                      <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+                        这一档下透明度、磨砂、边框都归你，切走再切回来还是这套；终端配色跟随基底。
+                      </p>
+                    </div>
+                  )}
                 </section>
 
                 <hr className="border-0 h-px bg-[var(--border-subtle)]" />
@@ -363,7 +422,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
 
                 <div className="text-center">
                   <h2 className="text-xl font-bold text-[var(--text-primary)]">OpenTermo</h2>
-                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">v2.5.0</p>
+                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">v{appVersion || "—"}</p>
                 </div>
 
                 <p className="text-sm text-[var(--text-secondary)] text-center max-w-xs leading-relaxed">

@@ -13,6 +13,10 @@ interface UIState {
   savedSidebarWidth: number;
   setSidebarWidth: (width: number) => void;
 
+  /** Session launcher overlay (opened from the title-bar `+` / Ctrl+T). */
+  isLauncherOpen: boolean;
+  openLauncher: () => void;
+  closeLauncher: () => void;
 }
 
 export const MIN_SIDEBAR_WIDTH = 160;
@@ -50,5 +54,9 @@ export const useUIStore = create<UIState>((set) => ({
         isSidebarOpen: true,
       };
     }),
+
+  isLauncherOpen: false,
+  openLauncher: () => set({ isLauncherOpen: true }),
+  closeLauncher: () => set({ isLauncherOpen: false }),
 
 }));

@@ -43,6 +43,8 @@ interface SessionState {
   activeTabId: string | null;
   /** Whether the connect dialog is open. */
   connectDialogOpen: boolean;
+  /** 启动台里「在此新建连接」带过去的预置分组；null 表示不预置。 */
+  connectDialogGroup: string | null;
   /** ID of session being edited (null = no edit dialog open). */
   editingSessionId: string | null;
   /** Pending host-key confirmation prompts (FIFO, one shown at a time). */
@@ -78,7 +80,7 @@ interface SessionState {
   triggerScroll: (tabId: string) => void;
 
   // Dialog controls
-  openConnectDialog: () => void;
+  openConnectDialog: (group?: string | null) => void;
   closeConnectDialog: () => void;
   openEditDialog: (id: string) => void;
   closeEditDialog: () => void;
@@ -97,6 +99,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   tabs: [],
   activeTabId: null,
   connectDialogOpen: false,
+  connectDialogGroup: null,
   editingSessionId: null,
   hostKeyPrompts: [],
   credentialPrompts: [],
@@ -232,8 +235,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // ── Dialog controls ────────────────────────────────────────────────────
 
-  openConnectDialog: () => set({ connectDialogOpen: true }),
-  closeConnectDialog: () => set({ connectDialogOpen: false }),
+  openConnectDialog: (group) => set({ connectDialogOpen: true, connectDialogGroup: group ?? null }),
+  closeConnectDialog: () => set({ connectDialogOpen: false, connectDialogGroup: null }),
 
   openEditDialog: (id) => set({ editingSessionId: id }),
   closeEditDialog: () => set({ editingSessionId: null }),

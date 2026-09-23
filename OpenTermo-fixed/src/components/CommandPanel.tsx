@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/button";
 import { resolveCommandTemplate } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import ContextMenu, { type ContextMenuItem } from "@/components/ui/context-menu";
+import { confirmAction, promptText } from "@/components/ui/confirm-dialog";
 
 type SortMode = "name" | "recent";
 
@@ -344,8 +345,14 @@ export default function CommandPanel() {
   );
 
   const handleDelete = useCallback(
-    async (id: string) => {
-      await remove(id);
+    async (cmd: CommandEntry) => {
+      const ok = await confirmAction({
+        title: "删除命令",
+        message: `确定删除「${cmd.label || cmd.command}」？此操作不可撤销。`,
+        confirmText: "删除",
+        danger: true,
+      });
+      if (ok) await remove(cmd.id);
     },
     [remove],
   );
@@ -444,7 +451,7 @@ export default function CommandPanel() {
       {
         label: "删除",
         icon: <Trash2 size={12} />,
-        onClick: () => handleDelete(cmd.id),
+        onClick: () => handleDelete(cmd),
         danger: true,
       },
     ],
@@ -475,11 +482,14 @@ export default function CommandPanel() {
         {
           label: "重命名",
           icon: <Edit3 size={12} />,
-          onClick: () => {
-            const newName = prompt("Rename folder:", node.name);
-            if (newName?.trim() && newName.trim() !== node.name) {
+          onClick: async () => {
+            const newName = await promptText({
+              title: "重命名文件夹",
+              input: { label: "文件夹名称", initial: node.name },
+            });
+            if (newName && newName !== node.name) {
               const parts = node.path.split("/");
-              parts[parts.length - 1] = newName.trim();
+              parts[parts.length - 1] = newName;
               renameFolder(node.path, parts.join("/"));
             }
           },
@@ -502,11 +512,16 @@ export default function CommandPanel() {
         {
           label: "删除文件夹",
           icon: <Trash2 size={12} />,
-          onClick: () => {
-            const msg = node.isEmpty
-              ? `删除文件夹 "${node.path}"?`
-              : `删除文件夹 "${node.path}" 及其所有命令？`;
-            if (confirm(msg)) {
+          onClick: async () => {
+            const ok = await confirmAction({
+              title: "删除文件夹",
+              message: node.isEmpty
+                ? `确定删除文件夹「${node.path}」？`
+                : `确定删除文件夹「${node.path}」及其所有命令？此操作不可撤销。`,
+              confirmText: "删除",
+              danger: true,
+            });
+            if (ok) {
               const collectIds = (n: TreeNode): string[] => [
                 ...n.commands.map((c) => c.id),
                 ...n.children.flatMap(collectIds),

@@ -1,19 +1,10 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
-import { List, ChevronRight, Plus } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
 import { useUIStore, MIN_SIDEBAR_WIDTH } from "@/stores/uiStore";
-import { useSessionStore } from "@/stores/sessionStore";
 import CommandPanel from "@/components/CommandPanel";
-import SessionManager from "@/components/SessionManager";
-
-type SidebarTab = "sessions" | "commands";
 
 export default function Sidebar() {
-  const isOpen = useUIStore((s) => s.isSidebarOpen);
-  const toggleSidebar = useUIStore((s) => s.toggleSidebar);
   const sidebarWidth = useUIStore((s) => s.sidebarWidth);
   const setSidebarWidth = useUIStore((s) => s.setSidebarWidth);
-  const openConnect = useSessionStore((s) => s.openConnectDialog);
-  const [tab, setTab] = useState<SidebarTab>("sessions");
   const dragging = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(0);
@@ -32,25 +23,21 @@ export default function Sidebar() {
     return () => { document.removeEventListener("mousemove", mm); document.removeEventListener("mouseup", mu); };
   }, [setSidebarWidth]);
 
-  return (<>
-
+  return (
     <aside className="sidebar-glass flex flex-col flex-shrink-0 overflow-hidden relative" style={{ width: sidebarWidth }}>
-      <div className="flex items-center gap-1 px-3 py-1.5 flex-shrink-0 select-none border-b border-[var(--border-strong)]" data-tauri-drag-region>
-        <button onClick={() => setTab("sessions")} className={"flex-1 py-2 flex items-center justify-center gap-1.5 text-sm font-semibold rounded-md transition-all no-drag " + (tab === "sessions" ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]")}><List size={14} />会话</button>
-        <button onClick={() => setTab("commands")} className={"flex-1 py-2 flex items-center justify-center gap-1.5 text-sm font-semibold rounded-md transition-all no-drag " + (tab === "commands" ? "bg-[var(--surface-selected)] text-[var(--accent)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]")}><ChevronRight size={14} />命令</button>
-
+      {/* 只有一条极简标题栏，窗口拖拽区仍然连得上 */}
+      <div
+        className="flex items-center px-3 h-8 flex-shrink-0 select-none border-b border-[var(--border-strong)]"
+        data-tauri-drag-region
+      >
+        <span className="text-xs font-semibold text-[var(--text-muted)] tracking-wide">命令</span>
       </div>
-      {tab === "sessions" && (
-        <button
-          onClick={openConnect}
-          className="flex items-center justify-center gap-1.5 h-8 mx-2 mt-2 rounded-lg text-sm font-semibold text-[var(--accent)] bg-[var(--accent-dim)] border border-[var(--accent-border)] hover:bg-accent/25 transition-colors flex-shrink-0"
-        >
-          <Plus size={15} />
-          新建连接
-        </button>
-      )}
-      <div className="flex-1 overflow-y-auto">{tab === "sessions" ? <SessionManager /> : <div className="h-full flex flex-col px-2"><CommandPanel /></div>}</div>
+
+      <div className="flex-1 min-h-0 flex flex-col px-2 py-1.5">
+        <CommandPanel />
+      </div>
+
       <div onMouseDown={onDragStart} className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[rgb(var(--accent-rgb)/0.40)] transition-colors z-10" />
     </aside>
-  </>);
+  );
 }

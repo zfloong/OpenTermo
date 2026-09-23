@@ -4,12 +4,13 @@ import { FitAddon } from "xterm-addon-fit";
 import { SearchAddon } from "xterm-addon-search";
 import "xterm/css/xterm.css";
 import { useSessionStore } from "@/stores/sessionStore";
-import { useSettingsStore } from "@/stores/settingsStore";
+import { useSettingsStore, type PresetThemeId, type ThemeId } from "@/stores/settingsStore";
+import { effectivePreset } from "@/lib/themeUtils";
 
-// Terminal themes keyed by ThemeId — avoids getComputedStyle timing issues.
+// Terminal themes keyed by preset ThemeId — avoids getComputedStyle timing issues.
 // The canvas background is transparent on purpose: the container paints it
 // through --term-bg-rgb / --term-alpha so the wallpaper can read through.
-const TERMINAL_THEMES: Record<string, Record<string, string>> = {
+const TERMINAL_THEMES: Record<PresetThemeId, Record<string, string>> = {
   "deep-blue": {
     background: "rgba(0,0,0,0)",
     foreground: "#d4d4d4",
@@ -60,8 +61,8 @@ const TERMINAL_THEMES: Record<string, Record<string, string>> = {
   },
 };
 
-function getTerminalTheme(themeId: string) {
-  return TERMINAL_THEMES[themeId] || TERMINAL_THEMES["deep-blue"];
+function getTerminalTheme(theme: ThemeId, customBase: PresetThemeId) {
+  return TERMINAL_THEMES[effectivePreset(theme, customBase)] || TERMINAL_THEMES["deep-blue"];
 }
 
 /** Duration (ms) of the green selection flash after copy. */
@@ -81,12 +82,15 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
   const sendInput = useSessionStore((s) => s.sendInput);
   const onResize = useSessionStore((s) => s.resize);
   const theme = useSettingsStore((s) => s.theme);
+  const customBase = useSettingsStore((s) => s.customBase);
   const fontSize = useSettingsStore((s) => s.fontSize);
   const fontFamily = useSettingsStore((s) => s.fontFamily);
   const cursorStyle = useSettingsStore((s) => s.cursorStyle);
   const cursorBlink = useSettingsStore((s) => s.cursorBlink);
   const themeRef = useRef(theme);
   themeRef.current = theme;
+  const customBaseRef = useRef(customBase);
+  customBaseRef.current = customBase;
 
   // ── Search state ──────────────────────────────────────────────────────
   const [searchOpen, setSearchOpen] = useState(false);
@@ -194,7 +198,7 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
 
     const term = new Terminal({
         scrollback: 25000,
-      theme: getTerminalTheme(theme),
+      theme: getTerminalTheme(theme, customBase),
       allowTransparency: true,
       fontFamily: fontFamily || "'Meatshell Mono', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace",
       fontSize,
@@ -286,11 +290,11 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
 
       // Brief green flash to distinguish from normal blue selection
       term.options.theme = {
-        ...getTerminalTheme(themeRef.current),
+        ...getTerminalTheme(themeRef.current, customBaseRef.current),
         selectionBackground: "rgba(34, 197, 94, 0.40)",
       };
       setTimeout(() => {
-        term.options.theme = getTerminalTheme(themeRef.current);
+        term.options.theme = getTerminalTheme(themeRef.current, customBaseRef.current);
       }, COPY_FLASH_MS);
     };
 
@@ -364,9 +368,9 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
   // ── Watch theme changes and update terminal colors ───────
   useEffect(() => {
     if (terminalRef.current) {
-      terminalRef.current.options.theme = getTerminalTheme(theme);
+      terminalRef.current.options.theme = getTerminalTheme(theme, customBase);
     }
-  }, [theme]);
+  }, [theme, customBase]);
 
   // ── Watch font size changes ──────────────────────────
   useEffect(() => {

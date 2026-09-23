@@ -1,5 +1,5 @@
 ﻿import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Plus, Trash2, FolderOpen } from "lucide-react";
+import { Check, Copy, Plus, FolderOpen } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,16 +10,18 @@ import {
 } from "@/components/ui/dialog";
 import { type SessionConfig } from "@/lib/tauriCommands";
 import { formatSessionInfo } from "@/lib/sessionInfo";
+import { GroupField } from "@/components/GroupField";
 
 interface ConnectDialogProps {
   sessions: SessionConfig[];
+  /** 启动台「在此新建连接」带过来的分组；空分组也能预置。 */
+  defaultGroup?: string | null;
   onClose: () => void;
   onConnect: (session: SessionConfig) => void;
   onSave: (session: SessionConfig) => void;
-  onDelete: (id: string) => void;
 }
 
-function emptySession(): SessionConfig {
+function emptySession(group?: string | null): SessionConfig {
   return {
     id: crypto.randomUUID(),
     name: "",
@@ -31,7 +33,7 @@ function emptySession(): SessionConfig {
     private_key_path: "",
     proxy: "",
     last_used: null,
-    group: "",
+    group: group ?? "",
     kind: "ssh",
     serial_port: "",
     baud_rate: 115200,
@@ -44,14 +46,14 @@ function emptySession(): SessionConfig {
 
 export default function ConnectDialog({
   sessions,
+  defaultGroup,
   onClose,
   onConnect,
   onSave,
-  onDelete,
 }: ConnectDialogProps) {
   // Edit mode is handled by EditSessionDialog — ConnectDialog is always new connection
   const [form, setForm] = useState<SessionConfig>(() =>
-    emptySession()
+    emptySession(defaultGroup)
   );
   const [keyPassphrase, setKeyPassphrase] = useState(() =>
     ""
@@ -137,11 +139,6 @@ export default function ConnectDialog({
     }
   };
 
-  const handleDeleteSession = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    onDelete(id);
-  };
-
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-[560px] p-0 mx-4">
@@ -169,29 +166,26 @@ export default function ConnectDialog({
                 <span className="text-xs font-medium text-[var(--text-secondary)]">会话名称</span>
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="我的服务器" className="h-8 text-sm" />
               </label>
-              <label className="flex flex-col gap-1.5">
-                                <span className="text-xs font-medium text-[var(--text-secondary)]">分组</span>
-                <select
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-[var(--text-secondary)]">分组</span>
+                <GroupField
                   value={form.group}
-                  onChange={(e) => setForm({ ...form, group: e.target.value })}
-                  className="h-8 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all"
-                >
-                  <option value="">Default</option>
-                  {[...new Set(sessions.map((s) => s.group).filter(Boolean))].map((g) => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
-                </select>
+                  onChange={(group) => setForm({ ...form, group })}
+                  usedGroups={sessions.map((s) => s.group)}
+                  selectClass="h-8 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all"
+                />
                 <span className="text-xs font-medium text-[var(--text-secondary)]">协议</span>
                 <select
                   value={form.kind}
                   onChange={(e) => setForm({ ...form, kind: e.target.value as SessionConfig["kind"], port: e.target.value === "ssh" ? 22 : e.target.value === "telnet" ? 23 : 0 })}
+                  aria-label="协议"
                   className="h-8 text-sm bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-md px-2.5 text-[var(--text-primary)] outline-none focus:border-[rgb(var(--accent-rgb)/0.60)] transition-all"
                 >
                   <option value="ssh">SSH</option>
                   <option value="telnet">Telnet</option>
                   <option value="serial">Serial</option>
                 </select>
-              </label>
+              </div>
             </div>
 
             {form.kind === "serial" && (
