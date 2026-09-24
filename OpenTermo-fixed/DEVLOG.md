@@ -366,3 +366,41 @@ node -e "const fs=require('fs');const p=process.argv[1];let t=fs.readFileSync(p,
 - **不重构 `CommandPanel.tsx`(1060 行) / `SessionLauncher.tsx`(769 行)** 的体量问题 —— 独立议题。
 - **不做数据目录迁移之外的用户数据变更**（迁移本身 copy-only，源目录保留可回退）。
 
+
+
+---
+
+## 2026-09-24 — Vzfl2.11：外观默认档 / 启动最大化 / 配置清理
+
+> 触发：来自实际使用的三条反馈 —— 边框柔和度默认偏硬、打开软件希望直接最大化、以及下载安装时"卡一下再弹 UAC"的现象需要定性。
+> commit：`13f9cfd`（边框默认档）、`c66585a`（启动最大化）、`733513a`（配置清理）、`c15af3d`（按钮图标）+ 本次 bump；标签 `Vzfl2.11`。
+
+### 一、边框柔和度改为按主题取默认值（`src/stores/settingsStore.ts`）
+
+- 原先 `borderAlpha` 只有一个与主题无关的全局默认值 `0.15`。现并入 `THEME_ALPHA_DEFAULTS`：**暗夜 50%、白天 75%**，切主题时与窗口/终端区透明度一起改写并落盘；自定义档仍只做快照/回灌，不受影响。
+- **存量 profile 的坑**：旧默认值 `0.15` 就存在 localStorage 里，直接沿用等于"没人看得到这次改动"。因此加了一次性迁移把它抬到当前主题的默认档。
+- 迁移**必须是 one-shot**：早期实现只比较"存储值是否等于 0.15"，那样用户之后"故意"拖到 15% 会在每次重启时被打回。最终用 `opentermo-border-alpha-migrated` 标记把迁移限制为一次。
+
+### 二、启动即最大化（`src-tauri/tauri.conf.json`）
+
+- 窗口本来就以 `visible: false` 建好、等 WebView 就绪后在 setup 里 `show()`；加上 `maximized: true` 后会在 `show` 之前完成最大化，不会出现"先小窗闪一下再撑满"。
+- 实测：`IsZoomed = True`，客户区 `1920x1032` 与屏幕工作区完全一致。
+- `src/components/layout/TitleBar.tsx` 的最大化按钮原先恒画单个方框，看不出当前状态（启动即最大化后更失真）。改为订阅 `onResized` 后重新查询 `isMaximized()` —— 双击标题栏、拖边框、系统热键都会改变状态，只跟点击走会立刻脱节。异步回调里用 `disposed` 标记兜住"卸载后 promise 才 resolve"，订阅函数同理（若订阅未建立就已卸载则立即注销，避免监听泄漏）。
+
+### 三、删掉冗余的 `devtools: true`
+
+- schema 原文：devtools "Enabled by default"，且该字段**没有 default 值**。dev 构建本来就开；release 要靠 Cargo 的 `devtools` feature，而 `src-tauri/Cargo.toml` 未启用 —— 该行对发布版一直是无效配置。删掉不改变任何构建行为，只是不再误导后人以为"发布版带着 devtools"。
+
+### 四、安装过程审查结论（无代码改动）
+
+- **`.msi`（WiX）必然要管理员**：Tauri 的 `WixConfig` **没有 `installMode` 选项**（整份 schema 里 `installMode` 只属于 NSIS 段），MSI 一律 per-machine —— 装到 `Program Files`、写 HKLM，UAC 不可配置关闭。本机注册表实测即为此形态（`InstallLocation=C:\Program Files\OpenTermo\`、卸载走 `MsiExec.exe /X{...}`）。
+- **`-setup.exe`（NSIS）默认不需要管理员**：`installMode` 默认 `currentUser`，装用户目录、写 HKCU，项目未覆写。
+- **"卡一下"的定性**：本机 WebView2 已装机（pv=145.0.3800.82，机器级），因此 `webviewInstallMode` 默认的 `downloadBootstrapper`（联网下载引导程序）这条链路**并未被走到**。停顿来自 msiexec 拉起 Windows Installer 服务 → 包校验/成本解析 → 判需要提权才弹 UAC；包未签名时该校验也没有可信签名可走。
+- 未签名还可能导致 SmartScreen（"Windows 已保护你的电脑"），与 UAC 是两回事，只有代码签名能消除。
+- **分发策略本次未改**（经确认保持现状：MSI + NSIS 都发）。
+
+### 五、验证方式（本轮采用运行时证据，而非"构建通过"）
+
+- 边框默认档：读 WebView2 的 localStorage leveldb，确认落盘 `opentermo-border-alpha=0.5` 与 `opentermo-border-alpha-migrated=1`，并能看到切到白天主题时的 `0.75`。
+- 启动最大化与按钮图标：Win32 `IsZoomed` / `GetWindowRect` / `GetClientRect` + 截屏比对（最大化态叠层方框、还原态单方框，两个方向都对）。
+- 教训：`npm run tauri dev` 的后台任务可能在不知何时已退出，此时窗口里跑的是**旧代码**，截图会把"旧 UI"误判成"改动没生效"。可靠做法是把 vite 单独起、再直接运行已编译的 debug 二进制。
