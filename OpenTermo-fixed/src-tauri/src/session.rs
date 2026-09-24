@@ -290,25 +290,19 @@ async fn forward_events(
             }
             // ── Kernel events this layer does not forward ─────────────────
             // Spelled out variant by variant rather than `_ => {}`: a wildcard
-            // let new `SessionEvent` variants vanish without a trace, which is
-            // exactly how the seven below came to drop their payload unnoticed.
-            // With this shape, adding a variant fails to compile until someone
-            // decides to forward it or to ignore it on purpose.
+            // let new `SessionEvent` variants vanish without a trace — seven of
+            // them had been dropped unnoticed (five were dead and have since
+            // been deleted from the kernel). With this shape, adding a variant
+            // fails to compile until someone decides to forward it or to ignore
+            // it on purpose.
             //
             // intentionally ignored: OSC 697 command capture (#113). The
             // command-history feature it fed was removed back in Vzfl2.2.
             SessionEvent::CommandRan(_) => {}
-            // intentionally ignored: no producer in the kernel — `SessionCommand`
-            // carries no SFTP request, so these five can never be constructed.
-            SessionEvent::SftpEntries { .. } => {}
-            SessionEvent::SftpStatus(_) => {}
-            SessionEvent::SftpError(_) => {}
-            SessionEvent::SftpTreeUpdate(_) => {}
-            SessionEvent::SftpFileText { .. } => {}
-            // intentionally ignored: ZMODEM download progress. Unlike the five
-            // above this one *is* produced (`zmodem.rs`), but nothing in the UI
-            // renders progress yet; wiring it up is its own piece of work.
-            SessionEvent::SftpTransfer { .. } => {}
+            // intentionally ignored: ZMODEM download progress. This one *is*
+            // produced (`zmodem.rs`), but nothing in the UI renders progress
+            // yet; wiring it up is its own piece of work.
+            SessionEvent::TransferProgress { .. } => {}
         }
     }
 }

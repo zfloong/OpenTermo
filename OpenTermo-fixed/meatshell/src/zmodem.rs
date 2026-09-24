@@ -452,7 +452,7 @@ fn emit(
     state: u8,
     msg: &str,
 ) {
-    let _ = events.send(SessionEvent::SftpTransfer {
+    let _ = events.send(SessionEvent::TransferProgress {
         id: id.to_string(),
         name: name.to_string(),
         is_upload: false,

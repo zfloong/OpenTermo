@@ -72,34 +72,8 @@ fn load_session_private_key(path: &str, pass: Option<&str>) -> Result<russh::key
 }
 
 // ---------------------------------------------------------------------------
-// SFTP-related shared types
+// Shared helpers
 // ---------------------------------------------------------------------------
-
-/// Metadata for a single remote filesystem entry returned by SFTP listing.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct RemoteEntry {
-    pub name: String,
-    pub full_path: String,
-    pub is_dir: bool,
-    /// Raw size in bytes (0 for directories or unknown).
-    pub size: u64,
-    /// Modification time as Unix timestamp (seconds, u32 = SFTP wire format).
-    pub modified: u32,
-    /// POSIX permission bits (the low 12, i.e. rwx + setuid/setgid/sticky).
-    /// 0 when the server didn't report permissions. Used to prefill the chmod
-    /// dialog (#84).
-    pub mode: u32,
-}
-
-/// One node in the remote directory tree panel.
-#[derive(Debug, Clone)]
-pub struct RemoteTreeNode {
-    pub path: String,
-    pub name: String,
-    pub depth: u32,
-    pub expanded: bool,
-    pub has_children: bool,
-}
 
 /// Format a byte count as a human-readable string.
 pub fn format_size(bytes: u64) -> String {
@@ -447,23 +421,12 @@ pub enum SessionEvent {
     /// (OSC 697) so it can join the command-box history (#113).
     CommandRan(String),
 
-    // --- SFTP events -------------------------------------------------------
+    // --- Shell notifications -----------------------------------------------
     /// The shell's current working directory changed (parsed from OSC 7).
     CwdChanged(String),
-    /// SFTP directory listing arrived.
-    SftpEntries {
-        path: String,
-        entries: Vec<RemoteEntry>,
-    },
-    /// Free-form SFTP status message (progress, errors, etc.).
-    SftpStatus(String),
-    /// A directory listing failed (e.g. permission denied): show the message and
-    /// stop the panel's loading spinner without disturbing the current view (#112).
-    SftpError(String),
-    /// Directory tree structure changed (full rebuild pushed on every toggle).
-    SftpTreeUpdate(Vec<RemoteTreeNode>),
-    /// File-transfer progress / completion (download or upload).
-    SftpTransfer {
+    /// ZMODEM transfer progress / completion. Produced by `zmodem.rs`; no
+    /// consumer yet — the bridge layer lists it as intentionally ignored.
+    TransferProgress {
         id: String,
         name: String,
         is_upload: bool,
@@ -471,16 +434,6 @@ pub enum SessionEvent {
         total: u64,
         state: u8, // 0 = active, 1 = done, 2 = error
         msg: String,
-    },
-    /// A remote text file loaded for the built-in viewer/editor (#70). On
-    /// failure (too large, binary, non-UTF-8, I/O error) `error` is non-empty
-    /// and `content` is empty.
-    SftpFileText {
-        path: String,
-        name: String,
-        content: String,
-        edit: bool,
-        error: String,
     },
 }
 
