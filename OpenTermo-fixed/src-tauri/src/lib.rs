@@ -134,6 +134,10 @@ fn clean_stale_rclone_configs() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // First, so that the migration below and everything after it can report
+    // through tracing (and land in error.log).
+    meatshell::init_tracing();
+
     // Carry over data written by older versions, which lived in a separate
     // `meatshell` directory. Must happen before anything reads sessions,
     // commands, known_hosts or the encryption key.
