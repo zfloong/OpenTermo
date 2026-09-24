@@ -395,12 +395,6 @@ pub enum SessionEvent {
 pub struct SessionHandle {
     pub tab_id: String,
     pub commands: UnboundedSender<SessionCommand>,
-    pub join: JoinHandle<()>,
-    /// SSH connection handle for runtime port-forwarding management.
-    /// Set internally once the SSH session is fully established.
-    pub ssh_handle: Arc<std::sync::Mutex<Option<Arc<russh::client::Handle<ClientHandler>>>>>,
-    /// Clone of the session event sender, for external forwarding management.
-    pub events: UnboundedSender<SessionEvent>,
 }
 
 impl SessionHandle {
@@ -431,15 +425,16 @@ pub fn spawn_session(
     let evt_tx_for_task = evt_tx.clone();
     let ssh_cell: Arc<std::sync::Mutex<Option<Arc<russh::client::Handle<ClientHandler>>>>> =
         Arc::new(std::sync::Mutex::new(None));
-    let ssh_cell_task = ssh_cell.clone();
-    let join = runtime.spawn(async move {
+    // The JoinHandle is dropped right away: dropping it does not cancel a tokio
+    // task, and no caller waits for a session to finish.
+    runtime.spawn(async move {
         if let Err(err) = run_session(
             session,
             cmd_rx,
             evt_tx_for_task.clone(),
             initial_cols,
             initial_rows,
-            ssh_cell_task,
+            ssh_cell,
         )
         .await
         {
@@ -452,9 +447,6 @@ pub fn spawn_session(
         SessionHandle {
             tab_id,
             commands: cmd_tx,
-            join,
-            ssh_handle: ssh_cell,
-            events: evt_tx,
         },
         evt_rx,
     )

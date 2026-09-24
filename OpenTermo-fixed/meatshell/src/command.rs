@@ -8,7 +8,6 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 /// A user-saved terminal command for quick dispatch.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,42 +94,6 @@ impl CommandStore {
 
     pub fn remove(&mut self, id: &str) {
         self.entries.retain(|e| e.id != id);
-    }
-
-    /// Assign sequential `order` values to entries matching the given IDs,
-    /// in the provided order.  Other entries keep their existing order (or None).
-    pub fn reorder(&mut self, ids: &[String]) {
-        for (i, id) in ids.iter().enumerate() {
-            if let Some(entry) = self.entries.iter_mut().find(|e| &e.id == id) {
-                entry.order = Some(i);
-            }
-        }
-    }
-
-    /// Sorted unique category names (excluding empty / "uncategorized").
-    pub fn categories(&self) -> Vec<String> {
-        let mut set: Vec<String> = self.entries.iter()
-            .map(|e| e.category.clone())
-            .filter(|c| !c.is_empty() && c != "uncategorized")
-            .collect();
-        set.sort();
-        set.dedup();
-        set
-    }
-
-    /// Create a blank entry with a UUID.
-    pub fn new_entry() -> CommandEntry {
-        CommandEntry {
-            id: Uuid::new_v4().to_string(),
-            label: String::new(),
-            command: String::new(),
-            category: String::new(),
-            pinned: false,
-            last_used: None,
-            icon: None,
-            description: None,
-            order: None,
-        }
     }
 
     // ── internal helpers ───────────────────────────────────────────────────

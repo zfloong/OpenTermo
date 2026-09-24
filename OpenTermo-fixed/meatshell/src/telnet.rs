@@ -14,7 +14,6 @@
 //! There is no SFTP and no resource monitor — a Telnet console is a raw pipe.
 
 use anyhow::{Context, Result};
-use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
@@ -48,7 +47,8 @@ pub fn spawn_telnet_session(
     let (evt_tx, evt_rx) = mpsc::unbounded_channel::<SessionEvent>();
 
     let evt_for_task = evt_tx.clone();
-    let join = runtime.spawn(async move {
+    // JoinHandle dropped immediately — dropping it does not cancel the task.
+    runtime.spawn(async move {
         if let Err(err) =
             run_telnet(session, cmd_rx, evt_for_task.clone(), initial_cols, initial_rows).await
         {
@@ -60,9 +60,6 @@ pub fn spawn_telnet_session(
         SessionHandle {
             tab_id,
             commands: cmd_tx,
-            join,
-            events: evt_tx,
-            ssh_handle: Arc::new(std::sync::Mutex::new(None)),
         },
         evt_rx,
     )

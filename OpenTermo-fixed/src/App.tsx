@@ -138,7 +138,7 @@ export default function App() {
               ))
             ) : (
               <div className="flex flex-col items-center justify-center h-full gap-3">
-                <span className="text-2xl opacity-20">{String.fromCharCode(0x2328)}</span>
+                <span className="text-2xl opacity-20">⌨</span>
                 <button
                   onClick={openLauncher}
                   className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-sm font-semibold text-[var(--accent)] bg-[var(--accent-dim)] border border-[var(--accent-border)] hover:bg-accent/25 transition-colors"

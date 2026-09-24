@@ -77,7 +77,6 @@ interface SessionState {
   copyError: () => void;
   save: (session: SessionConfig) => Promise<void>;
   remove: (id: string) => Promise<void>;
-  reorder: (ids: string[]) => void;
   connect: (tabId: string, session: SessionConfig) => Promise<void>;
   disconnect: (tabId: string) => Promise<void>;
   sendInput: (tabId: string, data: string) => Promise<void>;
@@ -152,21 +151,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   async remove(id) {
     await deleteSession(id);
     await get().loadSessions();
-  },
-
-  reorder(ids) {
-    // Optimistic UI update
-    set((s) => {
-      const map = new Map(s.sessions.map((e) => [e.id, e]));
-      const reordered = ids
-        .map((id) => map.get(id))
-        .filter((e): e is SessionConfig => !!e);
-      const idSet = new Set(ids);
-      for (const e of s.sessions) {
-        if (!idSet.has(e.id)) reordered.push(e);
-      }
-      return { sessions: reordered };
-    });
   },
 
   async connect(tabId, session) {

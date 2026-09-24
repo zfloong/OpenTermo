@@ -34,7 +34,8 @@ pub fn spawn_serial_session(
     let (evt_tx, evt_rx) = mpsc::unbounded_channel::<SessionEvent>();
 
     let evt_for_task = evt_tx.clone();
-    let join = runtime.spawn(async move {
+    // JoinHandle dropped immediately — dropping it does not cancel the task.
+    runtime.spawn(async move {
         if let Err(err) = run_serial(session, cmd_rx, evt_for_task.clone()).await {
             let _ = evt_for_task.send(SessionEvent::Closed(format!("{err:#}")));
         }
@@ -44,9 +45,6 @@ pub fn spawn_serial_session(
         SessionHandle {
             tab_id,
             commands: cmd_tx,
-            join,
-            events: evt_tx,
-            ssh_handle: Arc::new(std::sync::Mutex::new(None)),
         },
         evt_rx,
     )
