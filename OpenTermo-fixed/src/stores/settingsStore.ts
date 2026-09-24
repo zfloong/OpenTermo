@@ -81,15 +81,45 @@ function loadCursorStyle(): CursorStyle {
   return "bar";
 }
 
-// 窗口 / 终端区透明度是全局单值（不按主题分存），但每个主题有自己的默认档：
-// 切换主题时按这张表改写。暗色：窗口 20% / 终端区 80%；白天：窗口 95% / 终端区 20%。
+// 窗口 / 终端区透明度、边框柔和度都是全局单值（不按主题分存），但每个主题有自己的
+// 默认档：切换主题时按这张表改写。暗色：窗口 20% / 终端区 80% / 边框 50%；
+// 白天：窗口 95% / 终端区 20% / 边框 75%。
 // 自定义档没有默认值 —— 它的定义就是"永不改写"。
-const THEME_ALPHA_DEFAULTS: Record<PresetThemeId, { glassAlpha: number; terminalAlpha: number }> = {
-  "deep-blue": { glassAlpha: 0.2, terminalAlpha: 0.8 },
-  light: { glassAlpha: 0.95, terminalAlpha: 0.2 },
+const THEME_ALPHA_DEFAULTS: Record<
+  PresetThemeId,
+  { glassAlpha: number; terminalAlpha: number; borderAlpha: number }
+> = {
+  "deep-blue": { glassAlpha: 0.2, terminalAlpha: 0.8, borderAlpha: 0.5 },
+  light: { glassAlpha: 0.95, terminalAlpha: 0.2, borderAlpha: 0.75 },
 };
 
 const CUSTOM_SLOT_KEY = "opentermo-custom-appearance";
+
+/**
+ * 边框柔和度在引入"分主题默认值"之前只有一个全局默认值 0.15。
+ * 存量 profile 里存着的正是它 —— 那等于"从没调过"，不能让它压住新默认值，
+ * 否则所有已经跑过本应用的人都看不到这次改动。
+ */
+const LEGACY_BORDER_DEFAULT = 0.15;
+const BORDER_MIGRATION_KEY = "opentermo-border-alpha-migrated";
+
+function loadBorderAlpha(preset: PresetThemeId): number {
+  const fallback = THEME_ALPHA_DEFAULTS[preset].borderAlpha;
+  // 迁移只做一次：看过标记就走普通读取，用户此后手动拖到 15% 也能留住。
+  let migrated = false;
+  try {
+    migrated = localStorage.getItem(BORDER_MIGRATION_KEY) === "1";
+  } catch {}
+  if (migrated) return loadNum("opentermo-border-alpha", fallback, 0.15, 0.75);
+
+  const stored = loadNum("opentermo-border-alpha", fallback, 0.15, 0.75);
+  const lifted = stored === LEGACY_BORDER_DEFAULT ? fallback : stored;
+  try {
+    localStorage.setItem("opentermo-border-alpha", String(lifted));
+    localStorage.setItem(BORDER_MIGRATION_KEY, "1");
+  } catch {}
+  return lifted;
+}
 
 /** 自定义档自己那套滑杆值：离开自定义时快照，再次进入时回灌。 */
 interface CustomSlot {
@@ -125,20 +155,24 @@ function saveCustomSlot(slot: CustomSlot) {
   } catch {}
 }
 
+// Read once and reused by the theme field and by every slider fallback below: a
+// fresh profile has to start on *its own* theme's defaults, not on the dark ones.
+const initialTheme = loadTheme();
+const initialCustomBase = loadPresetThemeId("opentermo-custom-base");
+const initialPreset: PresetThemeId = initialTheme === "custom" ? initialCustomBase : initialTheme;
+
 export const useSettingsStore = create<SettingsState>((set) => ({
-  theme: loadTheme(),
+  theme: initialTheme,
   fontSize: loadNum("opentermo-fontsize", 14, 10, 28),
   fontFamily: loadStr("opentermo-font-family", ""),
   cursorStyle: loadCursorStyle(),
   cursorBlink: loadBool("opentermo-cursor-blink", true),
-  glassAlpha: loadNum("opentermo-glass-alpha", THEME_ALPHA_DEFAULTS["deep-blue"].glassAlpha, 0.2, 0.95),
+  glassAlpha: loadNum("opentermo-glass-alpha", THEME_ALPHA_DEFAULTS[initialPreset].glassAlpha, 0.2, 0.95),
   blurStrength: loadNum("opentermo-blur-strength", 40, 0, 40),
-  // Stored values below 0.15 come from the older 0.05-0.30 scale — lift them
-  // onto the current range so borders stay visible.
-  borderAlpha: loadNum("opentermo-border-alpha", 0.15, 0.15, 0.75),
-  terminalAlpha: loadNum("opentermo-terminal-alpha", THEME_ALPHA_DEFAULTS["deep-blue"].terminalAlpha, 0.2, 1),
+  borderAlpha: loadBorderAlpha(initialPreset),
+  terminalAlpha: loadNum("opentermo-terminal-alpha", THEME_ALPHA_DEFAULTS[initialPreset].terminalAlpha, 0.2, 1),
   hasWallpaper: loadBool("opentermo-background", true),
-  customBase: loadPresetThemeId("opentermo-custom-base"),
+  customBase: initialCustomBase,
   customAccent: loadAccent(),
 
   setTheme: (t) => {
@@ -178,7 +212,13 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       const d = THEME_ALPHA_DEFAULTS[t];
       localStorage.setItem("opentermo-glass-alpha", String(d.glassAlpha));
       localStorage.setItem("opentermo-terminal-alpha", String(d.terminalAlpha));
-      return { theme: t, glassAlpha: d.glassAlpha, terminalAlpha: d.terminalAlpha };
+      localStorage.setItem("opentermo-border-alpha", String(d.borderAlpha));
+      return {
+        theme: t,
+        glassAlpha: d.glassAlpha,
+        terminalAlpha: d.terminalAlpha,
+        borderAlpha: d.borderAlpha,
+      };
     });
   },
   setFontSize: (s) => {
