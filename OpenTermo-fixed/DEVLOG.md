@@ -313,3 +313,56 @@ node -e "const fs=require('fs');const p=process.argv[1];let t=fs.readFileSync(p,
 - 分组拖拽排序、分组作为一等对象 —— 同 Vzfl2.8，未动。
 - 打包分发字体（Noto Sans SC subset）—— 未动。
 
+---
+
+## 2026-09-24 — P2 审查修复：数据目录 / 日志 / 并发 / 持久化 / CI
+
+> 触发：对内核（`meatshell`）、桥接层（`src-tauri`）、前端（`src/`）做了一轮全项目技术审查，产出整改路线图（`.trae/documents/opentermo-remediation-roadmap.md`，未纳入 git），再按「**每项一个 commit、批间设验证闸门**」的方式逐条执行。
+> commit 区间：`9caff01` … 本节所在 commit（共 18 个），**未打 tag、未发 Release**。
+> 每批验证：前端 `npm run build`、桥接层 `cargo check --manifest-path src-tauri/Cargo.toml`、内核 `cargo test --manifest-path meatshell/Cargo.toml`（14 项单测全绿）。
+
+### 一、数据与日志：让落盘真的发生
+
+- **数据目录双轨**（`meatshell/src/config.rs`）：`app_data_dir()` 改用 Tauri 标识符 `dev.opentermo.app`，并新增 `migrate_legacy_data()` —— 首次启动把旧目录的 `sessions.json` / `commands.json` **搬运**（不是复制后二选一），旧文件保留可回退。此前"读写用的目录"与"Tauri 认定的应用目录"不是同一个，换个入口读到的就是另一份数据。
+- **tracing 从未初始化**（`src-tauri/src/lib.rs` / `main.rs`）：接入 `init_tracing()`（`try_init` + 写文件层），此前所有 `tracing::warn!` 都是空转 —— 出问题时没有任何日志可查。文件层写入失败时回退到 stderr。
+- **删依赖与无效配置**：清掉确认无引用的 crate 依赖，以及 Cargo.toml 里失效的 `panic = "abort"`（Tauri 侧根本不会生效，留着只会误导）。
+
+### 二、前端低风险修复（5 项）
+
+- 命令面板与会话启动台的**入场动画失效**：动画类名与实际挂载时机对不上，改为正确触发。
+- 终端右键菜单的 `contextmenu` 监听器**从不解绑**，随标签页开关累积。
+- 终端热路径（`onData` / `onResize`）的 IPC 失败改为吞掉并注释说明 —— 这些调用在标签页销毁时必然竞态失败，此前会变成 unhandled rejection。
+- `SessionConfig` 补上后端一直在发的 `forwards` 字段（类型定义与真实载荷对齐）。
+- `tauriCommands.ts` 分节注释的**双重编码损坏**（`?` 与乱码）修复。
+
+### 三、事件通道显式化 + 清理 SFTP 死变体（内核）
+
+- 桥接层的事件转发从 `_ => {}`（静默丢弃）改为**逐变体表态**，今后内核新增事件会在编译期暴露，而不是运行期被吞。
+- 删掉 5 个**零生产者**的 `Sftp*` 事件变体（内核里没有 SFTP 实现，这不是"接线遗漏"而是能力不存在），`SftpTransfer` 相应改名。
+- 删掉 `CommandRan`（OSC 697）及其生产者 —— 同样无人消费。
+
+### 四、桥接层并发与阻塞（本轮风险最高的两项，**故意分开提交**）
+
+- **D1 `rclone_mount` 整段持 `MOUNT_OP`**（`5493885`）：挂载期间（WMI 查号 + 起进程）一直握着全局锁，此时关标签页要等数秒。改为「**在飞预订**」：短临界区占号 → 锁外慢活 → 提交时校验预订仍属于自己（以唯一 `config_name` 作身份）→ 被取消则杀进程。`unmount_all` 需先**释放锁再排空预订**，否则会等一个"只有拿到锁才能释放预订"的尝试而自锁。
+- **D2 `#[tauri::command(async)]` 包着同步函数**（`751a069`）：等于占住 tokio worker。改为 `async fn` + `tokio::task::spawn_blocking`。
+
+### 五、性能与持久化（4 项）
+
+- **`write_text_file` 越权原语**（`9b672a4`）：原先接受任意路径 + 任意内容，等于给 webview 一个"向任意位置写任意文件"的能力。加扩展名白名单（仅 `.json`），导出流程不受影响。
+- **侧栏状态不持久化**（`6ce74aa`）：展开态与宽度写入 `localStorage`，启动时读取并 clamp。收起时宽度仍记 0（`Sidebar` 直接用其作样式宽度），另存 `savedSidebarWidth` 供下次展开还原。
+- **`save_command` 的 O(n²) 文件读写**（`b5f6f46`）：每次调用要完整 `load` 两次（一次读入、一次读回来做回显）+ 写一次；导入 N 条、重命名文件夹下 N 条都循环调用它。新增批量命令 `save_commands`（一次 load、一次 save）与 `upsert_entry`，前端 `renameFolder` / `importCommands` 改为收集后一次提交。
+- **PTY 初始尺寸硬编码 80×24**（`646c619`）：连接时由前端带上当前网格（记住最近一次 resize 的结果），消除"首屏提示符折行、光标列数错位直到首次 resize 才恢复"。该网格**只保留在本次运行内**，重启后第一个标签仍回落 80×24。
+
+### 六、清理收尾（本节提交）
+
+- **死代码**：`sessionStore.reorder`、`CommandStore::{reorder, categories, new_entry}`、`SessionHandle` 的 `join` / `events` / `ssh_handle`（`src-tauri` 侧零引用）、`App.tsx` 的 `String.fromCharCode(0x2328)`（改为直接字符 `⌨`）。
+  - 删 `ssh_handle` 后 `ssh_cell` 不再对外暴露，但仍在内部传给 `run_session`（SSH 会话句柄）；`JoinHandle` 改为**立即丢弃**——tokio 中丢弃 `JoinHandle` 不会取消任务，且无人等待会话结束。
+- **一致性**：`get_system_stats` 的 `std::sync::Mutex::unwrap()` 统一为项目通用的 `parking_lot`（不再有 panic 路径）。
+- **CI**（`.github/workflows/ci.yml`）：`npm install` → **`npm ci`**（可重现构建）；`if-no-files-found: warn` → **`error`**（防发版静默缺产物）。
+
+### 七、本轮明确未做
+
+- **不做 SFTP 功能** —— 内核没有生产者，是能力不存在，不是接线遗漏。
+- **不重构 `CommandPanel.tsx`(1060 行) / `SessionLauncher.tsx`(769 行)** 的体量问题 —— 独立议题。
+- **不做数据目录迁移之外的用户数据变更**；**不打 tag、不发 Release**。
+
