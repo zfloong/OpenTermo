@@ -218,6 +218,7 @@ pub fn run() {
             commands::delete_session,
             commands::list_commands,
             commands::save_command,
+            commands::save_commands,
             commands::delete_command,
             commands::connect_session,
             commands::send_input,

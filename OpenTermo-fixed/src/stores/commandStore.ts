@@ -3,6 +3,7 @@ import {
   type CommandEntry,
   listCommands,
   saveCommand,
+  saveCommands,
   deleteCommand,
 } from "@/lib/tauriCommands";
 
@@ -109,25 +110,20 @@ export const useCommandStore = create<CommandState>((set, get) => ({
 
   async renameFolder(oldPath: string, newPath: string) {
     const s = get();
-    const toUpdate = s.entries.filter(
-      (e) => {
-        const cat = e.category.trim();
-        return cat === oldPath || cat.startsWith(oldPath + "/");
-      },
-    );
+    const matches = (cat: string) => cat === oldPath || cat.startsWith(oldPath + "/");
 
-    for (const e of toUpdate) {
-      const newCat = newPath + e.category.trim().slice(oldPath.length);
-      await saveCommand({ ...e, category: newCat });
-    }
-
+    const renamed: CommandEntry[] = [];
     const newEntries = s.entries.map((e) => {
       const cat = e.category.trim();
-      if (cat === oldPath || cat.startsWith(oldPath + "/")) {
-        return { ...e, category: newPath + cat.slice(oldPath.length) };
-      }
-      return e;
+      if (!matches(cat)) return e;
+      const updated = { ...e, category: newPath + cat.slice(oldPath.length) };
+      renamed.push(updated);
+      return updated;
     });
+
+    // One round trip for the whole folder: this used to call saveCommand per
+    // renamed entry, and each of those was two full-file reads plus a write.
+    if (renamed.length > 0) await saveCommands(renamed);
 
     const newFolders = s.emptyFolders.map((p) => {
       if (p === oldPath || p.startsWith(oldPath + "/")) {
@@ -183,6 +179,7 @@ export const useCommandStore = create<CommandState>((set, get) => ({
     let imported = 0;
     let skipped = 0;
     const importedCats: string[] = [];
+    const fresh: CommandEntry[] = [];
 
     // 导出文件不带 id（导入时重新生成），所以「同一份文件导入两次」不会被 id
     // 拦住 —— 必须在导入时按 label+command+category 去重，否则库会静默翻倍。
@@ -209,10 +206,13 @@ export const useCommandStore = create<CommandState>((set, get) => ({
         description: item.description || null,
         order: item.order || null,
       };
-      await saveCommand(entry);
+      fresh.push(entry);
       if (entry.category.trim()) importedCats.push(entry.category.trim());
       imported++;
     }
+
+    // One write for the whole import instead of a saveCommand per entry.
+    if (fresh.length > 0) await saveCommands(fresh);
 
     // Reload fresh list, then merge empty-folder markers (same invariant as upsert:
     // no marker at/above a category that now holds a command)

@@ -48,32 +48,39 @@ pub fn list_commands() -> Result<Vec<CommandEntry>, String> {
     Ok(store.entries().to_vec())
 }
 
-#[tauri::command]
-pub fn save_command(entry: CommandEntry) -> Result<CommandEntry, String> {
+/// Insert `entry`, or replace the entry that carries its id.
+fn upsert_entry(store: &mut CommandStore, entry: CommandEntry) -> Result<(), String> {
     let id = entry.id.clone();
-    let mut store = CommandStore::load().map_err(|e| e.to_string())?;
-    let existing = store.entries().iter().any(|e| e.id == id);
-    if existing {
+    if store.entries().iter().any(|e| e.id == id) {
         store.update(&id, entry).map_err(|e| e.to_string())?;
     } else {
         store.add(entry);
     }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn save_command(entry: CommandEntry) -> Result<CommandEntry, String> {
+    let mut store = CommandStore::load().map_err(|e| e.to_string())?;
+    // The store keeps the entry exactly as handed to it, so there is nothing to
+    // read back — this used to do a second full load just to echo the entry.
+    let saved = entry.clone();
+    upsert_entry(&mut store, entry)?;
     store.save().map_err(|e| e.to_string())?;
-    let store2 = CommandStore::load().map_err(|e| e.to_string())?;
-    Ok(store2.entries().iter()
-        .find(|e| e.id == id)
-        .cloned()
-        .unwrap_or_else(|| CommandEntry {
-            id: String::new(),
-            label: String::new(),
-            command: String::new(),
-            category: String::new(),
-            pinned: false,
-            last_used: None,
-            icon: None,
-            description: None,
-            order: None,
-        }))
+    Ok(saved)
+}
+
+/// Upsert a batch of entries with a single load and a single save.
+///
+/// Import and folder rename used to loop over `save_command`, which is two full
+/// file reads plus a write per entry: importing N commands cost 2N reads.
+#[tauri::command]
+pub fn save_commands(entries: Vec<CommandEntry>) -> Result<(), String> {
+    let mut store = CommandStore::load().map_err(|e| e.to_string())?;
+    for entry in entries {
+        upsert_entry(&mut store, entry)?;
+    }
+    store.save().map_err(|e| e.to_string())
 }
 
 

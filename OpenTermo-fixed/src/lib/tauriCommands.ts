@@ -175,6 +175,11 @@ export async function saveCommand(entry: CommandEntry): Promise<CommandEntry> {
   return invoke<CommandEntry>("save_command", { entry });
 }
 
+/** Upsert many entries in one round trip (import / folder rename). */
+export async function saveCommands(entries: CommandEntry[]): Promise<void> {
+  return invoke("save_commands", { entries });
+}
+
 export async function deleteCommand(id: string): Promise<void> {
   return invoke("delete_command", { id });
 }
