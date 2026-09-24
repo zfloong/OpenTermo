@@ -8,6 +8,22 @@ type AuthMethod = "password" | "key";
 
 type SessionKind = "ssh" | "serial" | "telnet";
 
+/**
+ * One SSH tunnel (#56). `kind` is "local" (-L), "remote" (-R) or "dynamic"
+ * (-D / SOCKS5). For local/remote, `host`:`host_port` is the target; for
+ * dynamic it is ignored (the SOCKS client picks the destination).
+ */
+export interface PortForward {
+  kind: "local" | "remote" | "dynamic";
+  /** Optional label to tell rules apart (#100). Empty = unnamed. */
+  name?: string;
+  /** Listener bind address (local side for L/D, remote side for R). */
+  bind_addr?: string;
+  bind_port: number;
+  host?: string;
+  host_port?: number;
+}
+
 export interface SessionConfig {
   id: string;
   name: string;
@@ -28,6 +44,14 @@ export interface SessionConfig {
   stop_bits: number;
   parity: string;
   flow_control: string;
+  /**
+   * Tunnels established automatically on connect. The backend has always sent
+   * this field (`#[serde(default)]`); leaving it out of the type only meant the
+   * frontend could not see (or round-trip) it. Optional here because the
+   * dialogs build a fresh `SessionConfig` for new connections, which has no
+   * tunnels yet.
+   */
+  forwards?: PortForward[];
 }
 
 // ── Types matching meatshell::system::SystemSnapshot ──────────────────────
