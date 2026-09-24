@@ -1,4 +1,4 @@
-﻿//! Tauri IPC commands exposed to the frontend.
+//! Tauri IPC commands exposed to the frontend.
 
 use std::collections::HashMap;
 use std::process::{Command, Stdio};
@@ -12,7 +12,10 @@ use meatshell::system::{SystemSampler, SystemSnapshot};
 use tauri::{Manager, State};
 
 use crate::prompts::PromptManager;
-use crate::session::{MountInfo, SessionManager, MOUNT_OP};
+use crate::session::{
+    abort_mount, commit_mount, in_flight_drives, mount_in_flight, reserve_mount, SessionManager,
+    MOUNT_OP,
+};
 
 // -- Session CRUD -----------------------------------------------------------
 
@@ -165,12 +168,14 @@ pub fn get_system_stats(
 
 /// Find the first free drive letter from M: through Z:.
 ///
-/// `used` is a caller-provided snapshot so the mounts lock is not held across
-/// the PowerShell query below.
-fn find_free_drive(used: &std::collections::HashSet<String>) -> Result<String, String> {
-    // Query real physical/network drives via WMI (handles drives with no media)
-    let occupied = get_occupied_drives();
-
+/// `occupied` is the system's drive list, queried by the caller *before* it
+/// takes `MOUNT_OP` — the PowerShell query behind it is slow, and nothing about
+/// drive letters should be serialized behind it. `used` is the live snapshot of
+/// the letters mounts hold, and is read under the lock.
+fn pick_free_drive(
+    occupied: &std::collections::HashSet<String>,
+    used: &std::collections::HashSet<String>,
+) -> Result<String, String> {
     for letter in 'M'..='Z' {
         let drive = format!("{}:", letter);
         if used.contains(&drive) || occupied.contains(&drive) {
@@ -244,11 +249,7 @@ pub fn rclone_mount(
     mgr: State<'_, SessionManager>,
     tab_id: String,
 ) -> Result<String, String> {
-    // Serialize with unmount/disconnect/close cleanup so the mounts table and
-    // drive letters can't race (main-thread execution used to provide this).
-    let _op = MOUNT_OP.lock();
-
-    // Snapshot what we need, then release the lock before the slow work.
+    // Snapshot what we need from the session config.
     let (host, port, user, password_opt, key_path_opt) = {
         let configs = mgr.session_configs.lock();
         let config = configs
@@ -270,52 +271,65 @@ pub fn rclone_mount(
         (config.host.clone(), config.port, config.user.clone(), password_opt, key_path_opt)
     };
 
-    // Already mounted?
-    let already_mounted = mgr
-        .mounts
-        .lock()
-        .get(&tab_id)
-        .map(|m| m.drive_letter.clone());
-    if let Some(existing) = already_mounted {
-        return Err(format!("Already mounted at {}", existing));
-    }
+    // Query the system's drive letters up front, before any lock is taken.
+    let occupied = get_occupied_drives();
 
-    // Find free drive letter from a snapshot (the drive query below is slow)
-    let used: std::collections::HashSet<String> = mgr
-        .mounts
-        .lock()
-        .values()
-        .map(|m| m.drive_letter.clone())
-        .collect();
-    let drive_letter = find_free_drive(&used)?;
+    // Reserve a drive letter and a config name. `MOUNT_OP` is held for this
+    // bookkeeping step only — the seconds the rclone process needs to come up
+    // run unlocked, so closing the tab (or mounting another one) is not blocked
+    // behind it. The reservation is what keeps the letter out of the free list
+    // and it doubles as the cancellation flag read at the end.
+    let attempt = {
+        let _op = MOUNT_OP.lock();
 
-    // Unique rclone config name per tab. Uses the full tab id: the old
-    // 12-char truncation made two tabs of the same session share one config
-    // entry, so unmounting one deleted the entry the other still referenced.
-    let config_name = format!("ms_{tab_id}");
+        let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
+        {
+            let mounts = mgr.mounts.lock();
+            if let Some(existing) = mounts.get(&tab_id) {
+                return Err(format!("Already mounted at {}", existing.drive_letter));
+            }
+            used.extend(mounts.values().map(|m| m.drive_letter.clone()));
+        }
+        if mount_in_flight(&tab_id) {
+            return Err("Mount already in progress for this session".into());
+        }
+        used.extend(in_flight_drives());
 
-    create_rclone_config(
+        let drive = pick_free_drive(&occupied, &used)?;
+        reserve_mount(&tab_id, drive)
+    };
+
+    // ── Everything below runs unlocked ──────────────────────────────────────
+    if let Err(e) = create_rclone_config(
         crate::get_rclone_path(),
-        &config_name,
+        &attempt.config_name,
         &host,
         port,
         &user,
         password_opt.as_ref().map(|s| s.as_str()),
         key_path_opt.as_deref(),
-    )?;
+    ) {
+        abort_mount(&tab_id, &attempt, None);
+        return Err(e);
+    }
 
     // Spawn rclone mount as background process
     let mut cmd = Command::new(crate::get_rclone_path());
     cmd.creation_flags(0x08000000);
-    cmd.args(["mount", &format!("{}:/", config_name), &drive_letter])
+    cmd.args(["mount", &format!("{}:/", attempt.config_name), &attempt.drive])
         .arg("--volname")
         .arg(format!("ms_{}", &host))
         .arg("--no-check-certificate")
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
 
-    let mut child = cmd.spawn()
-        .map_err(|e| format!("Failed to start rclone: {}", e))?;
+    let mut child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(e) => {
+            abort_mount(&tab_id, &attempt, None);
+            return Err(format!("Failed to start rclone: {}", e));
+        }
+    };
 
     let pid = child.id();
 
@@ -328,9 +342,7 @@ pub fn rclone_mount(
             if let Some(ref mut s) = child.stderr {
                 let _ = s.read_to_string(&mut stderr_str);
             }
-            let _ = Command::new(crate::get_rclone_path()).creation_flags(0x08000000)
-                .args(["config", "delete", &config_name])
-                .output();
+            abort_mount(&tab_id, &attempt, Some(pid));
             return Err(format!(
                 "[rclone] {} 挂载失败 (exit {})\n{}",
                 host, status, stderr_str.trim()
@@ -338,37 +350,29 @@ pub fn rclone_mount(
         }
         Ok(None) => {
             // Process still running — verify the drive is accessible
-            let test = std::fs::read_dir(&drive_letter);
-            match test {
-                Ok(_) => {} // Success
-                Err(_) => {
-                    // Drive not accessible, kill and clean up
-                    let _ = child.kill();
-                    let _ = Command::new(crate::get_rclone_path()).creation_flags(0x08000000)
-                        .args(["config", "delete", &config_name])
-                        .output();
-                    return Err(format!(
-                        "[rclone] {} 挂载到 {} 但盘符不可访问，请检查密钥和网络",
-                        host, drive_letter
-                    ));
-                }
+            if std::fs::read_dir(&attempt.drive).is_err() {
+                // Drive not accessible, kill and clean up
+                abort_mount(&tab_id, &attempt, Some(pid));
+                return Err(format!(
+                    "[rclone] {} 挂载到 {} 但盘符不可访问，请检查密钥和网络",
+                    host, attempt.drive
+                ));
             }
         }
         Err(e) => {
-            let _ = Command::new(crate::get_rclone_path()).creation_flags(0x08000000)
-                .args(["config", "delete", &config_name])
-                .output();
+            abort_mount(&tab_id, &attempt, Some(pid));
             return Err(format!("[rclone] 进程异常: {}", e));
         }
     }
 
-    mgr.mounts.lock().insert(tab_id, MountInfo {
-        drive_letter: drive_letter.clone(),
-        pid,
-        config_name,
-    });
+    // The mount is up — hand it over to the mounts table, unless it was
+    // cancelled while it was starting (tab closed, unmounted, app closing).
+    if !commit_mount(&mgr.mounts, &tab_id, &attempt, pid) {
+        abort_mount(&tab_id, &attempt, Some(pid));
+        return Err("Mount cancelled".into());
+    }
 
-    Ok(format!("{} -> {}", drive_letter, host))
+    Ok(format!("{} -> {}", attempt.drive, host))
 }
 
 #[tauri::command(async)]

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::process::Command;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use parking_lot::{const_mutex, Mutex};
@@ -26,25 +27,151 @@ pub struct MountInfo {
     pub config_name: String,
 }
 
+/// Reserved drive letter of a mount that has not come up yet.
+///
+/// The rclone config, the process start and the readiness probe together take
+/// seconds, and all of that runs with `MOUNT_OP` released — that is the whole
+/// point of the reservation. It keeps the letter out of the free list, keeps a
+/// second mount of the same tab from starting, and acts as the cancellation
+/// flag: unmounting (or closing the tab) drops it, and the attempt notices at
+/// commit time that it no longer owns its reservation.
+#[derive(Clone)]
+pub(crate) struct MountAttempt {
+    pub drive: String,
+    /// Unique per attempt; also the rclone config name, so a cancelled attempt
+    /// can never delete the config entry of the mount replacing it.
+    pub config_name: String,
+}
+
 /// Serializes rclone mount lifecycle operations (mount / unmount / disconnect
-/// cleanup / app close) — they all mutate the mounts table and drive letters.
+/// cleanup / app close) — they all mutate the mounts table, the reservations
+/// and drive letters. Held only for the short bookkeeping steps; see
+/// `MountAttempt` for what deliberately runs outside it.
 pub(crate) static MOUNT_OP: Mutex<()> = const_mutex(());
 
+/// Mounts that have a drive letter reserved but are still coming up, by tab id.
+/// Mutated only while `MOUNT_OP` is held.
+static MOUNT_IN_FLIGHT: Mutex<Option<HashMap<String, MountAttempt>>> = const_mutex(None);
+
+/// Bumped once per attempt so no two attempts share a config name.
+static MOUNT_ATTEMPTS: AtomicU64 = AtomicU64::new(0);
+
+/// Reserve `drive` for a mount about to start and mint its config name.
+///
+/// The name carries the full tab id — a 12-char truncation made two tabs of the
+/// same session share one config entry, so unmounting one deleted the entry the
+/// other still referenced — plus the attempt number, so a cancelled attempt
+/// cannot delete its replacement's entry either.
+/// Caller must hold `MOUNT_OP`.
+pub(crate) fn reserve_mount(tab_id: &str, drive: String) -> MountAttempt {
+    let attempt = MountAttempt {
+        drive,
+        config_name: format!("ms_{tab_id}_{}", MOUNT_ATTEMPTS.fetch_add(1, Ordering::Relaxed)),
+    };
+    MOUNT_IN_FLIGHT
+        .lock()
+        .get_or_insert_with(HashMap::new)
+        .insert(tab_id.to_string(), attempt.clone());
+    attempt
+}
+
+/// True while a mount for `tab_id` is still coming up.
+pub(crate) fn mount_in_flight(tab_id: &str) -> bool {
+    MOUNT_IN_FLIGHT
+        .lock()
+        .as_ref()
+        .is_some_and(|m| m.contains_key(tab_id))
+}
+
+/// Drive letters held by mounts that are still coming up, so a new mount does
+/// not pick one of them.
+pub(crate) fn in_flight_drives() -> Vec<String> {
+    MOUNT_IN_FLIGHT
+        .lock()
+        .as_ref()
+        .map(|m| m.values().map(|a| a.drive.clone()).collect())
+        .unwrap_or_default()
+}
+
+/// Remove `tab_id`'s reservation if it is still the one `config_name`
+/// identifies. Returns whether it was: an attempt that no longer owns its
+/// reservation was cancelled and must not drop the reservation that replaced
+/// it. Caller must hold `MOUNT_OP`.
+fn take_own_reservation(tab_id: &str, config_name: &str) -> bool {
+    let mut in_flight = MOUNT_IN_FLIGHT.lock();
+    let Some(map) = in_flight.as_mut() else {
+        return false;
+    };
+    if map.get(tab_id).is_some_and(|a| a.config_name == config_name) {
+        map.remove(tab_id);
+        true
+    } else {
+        false
+    }
+}
+
+/// Kill an rclone process and delete the config entry it was started with.
+fn kill_rclone(pid: u32, config_name: &str) {
+    let _ = Command::new("taskkill").creation_flags(0x08000000)
+        .args(["/F", "/PID", &pid.to_string()])
+        .output();
+    let _ = Command::new(crate::get_rclone_path()).creation_flags(0x08000000)
+        .args(["config", "delete", config_name])
+        .output();
+}
+
+/// Hand a mount that has come up over to the mounts table — unless it was
+/// cancelled meanwhile (tab closed, unmounted, app closing), in which case the
+/// caller has to tear it down instead of committing.
+pub(crate) fn commit_mount(
+    mounts: &Mutex<HashMap<String, MountInfo>>,
+    tab_id: &str,
+    attempt: &MountAttempt,
+    pid: u32,
+) -> bool {
+    let _op = MOUNT_OP.lock();
+    if !take_own_reservation(tab_id, &attempt.config_name) {
+        return false;
+    }
+    mounts.lock().insert(
+        tab_id.to_string(),
+        MountInfo {
+            drive_letter: attempt.drive.clone(),
+            pid,
+            config_name: attempt.config_name.clone(),
+        },
+    );
+    true
+}
+
+/// Give up a mount attempt: kill the process it started (when it got that far),
+/// delete its config entry and release its reservation.
+pub(crate) fn abort_mount(tab_id: &str, attempt: &MountAttempt, pid: Option<u32>) {
+    match pid {
+        Some(pid) => kill_rclone(pid, &attempt.config_name),
+        None => {
+            let _ = Command::new(crate::get_rclone_path()).creation_flags(0x08000000)
+                .args(["config", "delete", &attempt.config_name])
+                .output();
+        }
+    }
+    let _op = MOUNT_OP.lock();
+    take_own_reservation(tab_id, &attempt.config_name);
+}
+
 /// Remove `tab_id`'s mount entry and tear the mount down: kill the rclone
-/// process and delete its config entry. Caller must hold `MOUNT_OP`.
+/// process and delete its config entry. A mount for the same tab that is still
+/// coming up is cancelled too. Caller must hold `MOUNT_OP`.
 fn unmount_locked(mounts: &Mutex<HashMap<String, MountInfo>>, tab_id: &str) {
     // Bound first so the mounts lock is released before the taskkill wait.
     let mount = mounts.lock().remove(tab_id);
+    if let Some(in_flight) = MOUNT_IN_FLIGHT.lock().as_mut() {
+        in_flight.remove(tab_id);
+    }
     if let Some(mount) = mount {
-        let _ = Command::new("taskkill").creation_flags(0x08000000)
-            .args(["/F", "/PID", &mount.pid.to_string()])
-            .output();
+        kill_rclone(mount.pid, &mount.config_name);
         // Brief wait for WinFsp to release the drive
         std::thread::sleep(std::time::Duration::from_millis(500));
-        // Clean up rclone config entry
-        let _ = Command::new(crate::get_rclone_path()).creation_flags(0x08000000)
-            .args(["config", "delete", &mount.config_name])
-            .output();
     }
 }
 
@@ -157,7 +284,9 @@ impl SessionManager {
 
     /// Disconnect and remove a session.
     pub fn disconnect(&self, tab_id: &str) -> Result<(), String> {
-        // Serialize with mount/unmount so a just-finished mount is never missed.
+        // Serialize with mount/unmount; `unmount_locked` also cancels a mount
+        // for this tab that is still coming up, so a half-finished mount never
+        // outlives its tab.
         let _op = MOUNT_OP.lock();
         // Unmount rclone if mounted for this tab
         unmount_locked(&self.mounts, tab_id);
@@ -172,16 +301,27 @@ impl SessionManager {
 
     /// Kill all active rclone mounts. Called on app close.
     pub fn unmount_all(&self) {
-        // Wait for an in-flight mount op so nothing is mounted after this.
-        let _op = MOUNT_OP.lock();
+        // Cancel the mounts that are still coming up: they tear themselves down
+        // at commit time instead of mounting after the app is gone.
+        {
+            let _op = MOUNT_OP.lock();
+            if let Some(in_flight) = MOUNT_IN_FLIGHT.lock().as_mut() {
+                in_flight.clear();
+            }
+        }
+        // ...then wait for them to finish, so nothing is left mounted behind us.
+        // The lock is released above on purpose — a cancelled attempt needs it
+        // to release its own reservation. Bounded: the attempts are at most one
+        // readiness probe away from noticing.
+        for _ in 0..100 {
+            if in_flight_drives().is_empty() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
         let mounts: Vec<MountInfo> = self.mounts.lock().drain().map(|(_, m)| m).collect();
         for mount in &mounts {
-            let _ = Command::new("taskkill").creation_flags(0x08000000)
-                .args(["/F", "/PID", &mount.pid.to_string()])
-                .output();
-            let _ = Command::new(crate::get_rclone_path()).creation_flags(0x08000000)
-                .args(["config", "delete", &mount.config_name])
-                .output();
+            kill_rclone(mount.pid, &mount.config_name);
         }
         if !mounts.is_empty() {
             std::thread::sleep(std::time::Duration::from_millis(300));
