@@ -17,6 +17,14 @@ import {
 
 type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
+/**
+ * Grid the last terminal fitted itself to, used as the initial PTY size for the
+ * next connect. Kept outside the store because nothing renders from it — and
+ * per app run only: a fresh launch has no measurement, so the first tab after a
+ * restart still starts at 80x24.
+ */
+let lastGrid: { cols: number; rows: number } | null = null;
+
 /** Remote resource stats pushed by the SSH session. */
 interface RemoteStats {
   cpu_percent: number;
@@ -176,7 +184,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     });
     await get()._setupListener(tabId);
     try {
-      await connectSession(tabId, session);
+      await connectSession(tabId, session, lastGrid?.cols ?? 80, lastGrid?.rows ?? 24);
     } catch (err) {
       const msg = String(err);
       set({ lastError: msg });
@@ -223,6 +231,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   async resize(tabId, cols, rows) {
+    // Remembered for the next connect: the PTY can start at the grid the user
+    // last worked in instead of the backend's hardcoded 80x24, which wrapped the
+    // first prompt of any wider terminal until the follow-up resize landed.
+    lastGrid = { cols, rows };
     await resizeTerminal(tabId, cols, rows);
   },
 

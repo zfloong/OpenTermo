@@ -198,12 +198,19 @@ impl SessionManager {
 
     /// Spawn an SSH, serial, or telnet session and start forwarding events to
     /// the frontend via `app.emit(...)`.
+    ///
+    /// `size` is the frontend's best guess at the terminal grid; the PTY starts
+    /// there instead of at a hardcoded 80x24, which used to wrap the first
+    /// prompt of any wider session. The frontend re-asserts the real grid with a
+    /// resize once it is connected (`fit()` needs a laid-out terminal), so a
+    /// wrong guess only survives until then.
     pub fn connect(
         &self,
         app: AppHandle,
         tab_id: &str,
         session: SessionConfig,
         prompts: Arc<PromptManager>,
+        size: (u32, u32),
     ) -> Result<(), String> {
         if self.sessions.lock().contains_key(tab_id) {
             return Err("session already exists".into());
@@ -218,8 +225,8 @@ impl SessionManager {
                     self.runtime.handle(),
                     tab_id_owned.clone(),
                     session,
-                    80,
-                    24,
+                    size.0,
+                    size.1,
                 )
             }
             SessionKind::Serial => {
@@ -234,8 +241,8 @@ impl SessionManager {
                     self.runtime.handle(),
                     tab_id_owned.clone(),
                     session,
-                    80,
-                    24,
+                    size.0,
+                    size.1,
                 )
             }
         };

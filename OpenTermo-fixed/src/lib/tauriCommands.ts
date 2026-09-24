@@ -122,8 +122,10 @@ export async function deleteSession(id: string): Promise<void> {
 export async function connectSession(
   tabId: string,
   session: SessionConfig,
+  cols: number,
+  rows: number,
 ): Promise<void> {
-  return invoke("connect_session", { tabId, session });
+  return invoke("connect_session", { tabId, session, cols, rows });
 }
 
 export async function sendInput(tabId: string, data: string): Promise<void> {

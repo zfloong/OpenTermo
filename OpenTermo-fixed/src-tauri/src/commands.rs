@@ -101,8 +101,10 @@ pub fn connect_session(
     session: SessionConfig,
     app: tauri::AppHandle,
     prompts: State<'_, Arc<PromptManager>>,
+    cols: u32,
+    rows: u32,
 ) -> Result<(), String> {
-    mgr.connect(app, &tab_id, session, prompts.inner().clone())
+    mgr.connect(app, &tab_id, session, prompts.inner().clone(), (cols, rows))
 }
 
 #[tauri::command]
