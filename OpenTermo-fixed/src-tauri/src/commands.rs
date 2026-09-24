@@ -169,10 +169,9 @@ pub fn reply_credential(
 
 #[tauri::command]
 pub fn get_system_stats(
-    sampler: State<'_, std::sync::Mutex<SystemSampler>>,
+    sampler: State<'_, parking_lot::Mutex<SystemSampler>>,
 ) -> SystemSnapshot {
-    sampler.lock().unwrap().sample()
-
+    sampler.lock().sample()
 }
 
 

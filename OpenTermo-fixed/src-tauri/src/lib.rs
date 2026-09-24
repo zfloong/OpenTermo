@@ -2,7 +2,7 @@ mod commands;
 mod prompts;
 mod session;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
@@ -160,7 +160,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .manage(SessionManager::new())
-        .manage(Mutex::new(SystemSampler::new()))
+        .manage(parking_lot::Mutex::new(SystemSampler::new()))
         .manage(Arc::new(PromptManager::new()))
         .setup(|app| {
             // Runs only on the primary instance: a second launch is turned
