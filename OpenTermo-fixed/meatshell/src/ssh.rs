@@ -214,48 +214,6 @@ fn extract_osc7_end(text: &str) -> Option<(String, usize)> {
     None
 }
 
-/// Find a meatshell command-capture sequence (`ESC ] 697 ; <command> BEL|ST`)
-/// emitted by the shell hook (#113). Returns the command text and the byte
-/// range of the whole escape sequence, so the caller can strip it before the
-/// text is rendered. An incomplete sequence (terminator not yet received)
-/// yields `None` — vt100 buffers it and the next chunk completes it.
-pub fn extract_osc_command(text: &str) -> Option<(String, std::ops::Range<usize>)> {
-    let bytes = text.as_bytes();
-    let mut i = 0;
-    while i + 1 < bytes.len() {
-        if bytes[i] != 0x1b || bytes[i + 1] != b']' {
-            i += 1;
-            continue;
-        }
-        let seq_start = i;
-        let osc_start = i + 2;
-        i += 2;
-        // Scan for BEL (0x07) or ST (ESC \).
-        let mut end = i;
-        let mut term_len = 0;
-        while end < bytes.len() {
-            if bytes[end] == 0x07 {
-                term_len = 1;
-                break;
-            } else if bytes[end] == 0x1b && end + 1 < bytes.len() && bytes[end + 1] == b'\\' {
-                term_len = 2;
-                break;
-            }
-            end += 1;
-        }
-        if end >= bytes.len() {
-            break; // incomplete — leave it for the next chunk
-        }
-        if let Ok(content) = std::str::from_utf8(&bytes[osc_start..end]) {
-            if let Some(cmd) = content.strip_prefix("697;") {
-                return Some((cmd.to_string(), seq_start..end + term_len));
-            }
-        }
-        i = end + term_len;
-    }
-    None
-}
-
 /// Percent-decode a URL path segment (e.g. `%20` → space).
 fn url_decode(s: &str) -> String {
     let bytes = s.as_bytes();
@@ -416,10 +374,6 @@ pub enum SessionEvent {
         /// Top processes by CPU (#23). Empty if the host's `ps` is unusable.
         procs: Vec<ProcInfo>,
     },
-
-    /// A command the user ran in the terminal, captured via the shell hook
-    /// (OSC 697) so it can join the command-box history (#113).
-    CommandRan(String),
 
     // --- Shell notifications -----------------------------------------------
     /// The shell's current working directory changed (parsed from OSC 7).
@@ -698,19 +652,10 @@ async fn run_session(
     // ignorespace, the default on most distros); its echo is stripped locally
     // (the needle below) so the bookkeeping command never shows up.
     //
-    // Besides OSC 7 (cwd), the hook also captures the command the user just ran
-    // and reports it via a private `OSC 697 ; <cmd> BEL` so it can join the
-    // command-box history (#113) — terminal-typed commands aren't otherwise
-    // recorded. `__msc` reads the last history entry with `fc -ln -1`; this only
-    // ever sees real executed commands, never password prompts (those use
-    // `read -s` and aren't shell commands). `__cl` remembers the last reported
-    // command so a redrawn prompt (e.g. Enter on an empty line) doesn't re-emit
-    // it, and is primed once up front so the pre-session history isn't replayed.
-    //
     // The echoed setup line is discarded by anchoring on the OSC 7 it produces
     // (see the suppress block below), so it doesn't matter that the long line
     // wraps — we never substring-match it.
-    const PROMPT_BODY: &str = "test -z \"$FISH_VERSION\" && eval '__msc(){ __c=\"$(fc -ln -1 2>/dev/null)\"; [ -n \"$__c\" ] && [ \"$__c\" != \"$__cl\" ] && { __cl=\"$__c\"; printf \"\\033]697;%s\\007\" \"$__c\"; }; }; __ms7(){ printf \"\\033]7;file://%s%s\\007\" \"$HOSTNAME\" \"$PWD\"; __msc; }; __cl=\"$(fc -ln -1 2>/dev/null)\"; if [ -n \"$ZSH_VERSION\" ]; then autoload -Uz add-zsh-hook 2>/dev/null; add-zsh-hook precmd __ms7; else PROMPT_COMMAND=\"__ms7${PROMPT_COMMAND:+;$PROMPT_COMMAND}\"; fi; __ms7'";
+    const PROMPT_BODY: &str = "test -z \"$FISH_VERSION\" && eval '__ms7(){ printf \"\\033]7;file://%s%s\\007\" \"$HOSTNAME\" \"$PWD\"; }; if [ -n \"$ZSH_VERSION\" ]; then autoload -Uz add-zsh-hook 2>/dev/null; add-zsh-hook precmd __ms7; else PROMPT_COMMAND=\"__ms7${PROMPT_COMMAND:+;$PROMPT_COMMAND}\"; fi; __ms7'";
     let prompt_setup = format!(" {}\r", PROMPT_BODY);
 
     // --- Remote resource monitor (separate exec channel) ----------------
@@ -887,7 +832,7 @@ async fn run_session(
                         // cap is the safety valve for a shell that never reports back
                         // (e.g. dash without PROMPT_COMMAND).
                         const PROMPT_PREFIX: &str = "test -z \"$FISH_VERSION\"";
-                        let mut text = if suppress_echo {
+                        let text = if suppress_echo {
                             echo_buf.push_str(&chunk);
                             const ECHO_BUF_CAP: usize = 1 << 14; // 16 KiB
                             // The command echo + its trailing OSC 7 (the one after
@@ -922,18 +867,6 @@ async fn run_session(
                             }
                             chunk
                         };
-
-                        // Capture commands run in the terminal via our OSC 697
-                        // hook, and strip the sequence so it never reaches the
-                        // renderer (#113). Skip our own injected setup line in the
-                        // rare case HISTCONTROL=ignorespace isn't in effect.
-                        while let Some((cmd, range)) = extract_osc_command(&text) {
-                            text.replace_range(range, "");
-                            let cmd = cmd.trim();
-                            if !cmd.is_empty() && !cmd.contains("__ms7") {
-                                let _ = events.send(SessionEvent::CommandRan(cmd.to_string()));
-                            }
-                        }
 
                         let _ = events.send(SessionEvent::Output(text));
                     }
@@ -1415,38 +1348,6 @@ impl Handler for ClientHandler {
 fn _assert_handle_send() {
     fn takes<T: Send>() {}
     takes::<Handle<ClientHandler>>();
-}
-
-#[cfg(test)]
-mod osc_command_tests {
-    use super::extract_osc_command;
-
-    #[test]
-    fn extracts_and_locates_bel_terminated() {
-        let text = "before\u{1b}]697;ls -la\u{07}after";
-        let (cmd, range) = extract_osc_command(text).expect("found");
-        assert_eq!(cmd, "ls -la");
-        // Stripping the range leaves the surrounding text intact.
-        let mut s = text.to_string();
-        s.replace_range(range, "");
-        assert_eq!(s, "beforeafter");
-    }
-
-    #[test]
-    fn extracts_st_terminated() {
-        let text = "\u{1b}]697;echo hi\u{1b}\\";
-        let (cmd, _) = extract_osc_command(text).expect("found");
-        assert_eq!(cmd, "echo hi");
-    }
-
-    #[test]
-    fn ignores_other_osc_and_incomplete() {
-        // OSC 7 (cwd) is not a command sequence.
-        assert!(extract_osc_command("\u{1b}]7;file:///home\u{07}").is_none());
-        // No terminator yet → wait for more.
-        assert!(extract_osc_command("\u{1b}]697;ls").is_none());
-        assert!(extract_osc_command("plain text").is_none());
-    }
 }
 
 #[cfg(test)]
