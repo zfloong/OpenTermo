@@ -1,4 +1,4 @@
-﻿//! Session manager — bridges meatshell backend sessions with the Tauri
+//! Session manager — bridges meatshell backend sessions with the Tauri
 //! frontend via event emissions.
 
 use std::collections::HashMap;
@@ -288,7 +288,27 @@ async fn forward_events(
             SessionEvent::CwdChanged(path) => {
                 let _ = app.emit(&format!("terminal-cwd:{tab_id}"), path);
             }
-            _ => {}
+            // ── Kernel events this layer does not forward ─────────────────
+            // Spelled out variant by variant rather than `_ => {}`: a wildcard
+            // let new `SessionEvent` variants vanish without a trace, which is
+            // exactly how the seven below came to drop their payload unnoticed.
+            // With this shape, adding a variant fails to compile until someone
+            // decides to forward it or to ignore it on purpose.
+            //
+            // intentionally ignored: OSC 697 command capture (#113). The
+            // command-history feature it fed was removed back in Vzfl2.2.
+            SessionEvent::CommandRan(_) => {}
+            // intentionally ignored: no producer in the kernel — `SessionCommand`
+            // carries no SFTP request, so these five can never be constructed.
+            SessionEvent::SftpEntries { .. } => {}
+            SessionEvent::SftpStatus(_) => {}
+            SessionEvent::SftpError(_) => {}
+            SessionEvent::SftpTreeUpdate(_) => {}
+            SessionEvent::SftpFileText { .. } => {}
+            // intentionally ignored: ZMODEM download progress. Unlike the five
+            // above this one *is* produced (`zmodem.rs`), but nothing in the UI
+            // renders progress yet; wiring it up is its own piece of work.
+            SessionEvent::SftpTransfer { .. } => {}
         }
     }
 }
