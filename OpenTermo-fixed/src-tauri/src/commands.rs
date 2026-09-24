@@ -494,6 +494,16 @@ pub fn rclone_list(
 
 #[tauri::command]
 pub fn write_text_file(path: String, content: String) -> Result<(), String> {
+    // The only caller is the command export, which always writes JSON picked in
+    // the native save dialog. Unconstrained, this command handed the webview a
+    // "write any content to any path" primitive.
+    let is_json = std::path::Path::new(&path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("json"));
+    if !is_json {
+        return Err("只能写入 .json 文件".into());
+    }
     std::fs::write(&path, &content).map_err(|e| format!("写入文件失败: {}", e))
 }
 
