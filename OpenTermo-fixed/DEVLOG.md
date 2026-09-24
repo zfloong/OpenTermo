@@ -318,7 +318,7 @@ node -e "const fs=require('fs');const p=process.argv[1];let t=fs.readFileSync(p,
 ## 2026-09-24 — P2 审查修复：数据目录 / 日志 / 并发 / 持久化 / CI
 
 > 触发：对内核（`meatshell`）、桥接层（`src-tauri`）、前端（`src/`）做了一轮全项目技术审查，产出整改路线图（`.trae/documents/opentermo-remediation-roadmap.md`，未纳入 git），再按「**每项一个 commit、批间设验证闸门**」的方式逐条执行。
-> commit 区间：`9caff01` … 本节所在 commit（共 18 个），**未打 tag、未发 Release**。
+> commit 区间：`9caff01` … 本节所在 commit（共 21 个），**未打 tag、未发 Release**。
 > 每批验证：前端 `npm run build`、桥接层 `cargo check --manifest-path src-tauri/Cargo.toml`、内核 `cargo test --manifest-path meatshell/Cargo.toml`（14 项单测全绿）。
 
 ### 一、数据与日志：让落盘真的发生
