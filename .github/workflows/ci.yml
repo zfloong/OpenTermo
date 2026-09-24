@@ -37,7 +37,7 @@ jobs:
           restore-keys: ${{ runner.os }}-npm-
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
         working-directory: OpenTermo-fixed
 
       - name: Generate Tauri icon set
@@ -130,5 +130,5 @@ jobs:
           path: |
             OpenTermo-fixed/src-tauri/target/release/bundle/msi/*.msi
             OpenTermo-fixed/src-tauri/target/release/bundle/nsis/*.exe
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 7
