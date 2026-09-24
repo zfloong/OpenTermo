@@ -7,7 +7,6 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -137,8 +136,8 @@ impl CommandStore {
     // ── internal helpers ───────────────────────────────────────────────────
 
     fn path() -> Result<PathBuf> {
-        let dirs = ProjectDirs::from("dev", "meatshell", "meatshell")
-            .context("could not determine user config directory")?;
-        Ok(dirs.config_dir().join("commands.json"))
+        let dir = crate::config::app_data_dir()
+            .context("could not determine app data directory")?;
+        Ok(dir.join("commands.json"))
     }
 }

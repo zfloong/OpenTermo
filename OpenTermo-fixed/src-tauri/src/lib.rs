@@ -1,4 +1,4 @@
-﻿mod commands;
+mod commands;
 mod prompts;
 mod session;
 
@@ -134,6 +134,11 @@ fn clean_stale_rclone_configs() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Carry over data written by older versions, which lived in a separate
+    // `meatshell` directory. Must happen before anything reads sessions,
+    // commands, known_hosts or the encryption key.
+    meatshell::config::migrate_legacy_data();
+
     // Prevent re-entrant close (the cleanup thread calls window.close()
     // which re-fires CloseRequested; the flag breaks the cycle).
     let is_closing = Arc::new(AtomicBool::new(false));

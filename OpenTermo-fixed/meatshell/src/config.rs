@@ -1,8 +1,8 @@
 //! Session / application configuration.
 //!
-//! Persists a simple JSON file under the platform's standard config dir
-//! (e.g. `%APPDATA%/meatshell/sessions.json` on Windows,
-//!  `~/.config/meatshell/sessions.json` on Linux/macOS).
+//! Persists a simple JSON file under the platform's app-data dir
+//! (e.g. `%APPDATA%/dev.opentermo.app/sessions.json` on Windows,
+//!  `~/.local/share/dev.opentermo.app/sessions.json` on Linux).
 //!
 //! ## Password encryption
 //!
@@ -27,7 +27,7 @@ use chacha20poly1305::{
     aead::{Aead, AeadCore, KeyInit},
     ChaCha20Poly1305,
 };
-use directories::ProjectDirs;
+use directories::{BaseDirs, ProjectDirs};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -459,9 +459,8 @@ impl ConfigStore {
     }
 
     fn config_path() -> Result<PathBuf> {
-        let dirs = ProjectDirs::from("dev", "meatshell", "meatshell")
-            .context("could not determine user config directory")?;
-        Ok(dirs.config_dir().join("sessions.json"))
+        let dir = app_data_dir().context("could not determine app data directory")?;
+        Ok(dir.join("sessions.json"))
     }
 
     pub fn sessions(&self) -> &[Session] {
@@ -543,6 +542,76 @@ impl ConfigStore {
         Ok(())
     }
 
+}
+
+// ── Data directory ────────────────────────────────────────────────────────
+
+/// Directory holding everything this app persists: `sessions.json`,
+/// `secret.key`, `commands.json`, `known_hosts` and `error.log`.
+///
+/// This deliberately resolves to the same path as Tauri's `app_data_dir()` for
+/// the shell's `dev.opentermo.app` identifier, so the kernel and the shell
+/// share one directory. Until Vzfl2.9 the kernel used
+/// `ProjectDirs::from("dev","meatshell","meatshell")`, which is a *different*
+/// directory: the background image landed under `dev.opentermo.app` while the
+/// session data went to `meatshell/meatshell/config`, and a standalone
+/// meatshell install on the same machine shared those files.
+pub fn app_data_dir() -> Option<PathBuf> {
+    BaseDirs::new().map(|b| b.data_dir().join("dev.opentermo.app"))
+}
+
+/// Where the kernel kept its files before the directory change. Only used by
+/// [`migrate_legacy_data`].
+fn legacy_data_dir() -> Option<PathBuf> {
+    ProjectDirs::from("dev", "meatshell", "meatshell")
+        .map(|d| d.config_dir().to_path_buf())
+}
+
+/// Files carried over on the first launch after the directory change.
+const MIGRATED_FILES: &[&str] = &[
+    "sessions.json",
+    "secret.key",
+    "commands.json",
+    "known_hosts",
+];
+
+/// One-time move of persisted data out of the legacy directory.
+///
+/// Copy-only — the source is never deleted, so deleting the new directory puts
+/// the user back on the old layout. `secret.key` is the critical one: left
+/// behind, a fresh key would be generated and every encrypted password already
+/// in `sessions.json` would become undecryptable.
+///
+/// Safe to call on every startup: it is a no-op once the new directory holds a
+/// `sessions.json`, and whenever the legacy directory is absent.
+pub fn migrate_legacy_data() {
+    let Some(new_dir) = app_data_dir() else { return };
+    let Some(old_dir) = legacy_data_dir() else { return };
+    if old_dir == new_dir || !old_dir.is_dir() {
+        return;
+    }
+    // Already migrated (or this install started fresh on the new layout).
+    if new_dir.join("sessions.json").exists() {
+        return;
+    }
+    if let Err(err) = fs::create_dir_all(&new_dir) {
+        tracing::warn!("could not create {}: {err}", new_dir.display());
+        return;
+    }
+    for name in MIGRATED_FILES {
+        let (from, to) = (old_dir.join(name), new_dir.join(name));
+        if !from.is_file() || to.exists() {
+            continue;
+        }
+        match fs::copy(&from, &to) {
+            Ok(_) => tracing::info!("migrated {name} to {}", new_dir.display()),
+            Err(err) => tracing::warn!(
+                "failed to migrate {name} ({} -> {}): {err}",
+                from.display(),
+                to.display()
+            ),
+        }
+    }
 }
 
 #[cfg(test)]
