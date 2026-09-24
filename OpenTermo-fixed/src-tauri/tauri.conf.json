@@ -18,6 +18,7 @@
         "height": 800,
         "decorations": false,
         "resizable": true,
+        "maximized": true,
         "transparent": true,
         "minWidth": 800,
         "minHeight": 600,
