@@ -323,7 +323,7 @@ node -e "const fs=require('fs');const p=process.argv[1];let t=fs.readFileSync(p,
 
 ### 一、数据与日志：让落盘真的发生
 
-- **数据目录双轨**（`meatshell/src/config.rs`）：`app_data_dir()` 改用 Tauri 标识符 `dev.opentermo.app`，并新增 `migrate_legacy_data()` —— 首次启动把旧目录的 `sessions.json` / `commands.json` **搬运**（不是复制后二选一），旧文件保留可回退。此前"读写用的目录"与"Tauri 认定的应用目录"不是同一个，换个入口读到的就是另一份数据。
+- **数据目录双轨**（`meatshell/src/config.rs`）：`app_data_dir()` 改用 Tauri 标识符 `dev.opentermo.app`，并新增 `migrate_legacy_data()` —— 启动时把旧目录（`ProjectDirs` 的 `dev/meatshell/meatshell`）里的 `sessions.json` / `commands.json` / `known_hosts` / `secret.key` **复制**到新目录：**源目录不删**（删掉新目录即可回退），且新目录已有 `sessions.json` 时直接跳过。缺 `secret.key` 是最要命的一条 —— 它会让应用重新生成密钥，已存的加密密码全部解不开。此前"读写用的目录"与"Tauri 认定的应用目录"不是同一个，换个入口读到的就是另一份数据。
 - **tracing 从未初始化**（`src-tauri/src/lib.rs` / `main.rs`）：接入 `init_tracing()`（`try_init` + 写文件层），此前所有 `tracing::warn!` 都是空转 —— 出问题时没有任何日志可查。文件层写入失败时回退到 stderr。
 - **删依赖与无效配置**：清掉确认无引用的 crate 依赖，以及 Cargo.toml 里失效的 `panic = "abort"`（Tauri 侧根本不会生效，留着只会误导）。
 
