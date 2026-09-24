@@ -315,10 +315,10 @@ node -e "const fs=require('fs');const p=process.argv[1];let t=fs.readFileSync(p,
 
 ---
 
-## 2026-09-24 — P2 审查修复：数据目录 / 日志 / 并发 / 持久化 / CI
+## 2026-09-24 — Vzfl2.10：P2 审查修复（数据目录 / 日志 / 并发 / 持久化 / CI）
 
 > 触发：对内核（`meatshell`）、桥接层（`src-tauri`）、前端（`src/`）做了一轮全项目技术审查，产出整改路线图（`.trae/documents/opentermo-remediation-roadmap.md`，未纳入 git），再按「**每项一个 commit、批间设验证闸门**」的方式逐条执行。
-> commit 区间：`9caff01` … 本节所在 commit（**每项一个 commit**，含本节的文档收尾），**未打 tag、未发 Release**。
+> commit 区间：`9caff01` …（**每项一个 commit**，含本节文档收尾）；标签 `Vzfl2.10`，发布链路 = push `zfl` 或标签 `Vzfl*` → CI 构建 → 打 tag 时发 Release（`.github/workflows/ci.yml`）。
 > 每批验证：前端 `npm run build`、桥接层 `cargo check --manifest-path src-tauri/Cargo.toml`、内核 `cargo test --manifest-path meatshell/Cargo.toml`（14 项单测全绿）。
 
 ### 一、数据与日志：让落盘真的发生
@@ -364,5 +364,5 @@ node -e "const fs=require('fs');const p=process.argv[1];let t=fs.readFileSync(p,
 
 - **不做 SFTP 功能** —— 内核没有生产者，是能力不存在，不是接线遗漏。
 - **不重构 `CommandPanel.tsx`(1060 行) / `SessionLauncher.tsx`(769 行)** 的体量问题 —— 独立议题。
-- **不做数据目录迁移之外的用户数据变更**；**不打 tag、不发 Release**。
+- **不做数据目录迁移之外的用户数据变更**（迁移本身 copy-only，源目录保留可回退）。
 
