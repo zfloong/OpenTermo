@@ -1,7 +1,7 @@
-﻿//! Typed wrappers around Tauri IPC invoke().
+//! Typed wrappers around Tauri IPC invoke().
 import { invoke } from "@tauri-apps/api/core";
 
-// 鈹€鈹€ Types matching meatshell::config::Session 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── Types matching meatshell::config::Session ─────────────────────────────
 
 /** Rust uses `#[serde(rename_all = "lowercase")]` so these are lowercase. */
 type AuthMethod = "password" | "key";
@@ -30,7 +30,7 @@ export interface SessionConfig {
   flow_control: string;
 }
 
-// 鈹€鈹€ Types matching meatshell::system::SystemSnapshot 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── Types matching meatshell::system::SystemSnapshot ──────────────────────
 
 export interface SystemSnapshot {
   cpuPercent: number;
@@ -45,7 +45,7 @@ export interface SystemSnapshot {
   netTxPerSec: number;
 }
 
-// 鈹€鈹€ Command snippets 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── Command snippets ─────────────────────────────────────────────────────
 
 export interface CommandEntry {
   id: string;
@@ -59,7 +59,7 @@ export interface CommandEntry {
   order?: number | null;
 }
 
-// 鈹€鈹€ Prompt event payloads 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── Prompt event payloads ─────────────────────────────────────────────────
 
 export interface HostKeyPromptPayload {
   tab_id: string;
@@ -81,7 +81,7 @@ export interface CredentialPromptPayload {
   need_password: boolean;
 }
 
-// 鈹€鈹€ Command wrappers 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── Command wrappers ──────────────────────────────────────────────────────
 
 export async function listSessions(): Promise<SessionConfig[]> {
   return invoke<SessionConfig[]>("list_sessions");
@@ -154,7 +154,7 @@ export async function saveCommand(entry: CommandEntry): Promise<CommandEntry> {
 export async function deleteCommand(id: string): Promise<void> {
   return invoke("delete_command", { id });
 }
-// 鈹€鈹€ SSHFS remote filesystem 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── SSHFS remote filesystem ───────────────────────────
 
 export async function rclone_mount(tabId: string): Promise<string> {
   return invoke<string>("rclone_mount", { tabId });
