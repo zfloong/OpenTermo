@@ -441,7 +441,7 @@ export default function SessionLauncher() {
       <div
         role="dialog"
         aria-label="会话启动台"
-        className="relative flex flex-col w-full max-w-4xl max-h-[72vh] bg-[var(--bg-elevated)] border border-[var(--frame-border)] rounded-xl shadow-2xl overflow-hidden animate-scale-in"
+        className="relative flex flex-col w-full max-w-4xl max-h-[72vh] bg-[var(--bg-elevated)] border border-[var(--frame-border)] rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150"
       >
         {/* Search + 新建连接 */}
         <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[var(--border-subtle)] flex-shrink-0">

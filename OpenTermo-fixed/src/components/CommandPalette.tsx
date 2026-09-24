@@ -99,7 +99,7 @@ export default function CommandPalette() {
       />
 
       {/* Panel */}
-      <div className="relative w-full max-w-xl bg-[var(--bg-elevated)] border border-[var(--frame-border)] rounded-xl shadow-2xl overflow-hidden animate-scale-in">
+      <div className="relative w-full max-w-xl bg-[var(--bg-elevated)] border border-[var(--frame-border)] rounded-xl shadow-2xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
         {/* Search input */}
         <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[var(--border-subtle)]">
           <Search size={16} className="text-[var(--text-muted)] shrink-0" />
