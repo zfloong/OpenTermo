@@ -234,7 +234,10 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
     // cursor maths drift from the rendered cells, long lines land on the wrong
     // column and the prompt looks frozen until a history recall redraws it.
     const resizeSub = term.onResize(({ cols, rows }) => {
-      if (cols > 0 && rows > 0) onResize(tabId, cols, rows);
+      // Fire-and-forget, but swallowed on failure: fit() also runs while a tab
+      // is being torn down, and the backend then has no such session to resize.
+      // Without the catch that expected race surfaced as an unhandled rejection.
+      if (cols > 0 && rows > 0) onResize(tabId, cols, rows).catch(() => {});
     });
 
     document.fonts?.ready?.then(() => { try { fitAddon.fit(); } catch {} });
@@ -247,7 +250,9 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
 
     // ── Forward keystrokes to backend ─────────────────────────────────
     term.onData((data) => {
-      sendInput(tabId, data);
+      // Same race as the resize above: keystrokes typed after the session is
+      // gone (disconnect, tab close) must not become unhandled rejections.
+      sendInput(tabId, data).catch(() => {});
     });
 
     // ── Custom key handler (Linux terminal conventions) ───────────────
