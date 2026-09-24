@@ -9,12 +9,13 @@ use std::sync::Arc;
 use meatshell::command::{CommandEntry, CommandStore};
 use meatshell::config::{ConfigStore, Session as SessionConfig};
 use meatshell::system::{SystemSampler, SystemSnapshot};
+use parking_lot::Mutex;
 use tauri::{Manager, State};
 
 use crate::prompts::PromptManager;
 use crate::session::{
-    abort_mount, commit_mount, in_flight_drives, mount_in_flight, reserve_mount, SessionManager,
-    MOUNT_OP,
+    abort_mount, commit_mount, in_flight_drives, mount_in_flight, reserve_mount, MountInfo,
+    SessionManager, MOUNT_OP,
 };
 
 // -- Session CRUD -----------------------------------------------------------
@@ -243,17 +244,35 @@ fn create_rclone_config(
     Ok(())
 }
 
-// Runs on the async runtime: the rclone/PowerShell work below takes seconds.
-#[tauri::command(async)]
-pub fn rclone_mount(
+// Every step of this waits on a child process, so the body runs on a blocking
+// thread instead of occupying one of the async runtime's workers.
+#[tauri::command]
+pub async fn rclone_mount(
     mgr: State<'_, SessionManager>,
     tab_id: String,
 ) -> Result<String, String> {
+    // Both tables live behind `Arc`s, so the blocking task needs neither the
+    // managed state nor a lifetime tie to this invocation.
+    let session_configs = mgr.session_configs.clone();
+    let mounts = mgr.mounts.clone();
+    tokio::task::spawn_blocking(move || mount_blocking(&session_configs, &mounts, &tab_id))
+        .await
+        .map_err(|e| format!("mount task failed: {e}"))?
+}
+
+/// The blocking half of `rclone_mount`: enumerating the system's drive letters,
+/// writing the rclone config, starting the process and probing readiness all
+/// wait on something external — none of it belongs on an async worker thread.
+fn mount_blocking(
+    session_configs: &Mutex<HashMap<String, SessionConfig>>,
+    mounts: &Mutex<HashMap<String, MountInfo>>,
+    tab_id: &str,
+) -> Result<String, String> {
     // Snapshot what we need from the session config.
     let (host, port, user, password_opt, key_path_opt) = {
-        let configs = mgr.session_configs.lock();
+        let configs = session_configs.lock();
         let config = configs
-            .get(&tab_id)
+            .get(tab_id)
             .ok_or_else(|| format!("session {tab_id} not found"))?;
 
         // Password vs key auth
@@ -284,19 +303,19 @@ pub fn rclone_mount(
 
         let mut used: std::collections::HashSet<String> = std::collections::HashSet::new();
         {
-            let mounts = mgr.mounts.lock();
-            if let Some(existing) = mounts.get(&tab_id) {
+            let active = mounts.lock();
+            if let Some(existing) = active.get(tab_id) {
                 return Err(format!("Already mounted at {}", existing.drive_letter));
             }
-            used.extend(mounts.values().map(|m| m.drive_letter.clone()));
+            used.extend(active.values().map(|m| m.drive_letter.clone()));
         }
-        if mount_in_flight(&tab_id) {
+        if mount_in_flight(tab_id) {
             return Err("Mount already in progress for this session".into());
         }
         used.extend(in_flight_drives());
 
         let drive = pick_free_drive(&occupied, &used)?;
-        reserve_mount(&tab_id, drive)
+        reserve_mount(tab_id, drive)
     };
 
     // ── Everything below runs unlocked ──────────────────────────────────────
@@ -309,7 +328,7 @@ pub fn rclone_mount(
         password_opt.as_ref().map(|s| s.as_str()),
         key_path_opt.as_deref(),
     ) {
-        abort_mount(&tab_id, &attempt, None);
+        abort_mount(tab_id, &attempt, None);
         return Err(e);
     }
 
@@ -326,7 +345,7 @@ pub fn rclone_mount(
     let mut child = match cmd.spawn() {
         Ok(child) => child,
         Err(e) => {
-            abort_mount(&tab_id, &attempt, None);
+            abort_mount(tab_id, &attempt, None);
             return Err(format!("Failed to start rclone: {}", e));
         }
     };
@@ -342,7 +361,7 @@ pub fn rclone_mount(
             if let Some(ref mut s) = child.stderr {
                 let _ = s.read_to_string(&mut stderr_str);
             }
-            abort_mount(&tab_id, &attempt, Some(pid));
+            abort_mount(tab_id, &attempt, Some(pid));
             return Err(format!(
                 "[rclone] {} 挂载失败 (exit {})\n{}",
                 host, status, stderr_str.trim()
@@ -352,7 +371,7 @@ pub fn rclone_mount(
             // Process still running — verify the drive is accessible
             if std::fs::read_dir(&attempt.drive).is_err() {
                 // Drive not accessible, kill and clean up
-                abort_mount(&tab_id, &attempt, Some(pid));
+                abort_mount(tab_id, &attempt, Some(pid));
                 return Err(format!(
                     "[rclone] {} 挂载到 {} 但盘符不可访问，请检查密钥和网络",
                     host, attempt.drive
@@ -360,15 +379,15 @@ pub fn rclone_mount(
             }
         }
         Err(e) => {
-            abort_mount(&tab_id, &attempt, Some(pid));
+            abort_mount(tab_id, &attempt, Some(pid));
             return Err(format!("[rclone] 进程异常: {}", e));
         }
     }
 
     // The mount is up — hand it over to the mounts table, unless it was
     // cancelled while it was starting (tab closed, unmounted, app closing).
-    if !commit_mount(&mgr.mounts, &tab_id, &attempt, pid) {
-        abort_mount(&tab_id, &attempt, Some(pid));
+    if !commit_mount(mounts, tab_id, &attempt, pid) {
+        abort_mount(tab_id, &attempt, Some(pid));
         return Err("Mount cancelled".into());
     }
 
