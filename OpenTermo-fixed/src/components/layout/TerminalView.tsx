@@ -379,7 +379,11 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
     container.addEventListener("mousedown", onMiddleDown, true);
 
       // ── Right-click menu ─────────────────────────────────────────────
-    container.addEventListener("contextmenu", (e: MouseEvent) => {
+    // Kept as a named handler so the cleanup below can detach it. An inline
+    // arrow meant one listener piled up per mount — this effect re-runs on
+    // every tab activation, so tabs accumulated handlers that each appended
+    // their own menu (and left one on <body> for good).
+    const onContextMenu = (e: MouseEvent) => {
         e.preventDefault();
         const hasSel = term.getSelection().length > 0;
         const menu = document.createElement("div");
@@ -466,7 +470,8 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
           document.addEventListener("mousedown", close);
           document.addEventListener("keydown", onMenuKey, true);
         }, 0);
-      });
+    };
+    container.addEventListener("contextmenu", onContextMenu);
 
     terminalRef.current = term;
     fitAddonRef.current = fitAddon;
@@ -482,6 +487,7 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
 
     return () => {
       container.removeEventListener("mousedown", onMiddleDown, true);
+      container.removeEventListener("contextmenu", onContextMenu);
       resizeSub.dispose();
       window.removeEventListener(`terminal-data:${tabId}`, onData);
       term.dispose();
