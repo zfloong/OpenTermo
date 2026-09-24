@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Minus, Square, X, HardDrive, HardDriveUpload, Settings, Loader2, Palette, Plus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Minus, Square, X, Copy, HardDrive, HardDriveUpload, Settings, Loader2, Palette, Plus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { rclone_mount, rclone_unmount, rclone_list } from "@/lib/tauriCommands";
 import { useUIStore } from "@/stores/uiStore";
@@ -58,6 +58,25 @@ export default function TitleBar({ onSettings }: TitleBarProps) {
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const isSSH = activeTab?.session?.kind === "ssh" && activeTab?.status === "connected";
+
+  // 最大化按钮原来恒定画方框，看不出窗口当前是最大化还是还原态。窗口现在是启动
+  // 即最大化，这个失真就更明显。改成跟着窗口状态走：拖动边框缩放、双击标题栏、
+  // 热键都会触发 onResized，所以订阅它而不是只在点击时更新。
+  const [maximized, setMaximized] = useState(false);
+  useEffect(() => {
+    const win = getCurrentWindow();
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    const sync = () => {
+      win.isMaximized().then((v) => { if (!disposed) setMaximized(v); }).catch(() => {});
+    };
+    sync();
+    win.onResized(sync).then((fn) => {
+      if (disposed) fn();
+      else unlisten = fn;
+    }).catch(() => {});
+    return () => { disposed = true; unlisten?.(); };
+  }, []);
 
   const minimize = useCallback(() => getCurrentWindow().minimize(), []);
   const toggleMaximize = useCallback(() => getCurrentWindow().toggleMaximize(), []);
@@ -267,9 +286,10 @@ export default function TitleBar({ onSettings }: TitleBarProps) {
           onClick={toggleMaximize}
           onMouseDown={(e) => e.stopPropagation()}
           className="flex h-full w-12 items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
-          aria-label="Maximize"
+          aria-label={maximized ? "还原" : "最大化"}
+          title={maximized ? "还原" : "最大化"}
         >
-          <Square size={13} />
+          {maximized ? <Copy size={13} /> : <Square size={13} />}
         </button>
         <button
           onClick={close}
