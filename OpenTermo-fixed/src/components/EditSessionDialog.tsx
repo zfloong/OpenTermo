@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Copy, FolderOpen } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Input } from "@/components/ui/input";
@@ -88,7 +88,13 @@ export default function EditSessionDialog({ session, onClose }: EditSessionDialo
       const selected = await open({
         multiple: false,
         defaultPath: form.private_key_path || undefined,
-        filters: [{ name: "SSH Keys", extensions: ["pem", "key", "ppk"] }],
+        // OpenSSH 的私钥默认就没有扩展名（id_rsa、id_ed25519…），手写的密钥名
+        // 也常常没有（例如 nhk150_key）。原来只给 pem/key/ppk 白名单，这类文件在
+        // 对话框里根本不可见。所以把"所有文件"放第一位作为默认项，白名单降为可选。
+        filters: [
+          { name: "所有文件", extensions: ["*"] },
+          { name: "SSH 密钥", extensions: ["pem", "key", "ppk"] },
+        ],
       });
       if (selected) {
         setForm({ ...form, private_key_path: selected as string });
