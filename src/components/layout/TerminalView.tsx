@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import { SearchAddon } from "xterm-addon-search";
+import { CanvasAddon } from "xterm-addon-canvas";
 import "xterm/css/xterm.css";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore, type PresetThemeId, type ThemeId } from "@/stores/settingsStore";
@@ -83,6 +84,7 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
+  const canvasAddonRef = useRef<CanvasAddon | null>(null);
   const sendInput = useSessionStore((s) => s.sendInput);
   const onResize = useSessionStore((s) => s.resize);
   const disconnect = useSessionStore((s) => s.disconnect);
@@ -219,6 +221,19 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(container);
+
+    // Swap xterm's default DOM renderer for the Canvas2D one. The DOM renderer
+    // keeps thousands of real spans in sync, which is what makes scrolling and
+    // high-throughput output feel heavy; the canvas renderer draws the grid into
+    // layered canvases instead. It is the one renderer that honours
+    // `allowTransparency` (the text layer clearRects rather than filling the
+    // theme background), so the wallpaper still reads through the terminal —
+    // the WebGL addon cannot do that. Documented order is after `open()`.
+    // CanvasAddon.dispose() restores the DOM renderer, so deleting this block
+    // is a complete revert.
+    const canvasAddon = new CanvasAddon();
+    term.loadAddon(canvasAddon);
+    canvasAddonRef.current = canvasAddon;
 
     // Focus must be deferred — xterm textarea needs a tick to mount in DOM
     requestAnimationFrame(() => {
@@ -499,6 +514,7 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
       terminalRef.current = null;
       fitAddonRef.current = null;
       searchAddonRef.current = null;
+      canvasAddonRef.current = null;
     };
   }, [tabId, sendInput, onResize, openSearch, closeSearch]);
 
