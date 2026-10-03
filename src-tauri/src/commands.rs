@@ -7,7 +7,7 @@ use std::os::windows::process::CommandExt;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use meatshell::command::{CommandEntry, CommandStore};
+use meatshell::command::{update_commands, CommandEntry, CommandStore};
 use meatshell::config::{update_config, ConfigStore, Session as SessionConfig};
 use meatshell::system::{SystemSampler, SystemSnapshot};
 use parking_lot::Mutex;
@@ -55,25 +55,16 @@ pub fn list_commands() -> Result<Vec<CommandEntry>, String> {
     Ok(store.entries().to_vec())
 }
 
-/// Insert `entry`, or replace the entry that carries its id.
-fn upsert_entry(store: &mut CommandStore, entry: CommandEntry) -> Result<(), String> {
-    let id = entry.id.clone();
-    if store.entries().iter().any(|e| e.id == id) {
-        store.update(&id, entry).map_err(|e| e.to_string())?;
-    } else {
-        store.add(entry);
-    }
-    Ok(())
-}
-
 #[tauri::command]
 pub fn save_command(entry: CommandEntry) -> Result<CommandEntry, String> {
-    let mut store = CommandStore::load().map_err(|e| e.to_string())?;
     // The store keeps the entry exactly as handed to it, so there is nothing to
     // read back — this used to do a second full load just to echo the entry.
     let saved = entry.clone();
-    upsert_entry(&mut store, entry)?;
-    store.save().map_err(|e| e.to_string())?;
+    update_commands(|store| {
+        store.upsert(entry);
+        Ok(())
+    })
+    .map_err(|e| e.to_string())?;
     Ok(saved)
 }
 
@@ -83,20 +74,23 @@ pub fn save_command(entry: CommandEntry) -> Result<CommandEntry, String> {
 /// file reads plus a write per entry: importing N commands cost 2N reads.
 #[tauri::command]
 pub fn save_commands(entries: Vec<CommandEntry>) -> Result<(), String> {
-    let mut store = CommandStore::load().map_err(|e| e.to_string())?;
-    for entry in entries {
-        upsert_entry(&mut store, entry)?;
-    }
-    store.save().map_err(|e| e.to_string())
+    update_commands(|store| {
+        for entry in entries {
+            store.upsert(entry);
+        }
+        Ok(())
+    })
+    .map_err(|e| e.to_string())
 }
 
 
 #[tauri::command]
 pub fn delete_command(id: String) -> Result<(), String> {
-    let mut store = CommandStore::load().map_err(|e| e.to_string())?;
-    store.remove(&id);
-    store.save().map_err(|e| e.to_string())?;
-    Ok(())
+    update_commands(|store| {
+        store.remove(&id);
+        Ok(())
+    })
+    .map_err(|e| e.to_string())
 }
 
 // -- Terminal session lifecycle ----------------------------------------------

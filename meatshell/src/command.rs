@@ -71,8 +71,18 @@ impl CommandStore {
         }
         let sf = StoreFile { entries: self.entries.clone() };
         let json = serde_json::to_string_pretty(&sf)?;
-        fs::write(&path, json)
-            .with_context(|| format!("writing {}", path.display()))?;
+        // Unique sibling temp + rename. A plain `fs::write` left a truncated
+        // file behind if the process died mid-write, and `load` then errored
+        // out of *every* command-snippet operation until it was deleted by
+        // hand; a fixed temp name additionally let two saves interleave.
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("commands.json");
+        let tmp = path.with_file_name(format!("{file_name}.tmp.{}", uuid::Uuid::new_v4()));
+        fs::write(&tmp, json).with_context(|| format!("writing {}", tmp.display()))?;
+        fs::rename(&tmp, &path)
+            .with_context(|| format!("finalising {}", path.display()))?;
         Ok(())
     }
 
@@ -82,6 +92,16 @@ impl CommandStore {
 
     pub fn add(&mut self, entry: CommandEntry) {
         self.entries.push(entry);
+    }
+
+    /// Insert `entry`, or replace the existing entry that carries its id.
+    /// Find-then-assign, so it cannot fail the way a separate presence check
+    /// followed by [`Self::update`] could.
+    pub fn upsert(&mut self, entry: CommandEntry) {
+        match self.entries.iter().position(|e| e.id == entry.id) {
+            Some(pos) => self.entries[pos] = entry,
+            None => self.entries.push(entry),
+        }
     }
 
     pub fn update(&mut self, id: &str, entry: CommandEntry) -> Result<()> {
@@ -103,4 +123,22 @@ impl CommandStore {
             .context("could not determine app data directory")?;
         Ok(dir.join("commands.json"))
     }
+}
+
+/// Serializes whole load-modify-save cycles on `commands.json`, so two
+/// concurrent edits (e.g. an import overlapping a delete) cannot each persist
+/// a snapshot taken before the other's change and silently drop it.
+static COMMAND_WRITE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Apply `f` to a freshly loaded command store and persist the result, all
+/// under the process-wide write lock so a concurrent command cannot lose this
+/// update.
+pub fn update_commands<R>(f: impl FnOnce(&mut CommandStore) -> Result<R>) -> Result<R> {
+    // Recover a poisoned lock: the file on disk is still consistent (writes
+    // are atomic), so a panic in `f` must not wedge every later command edit.
+    let _guard = COMMAND_WRITE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let mut store = CommandStore::load()?;
+    let out = f(&mut store)?;
+    store.save()?;
+    Ok(out)
 }

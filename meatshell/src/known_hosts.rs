@@ -94,9 +94,17 @@ pub fn verify(host: &str, port: u16, key: &PublicKey) -> HostKeyStatus {
     }
 }
 
+/// Serializes read-modify-write cycles on the known_hosts file. Two sessions
+/// accepting a key at the same time would otherwise each rewrite the file from
+/// a snapshot taken before the other's write, dropping one host's entry.
+static WRITE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Remember (or replace) the key for `host:port`. Rewrites the file with any
 /// stale entry for the same id removed, then appends the new one.
 pub fn remember(host: &str, port: u16, key: &PublicKey) -> Result<()> {
+    // Recover a poisoned lock: the file is still consistent (the write below is
+    // atomic), so one failed accept must not block every later one for the run.
+    let _guard = WRITE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let p = path().context("could not determine config directory")?;
     if let Some(parent) = p.parent() {
         std::fs::create_dir_all(parent).context("create config dir")?;
@@ -117,6 +125,15 @@ pub fn remember(host: &str, port: u16, key: &PublicKey) -> Result<()> {
     out.push(' ');
     out.push_str(&line);
     out.push('\n');
-    std::fs::write(&p, out).with_context(|| format!("write {}", p.display()))?;
+    // Unique sibling temp + rename: a plain overwrite could leave a truncated
+    // known_hosts behind on a crash, and a fixed temp name would let this write
+    // and a concurrent one interleave.
+    let file_name = p
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("known_hosts");
+    let tmp = p.with_file_name(format!("{file_name}.tmp.{}", uuid::Uuid::new_v4()));
+    std::fs::write(&tmp, out).with_context(|| format!("write {}", tmp.display()))?;
+    std::fs::rename(&tmp, &p).with_context(|| format!("finalise {}", p.display()))?;
     Ok(())
 }
