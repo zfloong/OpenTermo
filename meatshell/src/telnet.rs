@@ -16,11 +16,11 @@
 use anyhow::{Context, Result};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{self, UnboundedReceiver};
 
 use crate::config::Session;
 use crate::i18n::t;
-use crate::ssh::{SessionCommand, SessionEvent, SessionHandle};
+use crate::ssh::{EventSink, EventStream, SessionCommand, SessionEvent, SessionHandle};
 
 // Telnet protocol bytes (RFC 854).
 const IAC: u8 = 255;
@@ -42,17 +42,17 @@ pub fn spawn_telnet_session(
     session: Session,
     initial_cols: u32,
     initial_rows: u32,
-) -> (SessionHandle, UnboundedReceiver<SessionEvent>) {
+) -> (SessionHandle, EventStream) {
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<SessionCommand>();
-    let (evt_tx, evt_rx) = mpsc::unbounded_channel::<SessionEvent>();
+    let (events, stream) = crate::ssh::event_channel();
 
-    let evt_for_task = evt_tx.clone();
+    let evt_for_task = events.clone();
     // JoinHandle dropped immediately — dropping it does not cancel the task.
     runtime.spawn(async move {
         if let Err(err) =
             run_telnet(session, cmd_rx, evt_for_task.clone(), initial_cols, initial_rows).await
         {
-            let _ = evt_for_task.send(SessionEvent::Closed(format!("{err:#}")));
+            evt_for_task.control(SessionEvent::Closed(format!("{err:#}")));
         }
     });
 
@@ -61,7 +61,7 @@ pub fn spawn_telnet_session(
             tab_id,
             commands: cmd_tx,
         },
-        evt_rx,
+        stream,
     )
 }
 
@@ -92,7 +92,7 @@ fn naws_subneg(cols: u32, rows: u32) -> Vec<u8> {
 async fn run_telnet(
     session: Session,
     mut commands: UnboundedReceiver<SessionCommand>,
-    events: UnboundedSender<SessionEvent>,
+    events: EventSink,
     initial_cols: u32,
     initial_rows: u32,
 ) -> Result<()> {
@@ -100,7 +100,7 @@ async fn run_telnet(
     let port = if session.port == 0 { 23 } else { session.port };
     let addr = format!("{host}:{port}");
 
-    let _ = events.send(SessionEvent::Status(format!(
+    events.control(SessionEvent::Status(format!(
         "{} {} ...",
         t("Telnet 连接中", "Telnet connecting"),
         addr
@@ -109,7 +109,7 @@ async fn run_telnet(
     // Direct, or tunnel through a SOCKS5 / HTTP proxy (reuses issue #7 plumbing).
     let stream = match crate::proxy::resolve(&session.proxy) {
         Some(p) => {
-            let _ = events.send(SessionEvent::Status(format!(
+            events.control(SessionEvent::Status(format!(
                 "{} {} → {}",
                 t("经代理连接", "via proxy"),
                 crate::proxy::describe(&p),
@@ -125,8 +125,8 @@ async fn run_telnet(
     };
     let _ = stream.set_nodelay(true);
 
-    let _ = events.send(SessionEvent::Connected);
-    let _ = events.send(SessionEvent::Status(format!(
+    events.control(SessionEvent::Connected);
+    events.control(SessionEvent::Status(format!(
         "{} {}",
         t("已连接", "Connected"),
         addr
@@ -160,7 +160,7 @@ async fn run_telnet(
                             if b == IAC { out.push(IAC); }
                         }
                         if wr.write_all(&out).await.is_err() {
-                            let _ = events.send(SessionEvent::Closed(
+                            events.control(SessionEvent::Closed(
                                 t("写入失败", "write failed").into()));
                             break;
                         }
@@ -186,11 +186,11 @@ async fn run_telnet(
                         }
                         if !data.is_empty() {
                             let text = crate::ssh::decode_utf8_chunk(&mut pending_utf8, &data);
-                            let _ = events.send(SessionEvent::Output(text));
+                            events.output(text);
                         }
                     }
                     Err(e) => {
-                        let _ = events.send(SessionEvent::Closed(format!(
+                        events.control(SessionEvent::Closed(format!(
                             "{}: {e}", t("读取错误", "read error"))));
                         break;
                     }
@@ -199,7 +199,7 @@ async fn run_telnet(
         }
     }
 
-    let _ = events.send(SessionEvent::Closed(
+    events.control(SessionEvent::Closed(
         t("连接已关闭", "connection closed").into(),
     ));
     Ok(())

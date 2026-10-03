@@ -6,8 +6,14 @@
 //!
 //! * **SOCKS5** (`socks5://` / `socks5h://`) via `tokio-socks`; after the
 //!   handshake we unwrap to the inner `TcpStream`.
-//! * **HTTP / HTTPS CONNECT** (`http://` / `https://`): we issue an HTTP
-//!   `CONNECT host:port` and reuse the same socket as the tunnel.
+//! * **HTTP CONNECT** (`http://`): we issue a plaintext HTTP `CONNECT
+//!   host:port` and reuse the same socket as the tunnel.
+//!
+//! `https://` is accepted but treated exactly like `http://` — the CONNECT
+//! request is sent in the clear and the connection to the proxy is *not*
+//! wrapped in TLS. This is a known limitation (not planned to change): it
+//! matches the common case of a local proxy that speaks plaintext HTTP
+//! CONNECT, and is transparent when traffic is already tunnelled by a VPN.
 //!
 //! The proxy is taken from the per-session setting, falling back to the standard
 //! `ALL_PROXY` / `all_proxy` environment variable.
@@ -72,6 +78,8 @@ fn parse(url: &str) -> Option<ProxyConfig> {
     let (scheme, rest) = url.split_once("://").unwrap_or(("socks5", url));
     let kind = match scheme.to_ascii_lowercase().as_str() {
         "socks5" | "socks5h" | "socks" => ProxyKind::Socks5,
+        // `https://` is accepted for compatibility but behaves like `http://`:
+        // the CONNECT is sent in the clear (see the module docs).
         "http" | "https" => ProxyKind::Http,
         _ => return None,
     };

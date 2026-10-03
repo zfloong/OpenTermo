@@ -2,7 +2,8 @@
 //!
 //! Each open terminal tab maps to exactly one `SshSession`. The session runs
 //! on the shared Tokio runtime; commands come in via an MPSC channel and
-//! output lines are pushed back via an `UnboundedSender<SessionEvent>`.
+//! events are pushed back through an [`EventSink`] — terminal output on a
+//! bounded, lossy queue and control events on a reliable channel.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -374,6 +375,87 @@ pub enum SessionEvent {
     },
 }
 
+/// How many *output* chunks a session may queue for the UI before further ones
+/// are dropped.
+///
+/// Terminal output is high-volume and inherently lossy: when the renderer falls
+/// behind it is better to drop a chunk (the screen is scrolling past anyway)
+/// than to grow memory without bound or to stall the SSH pump. Control events —
+/// connect, close, prompts, cwd, stats — must never be dropped, so they travel
+/// on a separate unbounded channel (see [`EventStream::recv`]).
+const OUTPUT_QUEUE: usize = 4096;
+
+/// Sending half of a session's event channel. Cloneable.
+///
+/// [`output`](Self::output) is bounded and lossy; every other event is handed to
+/// [`control`](Self::control) and delivered reliably.
+#[derive(Clone)]
+pub struct EventSink {
+    output: mpsc::Sender<SessionEvent>,
+    control: UnboundedSender<SessionEvent>,
+}
+
+impl EventSink {
+    /// Queue a chunk of terminal output, dropping it if the UI is too far
+    /// behind. Never blocks the caller.
+    pub fn output(&self, text: String) {
+        let _ = self.output.try_send(SessionEvent::Output(text));
+    }
+
+    /// Deliver a control event reliably (never dropped). Synchronous and
+    /// non-blocking: safe to call from an OS thread.
+    pub fn control(&self, event: SessionEvent) {
+        let _ = self.control.send(event);
+    }
+
+    /// True once the receiving [`EventStream`] has been dropped.
+    pub fn is_closed(&self) -> bool {
+        self.output.is_closed()
+    }
+}
+
+/// Receiving half of a session's event channel.
+///
+/// Control events are preferred over output so a `Closed` can never sit behind a
+/// backlog of terminal output.
+pub struct EventStream {
+    output: mpsc::Receiver<SessionEvent>,
+    control: UnboundedReceiver<SessionEvent>,
+}
+
+/// Build a connected session event channel: the sending [`EventSink`] for the
+/// worker and the receiving [`EventStream`] for the UI.
+///
+/// Shared with the serial and telnet workers so all three use the same queue
+/// sizes and delivery guarantees.
+pub(crate) fn event_channel() -> (EventSink, EventStream) {
+    let (out_tx, out_rx) = mpsc::channel::<SessionEvent>(OUTPUT_QUEUE);
+    let (ctl_tx, ctl_rx) = mpsc::unbounded_channel::<SessionEvent>();
+    (
+        EventSink {
+            output: out_tx,
+            control: ctl_tx,
+        },
+        EventStream {
+            output: out_rx,
+            control: ctl_rx,
+        },
+    )
+}
+
+impl EventStream {
+    /// Await the next event, or `None` once the session has gone away (both
+    /// halves closed).
+    pub async fn recv(&mut self) -> Option<SessionEvent> {
+        tokio::select! {
+            biased;
+            Some(event) = self.control.recv() => Some(event),
+            Some(event) = self.output.recv() => Some(event),
+            else => None,
+        }
+    }
+}
+
 /// Handle retained by the UI layer to talk to a running session.
 pub struct SessionHandle {
     pub tab_id: String,
@@ -393,19 +475,19 @@ impl SessionHandle {
 /// after the tab becomes active; passing the best-known size here avoids the
 /// remote shell starting at a stale 80×24 and sending an extra SIGWINCH.
 ///
-/// Returns a [`SessionHandle`] for the UI + an [`UnboundedReceiver`] the UI
-/// should drain on the Slint event loop.
+/// Returns a [`SessionHandle`] for the UI + an [`EventStream`] the UI should
+/// drain on the Slint event loop.
 pub fn spawn_session(
     runtime: &tokio::runtime::Handle,
     tab_id: String,
     session: Session,
     initial_cols: u32,
     initial_rows: u32,
-) -> (SessionHandle, UnboundedReceiver<SessionEvent>) {
+) -> (SessionHandle, EventStream) {
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<SessionCommand>();
-    let (evt_tx, evt_rx) = mpsc::unbounded_channel::<SessionEvent>();
+    let (events, stream) = event_channel();
 
-    let evt_tx_for_task = evt_tx.clone();
+    let evt_tx_for_task = events.clone();
     let ssh_cell: Arc<std::sync::Mutex<Option<Arc<russh::client::Handle<ClientHandler>>>>> =
         Arc::new(std::sync::Mutex::new(None));
     // The JoinHandle is dropped right away: dropping it does not cancel a tokio
@@ -422,7 +504,7 @@ pub fn spawn_session(
         .await
         {
             tracing::warn!("ssh session ended with error: {err:#}");
-            let _ = evt_tx_for_task.send(SessionEvent::Closed(format!("{err:#}")));
+            evt_tx_for_task.control(SessionEvent::Closed(format!("{err:#}")));
         }
     });
 
@@ -431,19 +513,19 @@ pub fn spawn_session(
             tab_id,
             commands: cmd_tx,
         },
-        evt_rx,
+        stream,
     )
 }
 
 async fn run_session(
     session: Session,
     mut commands: UnboundedReceiver<SessionCommand>,
-    events: UnboundedSender<SessionEvent>,
+    events: EventSink,
     initial_cols: u32,
     initial_rows: u32,
     ssh_cell: Arc<std::sync::Mutex<Option<Arc<russh::client::Handle<ClientHandler>>>>>,
 ) -> Result<()> {
-    let _ = events.send(SessionEvent::Status(format!(
+    events.control(SessionEvent::Status(format!(
         "{} {}@{}:{} ...",
         t("连接中", "Connecting"),
         session.user, session.host, session.port
@@ -487,7 +569,7 @@ async fn run_session(
     // Connect directly, or tunnel through a SOCKS5 / HTTP proxy (issue #7).
     let mut handle = match crate::proxy::resolve(&session.proxy) {
         Some(p) => {
-            let _ = events.send(SessionEvent::Status(format!(
+            events.control(SessionEvent::Status(format!(
                 "{} {} → {}",
                 t("经代理连接", "via proxy"),
                 crate::proxy::describe(&p),
@@ -509,7 +591,7 @@ async fn run_session(
     let (user, password) = match resolve_credentials(&session, &events).await {
         Some(c) => c,
         None => {
-            let _ = events.send(SessionEvent::Closed(t("已取消登录", "login cancelled").into()));
+            events.control(SessionEvent::Closed(t("已取消登录", "login cancelled").into()));
             let _ = handle
                 .disconnect(Disconnect::ByApplication, "cancelled", "")
                 .await;
@@ -557,7 +639,7 @@ async fn run_session(
 
     if !authed {
         tracing::warn!("ssh authentication failed for {}@{}", user, session.host);
-        let _ = events.send(SessionEvent::Closed(t("认证失败", "authentication failed").into()));
+        events.control(SessionEvent::Closed(t("认证失败", "authentication failed").into()));
         let _ = handle
             .disconnect(Disconnect::ByApplication, "auth failed", "")
             .await;
@@ -584,8 +666,8 @@ async fn run_session(
         .context("request PTY")?;
     channel.request_shell(true).await.context("request shell")?;
 
-    let _ = events.send(SessionEvent::Connected);
-    let _ = events.send(SessionEvent::Status(format!(
+    events.control(SessionEvent::Connected);
+    events.control(SessionEvent::Status(format!(
         "{} {}@{}",
         t("已连接", "Connected"),
         session.user, session.host
@@ -682,16 +764,16 @@ async fn run_session(
         };
         match handle.tcpip_forward(bind.clone(), f.bind_port as u32).await {
             Ok(_) => {
-                let _ = events.send(SessionEvent::Output(format!(
+                events.output(format!(
                     "\r\n[meatshell] -R {bind}:{} → {}:{}\r\n",
                     f.bind_port, f.host, f.host_port
-                )));
+                ));
             }
             Err(e) => {
-                let _ = events.send(SessionEvent::Output(format!(
+                events.output(format!(
                     "\r\n[meatshell] -R {bind}:{} 请求失败 / request failed: {e}\r\n",
                     f.bind_port
-                )));
+                ));
             }
         }
     }
@@ -731,7 +813,7 @@ async fn run_session(
                         // which are raw keystrokes and may contain passwords (#15).
                         tracing::debug!("ssh channel.data len={} bytes", bytes.len());
                         if let Err(err) = channel.data(&bytes[..]).await {
-                            let _ = events.send(SessionEvent::Closed(format!("{}: {err}", t("写入失败", "write failed"))));
+                            events.control(SessionEvent::Closed(format!("{}: {err}", t("写入失败", "write failed"))));
                             break;
                         }
                     }
@@ -765,19 +847,18 @@ async fn run_session(
                                         let text =
                                             String::from_utf8_lossy(&leftover).into_owned();
                                         if let Some(cwd) = extract_osc7_path(&text) {
-                                            let _ =
-                                                events.send(SessionEvent::CwdChanged(cwd));
+                                            events.control(SessionEvent::CwdChanged(cwd));
                                         }
-                                        let _ = events.send(SessionEvent::Output(text));
+                                        events.output(text);
                                     }
                                 }
                                 Err(e) => {
                                     tracing::warn!("zmodem receive failed: {e:#}");
                                     let _ = channel.data(&ZMODEM_CANCEL[..]).await;
-                                    let _ = events.send(SessionEvent::Output(format!(
+                                    events.output(format!(
                                         "\r\n[meatshell] {}: {e}\r\n",
                                         t("ZMODEM 接收失败,已取消", "ZMODEM receive failed; cancelled")
-                                    ).into()));
+                                    ));
                                 }
                             }
                             continue;
@@ -819,7 +900,7 @@ async fn run_session(
                             if let Some((cmd_pos, osc_end, cwd)) = landed {
                                 suppress_echo = false;
                                 tracing::debug!("OSC7 cwd={:?}", cwd);
-                                let _ = events.send(SessionEvent::CwdChanged(cwd));
+                                events.control(SessionEvent::CwdChanged(cwd));
                                 let mut buf = std::mem::take(&mut echo_buf);
                                 let line_start =
                                     buf[..cmd_pos].rfind('\n').map(|i| i + 1).unwrap_or(0);
@@ -838,22 +919,22 @@ async fn run_session(
                             // Scan for the OSC 7 CWD notification (cd-follow).
                             if let Some(cwd) = extract_osc7_path(&chunk) {
                                 tracing::debug!("OSC7 cwd={:?}", cwd);
-                                let _ = events.send(SessionEvent::CwdChanged(cwd));
+                                events.control(SessionEvent::CwdChanged(cwd));
                             }
                             chunk
                         };
 
-                        let _ = events.send(SessionEvent::Output(text));
+                        events.output(text);
                     }
                     Some(ChannelMsg::ExtendedData { data, ext: _ }) => {
                         // Same decoder as stdout: the terminal interleaves both
                         // streams, so a character split across the two would be
                         // corrupted just like one split across two packets.
                         let text = decode_utf8_chunk(&mut pending_utf8, &data);
-                        let _ = events.send(SessionEvent::Output(text));
+                        events.output(text);
                     }
                     Some(ChannelMsg::ExitStatus { exit_status }) => {
-                        let _ = events.send(SessionEvent::Status(
+                        events.control(SessionEvent::Status(
                             format!("{} (code {exit_status})", t("远程进程退出", "remote process exited")),
                         ));
                     }
@@ -883,7 +964,7 @@ async fn run_session(
                                 .to_string();
                             mon_buf = rest;
                             if let Some(stats) = parse_monitor_block(&block, &mut prev_cpu) {
-                                let _ = events.send(stats);
+                                events.control(stats);
                             }
                         }
                         // Bound the leftover (incomplete) tail: a server that
@@ -923,7 +1004,7 @@ async fn run_session(
     // The shell pump loop only exits when the channel closes / EOFs (incl. a
     // peer/bastion-initiated disconnect), so record it for #86 diagnostics.
     tracing::warn!("ssh connection closed ({}@{})", session.user, session.host);
-    let _ = events.send(SessionEvent::Closed(t("连接已关闭", "connection closed").into()));
+    events.control(SessionEvent::Closed(t("连接已关闭", "connection closed").into()));
     Ok(())
 }
 
@@ -1018,7 +1099,7 @@ pub struct ClientHandler {
     pub host: String,
     pub port: u16,
     pub remote_forwards: std::collections::HashMap<u32, (String, u16)>,
-    pub events: UnboundedSender<SessionEvent>,
+    pub events: EventSink,
 }
 
 /// Summary of one active port-forward tunnel for the UI.
@@ -1041,7 +1122,7 @@ pub(crate) async fn verify_host_key(
     host: &str,
     port: u16,
     key: &PublicKey,
-    events: &UnboundedSender<SessionEvent>,
+    events: &EventSink,
 ) -> bool {
     use crate::known_hosts::HostKeyStatus;
     match crate::known_hosts::verify(host, port, key) {
@@ -1049,7 +1130,7 @@ pub(crate) async fn verify_host_key(
         status => {
             let changed = status == HostKeyStatus::Changed;
             let (tx, rx) = tokio::sync::oneshot::channel();
-            let sent = events.send(SessionEvent::HostKeyPrompt {
+            events.control(SessionEvent::HostKeyPrompt {
                 host: host.to_string(),
                 port,
                 key_type: key.algorithm().to_string(),
@@ -1057,7 +1138,7 @@ pub(crate) async fn verify_host_key(
                 changed,
                 responder: HostKeyResponder::new(tx),
             });
-            if sent.is_err() {
+            if events.is_closed() {
                 return false; // no UI to ask
             }
             match rx.await {
@@ -1080,7 +1161,7 @@ pub(crate) async fn verify_host_key(
 /// channel (no UI) falls through with the stored values so auth fails normally.
 pub(crate) async fn resolve_credentials(
     session: &Session,
-    events: &UnboundedSender<SessionEvent>,
+    events: &EventSink,
 ) -> Option<(String, String)> {
     let mut user = session.user.trim().to_string();
     let mut password = session.password.as_str().to_string();
@@ -1091,7 +1172,7 @@ pub(crate) async fn resolve_credentials(
         return Some((user, password));
     }
     let (tx, rx) = tokio::sync::oneshot::channel();
-    let sent = events.send(SessionEvent::CredentialPrompt {
+    events.control(SessionEvent::CredentialPrompt {
         session_id: session.id.clone(),
         host: session.host.clone(),
         user: user.clone(),
@@ -1099,7 +1180,7 @@ pub(crate) async fn resolve_credentials(
         need_password,
         responder: CredentialResponder::new(tx),
     });
-    if sent.is_err() {
+    if events.is_closed() {
         return Some((user, password));
     }
     match rx.await {
@@ -1162,9 +1243,9 @@ impl Handler for ClientHandler {
                     let _ = tokio::io::copy_bidirectional(&mut tcp, &mut stream).await;
                 }
                 Err(e) => {
-                    let _ = events.send(SessionEvent::Output(format!(
+                    events.output(format!(
                         "\r\n[meatshell] -R {host}:{port} 连接失败 / connect failed: {e}\r\n"
-                    )));
+                    ));
                 }
             }
         });

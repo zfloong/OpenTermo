@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter};
 
 use meatshell::config::{Session as SessionConfig, SessionKind};
 use meatshell::serial::spawn_serial_session;
-use meatshell::ssh::{self, SessionCommand, SessionEvent, SessionHandle};
+use meatshell::ssh::{self, EventStream, SessionCommand, SessionEvent, SessionHandle};
 use meatshell::telnet::spawn_telnet_session;
 
 use crate::prompts::PromptManager;
@@ -351,7 +351,7 @@ async fn forward_events(
     sessions: Arc<Mutex<HashMap<String, SessionHandle>>>,
     mounts: Arc<Mutex<HashMap<String, MountInfo>>>,
     tab_id: String,
-    mut rx: tokio::sync::mpsc::UnboundedReceiver<SessionEvent>,
+    mut rx: EventStream,
     prompts: Arc<PromptManager>,
 ) {
     while let Some(event) = rx.recv().await {

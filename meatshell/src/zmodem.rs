@@ -14,7 +14,7 @@
 //! the binary protocol can't easily be tested without a live server.
 
 use crate::i18n::t;
-use crate::ssh::SessionEvent;
+use crate::ssh::{EventSink, SessionEvent};
 use anyhow::{bail, Context, Result};
 use russh::client::Msg;
 use russh::{Channel, ChannelMsg};
@@ -22,7 +22,6 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
-use tokio::sync::mpsc::UnboundedSender;
 
 // --- Frame types -----------------------------------------------------------
 const ZRQINIT: u8 = 0;
@@ -74,7 +73,7 @@ const MAX_FILE_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 pub async fn receive(
     channel: &mut Channel<Msg>,
     first: &[u8],
-    events: &UnboundedSender<SessionEvent>,
+    events: &EventSink,
 ) -> Result<Vec<u8>> {
     let dest = download_dir();
     tokio::fs::create_dir_all(&dest)
@@ -222,14 +221,11 @@ pub async fn receive(
         .await;
     }
 
-    let _ = events.send(SessionEvent::Output(
-        format!(
-            "\r\n[meatshell] {} {} → {}\r\n",
-            received,
-            t("个文件已通过 sz 下载到", "file(s) downloaded via sz to"),
-            dest.display()
-        )
-        .into(),
+    events.output(format!(
+        "\r\n[meatshell] {} {} → {}\r\n",
+        received,
+        t("个文件已通过 sz 下载到", "file(s) downloaded via sz to"),
+        dest.display()
     ));
     // Hand back any trailing bytes (the shell prompt) so the caller can display
     // them instead of the receiver swallowing them.
@@ -469,7 +465,7 @@ fn sanitize(name: &str) -> String {
 }
 
 fn emit(
-    events: &UnboundedSender<SessionEvent>,
+    events: &EventSink,
     id: &str,
     name: &str,
     transferred: u64,
@@ -477,7 +473,7 @@ fn emit(
     state: u8,
     msg: &str,
 ) {
-    let _ = events.send(SessionEvent::TransferProgress {
+    events.control(SessionEvent::TransferProgress {
         id: id.to_string(),
         name: name.to_string(),
         is_upload: false,

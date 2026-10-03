@@ -13,14 +13,13 @@ use russh::client::{Handle, Msg};
 use russh::Channel;
 use tokio::io::{copy_bidirectional, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
 
-use crate::ssh::{ClientHandler, SessionEvent};
+use crate::ssh::{ClientHandler, EventSink};
 
 /// Emit a one-line notice into the terminal output stream.
-fn notice(events: &UnboundedSender<SessionEvent>, msg: String) {
-    let _ = events.send(SessionEvent::Output(format!("\r\n[meatshell] {msg}\r\n")));
+fn notice(events: &EventSink, msg: String) {
+    events.output(format!("\r\n[meatshell] {msg}\r\n"));
 }
 
 fn bind_target(bind_addr: &str, bind_port: u16) -> String {
@@ -64,7 +63,7 @@ pub fn spawn_local(
     bind_port: u16,
     target_host: String,
     target_port: u16,
-    events: UnboundedSender<SessionEvent>,
+    events: EventSink,
 ) -> JoinHandle<()> {
     let bind = bind_target(&bind_addr, bind_port);
     tokio::spawn(async move {
@@ -104,7 +103,7 @@ pub fn spawn_dynamic(
     handle: Arc<Handle<ClientHandler>>,
     bind_addr: String,
     bind_port: u16,
-    events: UnboundedSender<SessionEvent>,
+    events: EventSink,
 ) -> JoinHandle<()> {
     let bind = bind_target(&bind_addr, bind_port);
     tokio::spawn(async move {

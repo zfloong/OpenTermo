@@ -3,7 +3,7 @@
 //! Mirrors the public surface of [`crate::ssh::spawn_session`] so the rest of
 //! the UI pipeline (terminal output, key input, tab lifecycle) is reused
 //! unchanged: it returns a [`SessionHandle`] plus an
-//! [`UnboundedReceiver<SessionEvent>`].
+//! [`EventStream`](crate::ssh::EventStream).
 //!
 //! Unlike SSH there is no remote PTY, no SFTP and no resource monitor — a
 //! serial line is just a raw byte pipe to a switch / router / MCU console.
@@ -17,11 +17,11 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use serialport::{DataBits, FlowControl, Parity, StopBits};
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{self, UnboundedReceiver};
 
 use crate::config::Session;
 use crate::i18n::t;
-use crate::ssh::{SessionCommand, SessionEvent, SessionHandle};
+use crate::ssh::{EventSink, EventStream, SessionCommand, SessionEvent, SessionHandle};
 
 /// Spawn a serial-port session. See module docs for why the signature mirrors
 /// `spawn_session` (minus the PTY size, which a serial line has no notion of).
@@ -29,15 +29,15 @@ pub fn spawn_serial_session(
     runtime: &tokio::runtime::Handle,
     tab_id: String,
     session: Session,
-) -> (SessionHandle, UnboundedReceiver<SessionEvent>) {
+) -> (SessionHandle, EventStream) {
     let (cmd_tx, cmd_rx) = mpsc::unbounded_channel::<SessionCommand>();
-    let (evt_tx, evt_rx) = mpsc::unbounded_channel::<SessionEvent>();
+    let (events, stream) = crate::ssh::event_channel();
 
-    let evt_for_task = evt_tx.clone();
+    let evt_for_task = events.clone();
     // JoinHandle dropped immediately — dropping it does not cancel the task.
     runtime.spawn(async move {
         if let Err(err) = run_serial(session, cmd_rx, evt_for_task.clone()).await {
-            let _ = evt_for_task.send(SessionEvent::Closed(format!("{err:#}")));
+            evt_for_task.control(SessionEvent::Closed(format!("{err:#}")));
         }
     });
 
@@ -46,7 +46,7 @@ pub fn spawn_serial_session(
             tab_id,
             commands: cmd_tx,
         },
-        evt_rx,
+        stream,
     )
 }
 
@@ -85,14 +85,14 @@ fn parse_flow(s: &str) -> FlowControl {
 async fn run_serial(
     session: Session,
     mut commands: UnboundedReceiver<SessionCommand>,
-    events: UnboundedSender<SessionEvent>,
+    events: EventSink,
 ) -> Result<()> {
     let port_name = session.serial_port.trim().to_string();
     if port_name.is_empty() {
         return Err(anyhow::anyhow!(t("串口号为空", "serial port is empty")));
     }
 
-    let _ = events.send(SessionEvent::Status(format!(
+    events.control(SessionEvent::Status(format!(
         "{} {} @ {}",
         t("打开串口", "Opening serial"),
         port_name,
@@ -126,8 +126,8 @@ async fn run_serial(
         .context("failed to clone serial handle for writing")?;
     let writer = Arc::new(Mutex::new(writer));
 
-    let _ = events.send(SessionEvent::Connected);
-    let _ = events.send(SessionEvent::Status(format!(
+    events.control(SessionEvent::Connected);
+    events.control(SessionEvent::Status(format!(
         "{} {} @ {} {}{}{}",
         t("已连接", "Connected"),
         port_name,
@@ -151,14 +151,17 @@ async fn run_serial(
                 Ok(0) => {}
                 Ok(n) => {
                     let text = crate::ssh::decode_utf8_chunk(&mut pending_utf8, &buf[..n]);
-                    if reader_events.send(SessionEvent::Output(text)).is_err() {
+                    // Output is lossy (dropped when the queue is full), so the
+                    // send itself never reports a gone consumer; poll the sink.
+                    reader_events.output(text);
+                    if reader_events.is_closed() {
                         break;
                     }
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
                 Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
                 Err(e) => {
-                    let _ = reader_events.send(SessionEvent::Closed(format!(
+                    reader_events.control(SessionEvent::Closed(format!(
                         "{}: {e}",
                         t("串口读取错误", "serial read error")
                     )));
@@ -181,7 +184,7 @@ async fn run_serial(
                 })
                 .await;
                 if let Ok(Err(e)) = res {
-                    let _ = events.send(SessionEvent::Closed(format!(
+                    events.control(SessionEvent::Closed(format!(
                         "{}: {e}",
                         t("串口写入失败", "serial write failed")
                     )));
@@ -197,7 +200,7 @@ async fn run_serial(
     // Stop the reader thread and wait for it to drain.
     running.store(false, Ordering::Relaxed);
     let _ = reader_handle.join();
-    let _ = events.send(SessionEvent::Closed(
+    events.control(SessionEvent::Closed(
         t("串口已关闭", "serial port closed").into(),
     ));
     Ok(())
