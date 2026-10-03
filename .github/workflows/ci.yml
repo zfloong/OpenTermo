@@ -76,6 +76,16 @@ jobs:
           }
         working-directory: src-tauri
 
+      # The cargo cache restores the whole `src-tauri/target` directory, and a
+      # GitHub Actions cache entry is immutable: its snapshot keeps whatever
+      # `bundle/` held when it was first saved, so every later run restores the
+      # installers of an old version. `tauri build` only *adds* the current
+      # one, and the release/artifact steps glob `bundle/**` — which uploaded
+      # the stale installers next to the new ones. Clear the bundle first.
+      - name: Clean previous bundle output
+        shell: pwsh
+        run: Remove-Item -Recurse -Force src-tauri/target/release/bundle -ErrorAction SilentlyContinue
+
       - name: Tauri build (with retry)
         shell: pwsh
         run: |
