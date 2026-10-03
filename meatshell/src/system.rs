@@ -4,7 +4,7 @@
 //! cross-platform data with ~2% CPU overhead at 1-second cadence.
 
 use serde::{Deserialize, Serialize};
-use sysinfo::{Disks, Networks, System};
+use sysinfo::{Networks, System};
 
 /// Snapshot passed to the UI each tick.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -20,36 +20,35 @@ pub struct SystemSnapshot {
     pub net_bytes_per_sec: u64,
     pub net_rx_per_sec: u64,
     pub net_tx_per_sec: u64,
-    /// Per-filesystem (mount, available_bytes, total_bytes).
-    pub disks: Vec<(String, u64, u64)>,
 }
 
 /// Stateful sampler. Construct once per process and poll via [`Self::sample`].
 pub struct SystemSampler {
     sys: System,
     nets: Networks,
-    disks: Disks,
     last_rx_total: u64,
     last_tx_total: u64,
     last_instant: std::time::Instant,
-    last_disks_refresh: std::time::Instant,
 }
 
 impl SystemSampler {
     pub fn new() -> Self {
-        let sys = System::new_all();
+        // The sampler only reads CPU / memory / swap, so it must not pay for
+        // `System::new_all()`, which enumerates every process. `new()` starts
+        // empty; priming the CPU counters here (a cheap per-CPU query) keeps
+        // the first `sample()` accurate instead of reporting a bogus 0%/100%
+        // from a zero-length baseline.
+        let mut sys = System::new();
+        sys.refresh_cpu_usage();
         let nets = Networks::new_with_refreshed_list();
         let last_rx_total = nets.iter().map(|(_, d)| d.total_received()).sum();
         let last_tx_total = nets.iter().map(|(_, d)| d.total_transmitted()).sum();
-        let disks = Disks::new_with_refreshed_list();
         Self {
             sys,
             nets,
-            disks,
             last_rx_total,
             last_tx_total,
             last_instant: std::time::Instant::now(),
-            last_disks_refresh: std::time::Instant::now(),
         }
     }
 
@@ -89,25 +88,6 @@ impl SystemSampler {
         let net_rx_per_sec = (rx_delta as f64 / elapsed) as u64;
         let net_tx_per_sec = (tx_delta as f64 / elapsed) as u64;
 
-        // Local filesystems change slowly and a full refresh enumerates every
-        // mount, so it runs at most every 30s instead of on every tick.
-        if self.last_disks_refresh.elapsed().as_secs() >= 30 {
-            self.disks.refresh(true);
-            self.last_disks_refresh = std::time::Instant::now();
-        }
-        let disks: Vec<(String, u64, u64)> = self
-            .disks
-            .iter()
-            .map(|d| {
-                (
-                    d.mount_point().to_string_lossy().to_string(),
-                    d.available_space(),
-                    d.total_space(),
-                )
-            })
-            .filter(|(_, _, total)| *total > 0)
-            .collect();
-
         SystemSnapshot {
             cpu_percent,
             mem_percent,
@@ -119,7 +99,6 @@ impl SystemSampler {
             net_bytes_per_sec: net_rx_per_sec + net_tx_per_sec,
             net_rx_per_sec,
             net_tx_per_sec,
-            disks,
         }
     }
 }

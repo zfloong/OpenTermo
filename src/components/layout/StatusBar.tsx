@@ -75,7 +75,7 @@ function mib(used: number, total: number) { if (total === 0) return "\u2014"; re
 function kibToGiB(usedKib: number, totalKib: number) { if (totalKib === 0) return "\u2014"; const ug = usedKib / 1024 / 1024; const tg = totalKib / 1024 / 1024; return ug.toFixed(1) + "/" + tg.toFixed(1) + "G"; }
 function formatBytes(bytes: number) { if (bytes < 1024) return bytes.toFixed(0) + "B/s"; if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + "K/s"; return (bytes / (1024 * 1024)).toFixed(1) + "M/s"; }
 
-/** Compares only the fields the footer renders (`disks` is never shown). */
+/** Compares only the fields the footer renders. */
 function sameSnapshot(a: SystemSnapshot, b: SystemSnapshot) {
   return (
     a.cpuPercent === b.cpuPercent &&
