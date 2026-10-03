@@ -385,23 +385,55 @@ impl ConfigStore {
                 key.copy_from_slice(&bytes);
                 return Ok(key);
             }
-            tracing::warn!("secret.key has wrong length — regenerating");
+            // Never silently overwrite a key of the wrong length. Losing the
+            // key makes every `enc:v1:` password in sessions.json permanently
+            // undecryptable, so keep the original bytes (they may be a
+            // recoverable truncation) and make the loss explicit in the log.
+            let backup = key_path.with_extension("key.broken");
+            let _ = fs::rename(&key_path, &backup);
+            tracing::warn!(
+                "secret.key was {} bytes (expected 32); moved it to {} and generating a new \
+                 key — passwords encrypted with the old key can no longer be decrypted",
+                bytes.len(),
+                backup.display()
+            );
         }
 
         let mut key = [0u8; 32];
         OsRng.fill_bytes(&mut key);
-        fs::write(&key_path, &key)
-            .with_context(|| format!("failed to write {}", key_path.display()))?;
+        // Create atomically and owner-only. `create_new` (O_EXCL) means two
+        // processes racing to initialise the key cannot clobber each other: the
+        // loser re-reads the winner's key instead of overwriting it, which
+        // would have left the winner's just-encrypted passwords undecryptable.
+        // The 0600 mode is applied at creation, closing the window where the
+        // file existed world-readable before a follow-up chmod.
+        let mut opts = fs::OpenOptions::new();
+        opts.write(true).create_new(true);
         #[cfg(unix)]
         {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))
-                .with_context(|| {
-                    format!("failed to set permissions on {}", key_path.display())
-                })?;
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
         }
-        tracing::info!("generated new encryption key at {}", key_path.display());
-        Ok(key)
+        match opts.open(&key_path) {
+            Ok(mut file) => {
+                use std::io::Write as _;
+                file.write_all(&key)
+                    .with_context(|| format!("failed to write {}", key_path.display()))?;
+                let _ = file.sync_all();
+                tracing::info!("generated new encryption key at {}", key_path.display());
+                Ok(key)
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+                let bytes = fs::read(&key_path)
+                    .with_context(|| format!("failed to read {}", key_path.display()))?;
+                anyhow::ensure!(bytes.len() == 32, "secret.key has wrong length");
+                let mut key = [0u8; 32];
+                key.copy_from_slice(&bytes);
+                Ok(key)
+            }
+            Err(err) => Err(err)
+                .with_context(|| format!("failed to create {}", key_path.display())),
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────────────
