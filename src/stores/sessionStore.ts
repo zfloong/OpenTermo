@@ -308,12 +308,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const unlistenStatus = await listen<string>(
       `terminal-status:${tabId}`,
       (event) => {
+        // Status text only — never promote the tab to "connected" here.  The
+        // backend sends Status("连接中…") *before* the handshake, so flipping
+        // the state on it would (a) paint a green "connected" dot while the
+        // connection is still in progress and (b) leave the tab looking
+        // "connected" if the handshake then fails, which makes the
+        // terminal-closed handler below skip its error banner and drop the tab
+        // in silence.  "connected" is only ever set by terminal-connected.
         set((s) => {
           const t = s.tabs.find((t) => t.id === tabId);
-          if (!t || (t.status === "connected" && t.statusText === event.payload)) return s;
+          if (!t || t.statusText === event.payload) return s;
           const idx = s.tabs.indexOf(t);
           const tabs = s.tabs.slice();
-          tabs[idx] = { ...t, status: "connected", statusText: event.payload };
+          tabs[idx] = { ...t, statusText: event.payload };
           return { tabs };
         });
       },
