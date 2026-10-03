@@ -187,9 +187,51 @@ pub fn run() {
                     let _ = window.set_icon(tauri_icon);
                 }
             }
-            // Show window after WebView is ready (eliminates white flash)
+            // Put the window on its monitor's work area while it is still hidden.
+            // The frontend then presents it with `show()` + `maximize()`: because
+            // the window already occupies the work area, the maximize moves it by
+            // zero pixels, so there is neither a white flash (tao's
+            // `ShowWindow(SW_MAXIMIZE)` reveals an unpainted window if it runs
+            // before the window is visible) nor a resize animation.
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
+                let monitor = window
+                    .current_monitor()
+                    .ok()
+                    .flatten()
+                    .or_else(|| window.primary_monitor().ok().flatten());
+                if let Some(monitor) = monitor {
+                    let area = monitor.work_area();
+                    // `set_size` sets the *client* area; an undecorated window keeps
+                    // an invisible resize frame, so the outer rect would come out
+                    // wider and taller than the work area. Subtract that frame from
+                    // the request so the outer rect lands on the work area exactly
+                    // and the later maximize has nothing left to shift.
+                    let (frame_w, frame_h) =
+                        match (window.outer_size(), window.inner_size()) {
+                            (Ok(outer), Ok(inner)) => (
+                                outer.width.saturating_sub(inner.width),
+                                outer.height.saturating_sub(inner.height),
+                            ),
+                            _ => (0, 0),
+                        };
+                    let _ = window.set_position(area.position);
+                    let _ = window.set_size(tauri::PhysicalSize::new(
+                        area.size.width.saturating_sub(frame_w),
+                        area.size.height.saturating_sub(frame_h),
+                    ));
+                }
+            }
+            // Safety net for a frontend that never loads: present the window after
+            // a short delay. The `is_visible` guard keeps it from touching a window
+            // the frontend already showed.
+            if let Some(window) = app.get_webview_window("main") {
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                    if !window.is_visible().unwrap_or(false) {
+                        let _ = window.show();
+                        let _ = window.maximize();
+                    }
+                });
             }
             Ok(())
         })

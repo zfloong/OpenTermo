@@ -18,7 +18,7 @@
         "height": 800,
         "decorations": false,
         "resizable": true,
-        "maximized": true,
+        "maximized": false,
         "transparent": false,
         "backgroundColor": "#131313",
         "minWidth": 800,

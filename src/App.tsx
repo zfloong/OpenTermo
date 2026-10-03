@@ -17,6 +17,7 @@ import { ConfirmDialogHost } from "@/components/ui/confirm-dialog";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useUIStore } from "@/stores/uiStore";
 import { getBackgroundImage } from "@/lib/tauriCommands";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Plus } from "lucide-react";
 
 
@@ -62,6 +63,28 @@ export default function App() {
     loadSessions();
     setupGlobal();
   }, [loadSessions, setupGlobal]);
+
+  // The window is created hidden and pre-sized to the monitor's work area (see
+  // lib.rs), so presenting it after the first painted frame is just
+  // `show()` + `maximize()`. The maximize snaps a window that already fills the
+  // work area, so it moves by zero pixels: no white flash and no animation. It
+  // still has to be a real maximize, otherwise the title bar's maximize/restore
+  // state would be fake. A Rust-side 3s fallback covers a frontend that never
+  // loads.
+  useEffect(() => {
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(async () => {
+        const win = getCurrentWindow();
+        await win.show();
+        await win.maximize();
+      });
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      if (second) cancelAnimationFrame(second);
+    };
+  }, []);
 
   // ── 标签页快捷键（经典 Linux 终端约定）─────────────────────────────────
   // 挂在 window 上而不是 xterm 的 key handler 里：切换/关闭标签页必须在任何
