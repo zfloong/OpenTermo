@@ -5,6 +5,7 @@ import CommandPanel from "@/components/CommandPanel";
 export default function Sidebar() {
   const sidebarWidth = useUIStore((s) => s.sidebarWidth);
   const setSidebarWidth = useUIStore((s) => s.setSidebarWidth);
+  const persistSidebarWidth = useUIStore((s) => s.persistSidebarWidth);
   const dragging = useRef(false);
   const startX = useRef(0);
   const startWidth = useRef(0);
@@ -18,10 +19,10 @@ export default function Sidebar() {
 
   useEffect(() => {
     const mm = (e: MouseEvent) => { if (!dragging.current) return; setSidebarWidth(startWidth.current + e.clientX - startX.current); };
-    const mu = () => { if (!dragging.current) return; dragging.current = false; document.body.style.cursor = ""; document.body.style.userSelect = ""; };
+    const mu = () => { if (!dragging.current) return; dragging.current = false; document.body.style.cursor = ""; document.body.style.userSelect = ""; persistSidebarWidth(); };
     document.addEventListener("mousemove", mm); document.addEventListener("mouseup", mu);
     return () => { document.removeEventListener("mousemove", mm); document.removeEventListener("mouseup", mu); };
-  }, [setSidebarWidth]);
+  }, [setSidebarWidth, persistSidebarWidth]);
 
   return (
     <aside className="sidebar-glass flex flex-col flex-shrink-0 overflow-hidden relative" style={{ width: sidebarWidth }}>

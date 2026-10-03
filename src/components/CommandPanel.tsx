@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronRight,
   Send,
@@ -62,7 +62,7 @@ function countCommands(node: TreeNode): number {
   return node.commands.length + node.children.reduce((acc, c) => acc + countCommands(c), 0);
 }
 
-export default function CommandPanel() {
+function CommandPanel() {
   const entries = useCommandStore((s) => s.entries);
   const emptyFolders = useCommandStore((s) => s.emptyFolders);
   const load = useCommandStore((s) => s.load);
@@ -1057,4 +1057,9 @@ function NewFolderDialog({
     </Dialog>
   );
 }
+
+// No props, so the default shallow comparison is enough: this keeps the panel
+// from re-rendering when its parent (which changes on every sidebar-drag
+// mousemove because it owns the width) re-renders.
+export default memo(CommandPanel);
 

@@ -12,6 +12,7 @@ interface UIState {
   sidebarWidth: number;
   savedSidebarWidth: number;
   setSidebarWidth: (width: number) => void;
+  persistSidebarWidth: () => void;
 
   /** Session launcher overlay (opened from the title-bar `+` / Ctrl+Shift+T). */
   isLauncherOpen: boolean;
@@ -46,7 +47,7 @@ function loadSidebarWidth(): number {
 const initialSidebarOpen = loadBool(LS_SIDEBAR_OPEN, true);
 const initialSidebarWidth = loadSidebarWidth();
 
-export const useUIStore = create<UIState>((set) => ({
+export const useUIStore = create<UIState>((set, get) => ({
   isSidebarOpen: initialSidebarOpen,
 
   toggleSidebar: () =>
@@ -66,25 +67,41 @@ export const useUIStore = create<UIState>((set) => ({
   sidebarWidth: initialSidebarOpen ? initialSidebarWidth : 0,
   savedSidebarWidth: initialSidebarWidth,
 
+  // Live update while the splitter is being dragged. Deliberately does NOT
+  // touch localStorage: it runs on every mousemove, and two synchronous
+  // writes per event were stalling the drag. `persistSidebarWidth` lands the
+  // final value once the mouse is released.
   setSidebarWidth: (width) =>
     set((s) => {
       if (width < 60) {
         // snap close
-        localStorage.setItem(LS_SIDEBAR_OPEN, "false");
+        if (!s.isSidebarOpen) return s;
         return { sidebarWidth: 0, isSidebarOpen: false };
       }
       const clamped = Math.max(
         MIN_SIDEBAR_WIDTH,
         Math.min(MAX_SIDEBAR_WIDTH, Math.round(width)),
       );
-      localStorage.setItem(LS_SIDEBAR_WIDTH, String(clamped));
-      localStorage.setItem(LS_SIDEBAR_OPEN, "true");
+      if (clamped === s.sidebarWidth && s.isSidebarOpen) return s;
       return {
         sidebarWidth: clamped,
         savedSidebarWidth: clamped,
         isSidebarOpen: true,
       };
     }),
+
+  /**
+   * Writes the remembered width and the open flag to localStorage. Called once
+   * per drag (on mouseup) rather than per mousemove. Collapsing keeps
+   * `savedSidebarWidth` so the next expand restores the dragged width.
+   */
+  persistSidebarWidth: () => {
+    const { savedSidebarWidth, isSidebarOpen } = get();
+    try {
+      localStorage.setItem(LS_SIDEBAR_WIDTH, String(savedSidebarWidth));
+      localStorage.setItem(LS_SIDEBAR_OPEN, String(isSidebarOpen));
+    } catch {}
+  },
 
   isLauncherOpen: false,
   openLauncher: () => set({ isLauncherOpen: true }),
