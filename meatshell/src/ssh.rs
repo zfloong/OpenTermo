@@ -315,17 +315,6 @@ impl std::fmt::Debug for CredentialResponder {
     }
 }
 
-/// One process row sampled from the remote `ps` (#23). CPU/mem are percentages
-/// as reported by `ps` (pcpu/pmem); `command` is the (width-truncated) args.
-#[derive(Debug, Clone)]
-pub struct ProcInfo {
-    pub pid: u32,
-    pub user: String,
-    pub cpu: f32,
-    pub mem: f32,
-    pub command: String,
-}
-
 /// Events emitted back to the UI thread.
 #[derive(Debug, Clone)]
 pub enum SessionEvent {
@@ -367,12 +356,6 @@ pub enum SessionEvent {
         mem_total_kib: u64,
         swap_used_kib: u64,
         swap_total_kib: u64,
-        /// Per-interface (name, rx_bytes_per_sec, tx_bytes_per_sec).
-        net: Vec<(String, u64, u64)>,
-        /// Per-filesystem (mount_point, available_bytes, total_bytes).
-        disks: Vec<(String, u64, u64)>,
-        /// Top processes by CPU (#23). Empty if the host's `ps` is unusable.
-        procs: Vec<ProcInfo>,
     },
 
     // --- Shell notifications -----------------------------------------------
@@ -657,16 +640,12 @@ async fn run_session(
     // silently skipped and the interactive shell is unaffected.
     // Reset PATH to the standard system directories first (#27): the monitor
     // runs over an exec channel, so a server with a hijacked PATH (or a
-    // BASH_ENV pointing at a malicious file) could otherwise shadow awk/cat/df/
-    // sleep with arbitrary binaries. A fixed PATH covering /usr/bin and /bin is
+    // BASH_ENV pointing at a malicious file) could otherwise shadow awk/sleep
+    // with arbitrary binaries. A fixed PATH covering /usr/bin and /bin is
     // more portable than hardcoding one absolute path per tool (their location
     // differs across distros). Monitoring is best-effort, so even if this shell
     // is unusual and the reset finds nothing, only the sidebar stats are lost.
-    // The `ps` section feeds the process monitor (#23): top-40 by CPU, columns
-    // pid/user/pcpu/pmem/args, each line clipped to 200 chars so a giant command
-    // line can't bloat the stream. A host whose `ps` lacks `--sort`/`-o` simply
-    // yields nothing (2>/dev/null), degrading to an empty process list.
-    const MON_CMD: &[u8] = b"PATH=/usr/bin:/bin:/usr/sbin:/sbin; export PATH; while :; do awk '/^cpu /{print}' /proc/stat; awk '/^(MemTotal|MemAvailable|SwapTotal|SwapFree):/{print}' /proc/meminfo; cat /proc/net/dev; echo __DF__; df -kP 2>/dev/null; echo __PS__; ps -eo pid,user,pcpu,pmem,args --sort=-pcpu 2>/dev/null | head -n 41 | cut -c -200; echo __MSTICK__; sleep 2; done\n";
+    const MON_CMD: &[u8] = b"PATH=/usr/bin:/bin:/usr/sbin:/sbin; export PATH; while :; do awk '/^cpu /{print}' /proc/stat; awk '/^(MemTotal|MemAvailable|SwapTotal|SwapFree):/{print}' /proc/meminfo; echo __MSTICK__; sleep 2; done\n";
     let mut mon_channel = match handle.channel_open_session().await {
         Ok(ch) => match ch.exec(true, MON_CMD).await {
             Ok(()) => Some(ch),
@@ -682,9 +661,6 @@ async fn run_session(
     };
     let mut mon_buf = String::new();
     let mut prev_cpu: Option<(u64, u64)> = None; // (total jiffies, idle jiffies)
-    let mut prev_net: std::collections::HashMap<String, (u64, u64)> =
-        std::collections::HashMap::new(); // iface -> (rx_bytes, tx_bytes)
-    let mut prev_net_at = std::time::Instant::now();
 
     // --- Port forwarding / tunnels (#56) --------------------------------
     // Remote (-R) first, while we still hold `handle` mutably (tcpip_forward
@@ -899,12 +875,7 @@ async fn run_session(
                                 .trim_start_matches(['\r', '\n'])
                                 .to_string();
                             mon_buf = rest;
-                            if let Some(stats) = parse_monitor_block(
-                                &block,
-                                &mut prev_cpu,
-                                &mut prev_net,
-                                &mut prev_net_at,
-                            ) {
+                            if let Some(stats) = parse_monitor_block(&block, &mut prev_cpu) {
                                 let _ = events.send(stats);
                             }
                         }
@@ -949,18 +920,13 @@ async fn run_session(
     Ok(())
 }
 
-/// Parse one monitor sample (a block of `/proc/stat` cpu line + `/proc/meminfo`
+/// Parse one monitor sample (a `/proc/stat` cpu line plus `/proc/meminfo`
 /// fields) into a [`SessionEvent::ResourceStats`].
 ///
 /// CPU usage needs two consecutive `/proc/stat` snapshots; `prev` carries the
 /// previous (total, idle) jiffies across calls.  The first sample therefore
 /// reports 0% (no baseline yet).
-fn parse_monitor_block(
-    block: &str,
-    prev: &mut Option<(u64, u64)>,
-    prev_net: &mut std::collections::HashMap<String, (u64, u64)>,
-    prev_net_at: &mut std::time::Instant,
-) -> Option<SessionEvent> {
+fn parse_monitor_block(block: &str, prev: &mut Option<(u64, u64)>) -> Option<SessionEvent> {
     let mut cpu_total = 0u64;
     let mut cpu_idle = 0u64;
     let mut have_cpu = false;
@@ -968,54 +934,8 @@ fn parse_monitor_block(
     let mut mem_avail = 0u64;
     let mut swap_total = 0u64;
     let mut swap_free = 0u64;
-    // Raw /proc/net/dev counters this sample: iface -> (rx_bytes, tx_bytes).
-    let mut net_now: Vec<(String, u64, u64)> = Vec::new();
-    // Filesystems from `df -kP`: (mount, available_bytes, total_bytes).
-    let mut disks: Vec<(String, u64, u64)> = Vec::new();
-    // Processes from `ps` (#23): top-by-CPU rows.
-    let mut procs: Vec<ProcInfo> = Vec::new();
-    // The sample is split into sections by `echo` markers; everything before the
-    // first marker is the cpu/mem/net block.
-    enum Section {
-        Top,
-        Df,
-        Ps,
-    }
-    let mut section = Section::Top;
-
-    // Cap how many interfaces / filesystems / processes we accept from one sample
-    // so a hostile server can't flood the parser and sidebar with fabricated rows
-    // (#27). No real machine has anywhere near this many.
-    const MAX_MON_ENTRIES: usize = 64;
 
     for line in block.lines() {
-        if line == "__DF__" {
-            section = Section::Df;
-            continue;
-        }
-        if line == "__PS__" {
-            section = Section::Ps;
-            continue;
-        }
-        match section {
-            Section::Df => {
-                if disks.len() < MAX_MON_ENTRIES {
-                    if let Some(d) = parse_df_line(line) {
-                        disks.push(d);
-                    }
-                }
-                continue;
-            }
-            Section::Ps => {
-                if procs.len() < MAX_MON_ENTRIES {
-                    if let Some(p) = parse_ps_line(line) {
-                        procs.push(p);
-                    }
-                }
-                continue;
-            }
-            Section::Top => {}
-        }
         if let Some(rest) = line.strip_prefix("cpu ") {
             let nums: Vec<u64> = rest
                 .split_whitespace()
@@ -1037,32 +957,7 @@ fn parse_monitor_block(
             swap_total = parse_meminfo_kib(v);
         } else if let Some(v) = line.strip_prefix("SwapFree:") {
             swap_free = parse_meminfo_kib(v);
-        } else if net_now.len() < MAX_MON_ENTRIES {
-            if let Some((iface, counters)) = parse_net_dev_line(line) {
-                net_now.push((iface, counters.0, counters.1));
-            }
         }
-    }
-
-    // Convert raw byte counters into per-second rates using the previous sample.
-    let now = std::time::Instant::now();
-    let elapsed = now.duration_since(*prev_net_at).as_secs_f64().max(0.001);
-    let mut net: Vec<(String, u64, u64)> = Vec::new();
-    if !net_now.is_empty() {
-        for (iface, rx, tx) in &net_now {
-            if let Some((prx, ptx)) = prev_net.get(iface) {
-                let rx_bps = (rx.saturating_sub(*prx) as f64 / elapsed) as u64;
-                let tx_bps = (tx.saturating_sub(*ptx) as f64 / elapsed) as u64;
-                net.push((iface.clone(), rx_bps, tx_bps));
-            }
-        }
-        prev_net.clear();
-        for (iface, rx, tx) in net_now {
-            prev_net.insert(iface, (rx, tx));
-        }
-        *prev_net_at = now;
-        // Show busiest first so the default-selected NIC is the active one.
-        net.sort_by(|a, b| (b.1 + b.2).cmp(&(a.1 + a.2)));
     }
 
     let cpu_percent = if have_cpu {
@@ -1095,52 +990,7 @@ fn parse_monitor_block(
         mem_total_kib: mem_total,
         swap_used_kib: swap_total.saturating_sub(swap_free),
         swap_total_kib: swap_total,
-        net,
-        disks,
-        procs,
     })
-}
-
-/// Parse one `ps -eo pid,user,pcpu,pmem,args` line into a [`ProcInfo`]. The
-/// header row (`PID` is not numeric) and any malformed line yield `None`.
-/// `args` (everything past the four fixed columns) keeps internal spacing
-/// collapsed — fine for a display-only command column.
-fn parse_ps_line(line: &str) -> Option<ProcInfo> {
-    let mut it = line.split_whitespace();
-    let pid: u32 = it.next()?.parse().ok()?;
-    let user = it.next()?.to_string();
-    let cpu: f32 = it.next()?.parse().ok()?;
-    let mem: f32 = it.next()?.parse().ok()?;
-    let command = it.collect::<Vec<_>>().join(" ");
-    if command.is_empty() {
-        return None;
-    }
-    Some(ProcInfo {
-        pid,
-        user,
-        cpu,
-        mem,
-        command,
-    })
-}
-
-/// Parse one `df -kP` data line into `(mount, available_bytes, total_bytes)`.
-/// Columns: `Filesystem 1024-blocks Used Available Capacity Mounted-on`.
-fn parse_df_line(line: &str) -> Option<(String, u64, u64)> {
-    let f: Vec<&str> = line.split_whitespace().collect();
-    if f.len() < 6 || f[0] == "Filesystem" {
-        return None;
-    }
-    let total_kb: u64 = f[1].parse().ok()?;
-    let avail_kb: u64 = f[3].parse().ok()?;
-    if total_kb == 0 {
-        return None;
-    }
-    // Mount point is the last column (joined in case it contains spaces).
-    let mount = f[5..].join(" ");
-    // Saturating: a server can report arbitrary block counts; KiB→bytes must
-    // not overflow-panic in debug (#27).
-    Some((mount, avail_kb.saturating_mul(1024), total_kb.saturating_mul(1024)))
 }
 
 /// Extract the leading integer (KiB) from a `/proc/meminfo` value like
@@ -1150,26 +1000,6 @@ fn parse_meminfo_kib(s: &str) -> u64 {
         .next()
         .and_then(|x| x.parse().ok())
         .unwrap_or(0)
-}
-
-/// Parse one `/proc/net/dev` data line into `(iface, (rx_bytes, tx_bytes))`.
-/// Format: `  eth0: <rx_bytes> <rx_pkts> ... <tx_bytes> <tx_pkts> ...`
-/// (16 numeric columns; rx_bytes is col 0, tx_bytes is col 8).  The `lo`
-/// loopback interface is skipped — it never reflects real traffic.
-fn parse_net_dev_line(line: &str) -> Option<(String, (u64, u64))> {
-    let (name, rest) = line.split_once(':')?;
-    let iface = name.trim();
-    if iface.is_empty() || iface == "lo" || iface.contains(' ') {
-        return None;
-    }
-    let nums: Vec<u64> = rest
-        .split_whitespace()
-        .filter_map(|x| x.parse().ok())
-        .collect();
-    if nums.len() < 9 {
-        return None;
-    }
-    Some((iface.to_string(), (nums[0], nums[8])))
 }
 
 /// Client handler. Verifies the server host key against the known_hosts store,
@@ -1344,18 +1174,7 @@ fn _assert_handle_send() {
 
 #[cfg(test)]
 mod monitor_hardening_tests {
-    use super::{parse_df_line, parse_monitor_block};
-    use std::collections::HashMap;
-    use std::time::Instant;
-
-    #[test]
-    fn df_line_saturates_instead_of_overflowing() {
-        // avail/total near u64::MAX must not panic on the KiB->bytes multiply.
-        let line = "/dev/sda1 18446744073709551615 0 18446744073709551615 100% /";
-        let (_, avail, total) = parse_df_line(line).expect("parses");
-        assert_eq!(avail, u64::MAX);
-        assert_eq!(total, u64::MAX);
-    }
+    use super::parse_monitor_block;
 
     #[test]
     fn cpu_overflow_values_do_not_panic() {
@@ -1364,23 +1183,7 @@ mod monitor_hardening_tests {
             "cpu {big} {big} {big} {big} {big}\nMemTotal: 1000 kB\nMemAvailable: 500 kB"
         );
         let mut prev = None;
-        let mut prev_net = HashMap::new();
-        let mut at = Instant::now();
         // Must not panic; with no baseline the first sample reports 0% CPU.
-        assert!(parse_monitor_block(&block, &mut prev, &mut prev_net, &mut at).is_some());
-    }
-
-    #[test]
-    fn floods_of_fake_interfaces_are_capped() {
-        let mut block = String::from("MemTotal: 1000 kB\nMemAvailable: 500 kB\n");
-        for i in 0..500 {
-            block.push_str(&format!("eth{i}: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\n"));
-        }
-        let mut prev = None;
-        let mut prev_net = HashMap::new();
-        let mut at = Instant::now();
-        assert!(parse_monitor_block(&block, &mut prev, &mut prev_net, &mut at).is_some());
-        // The remembered interface set is capped, not 500.
-        assert!(prev_net.len() <= 64, "prev_net held {}", prev_net.len());
+        assert!(parse_monitor_block(&block, &mut prev).is_some());
     }
 }
