@@ -1,6 +1,7 @@
 //! Tauri IPC commands exposed to the frontend.
 
 use std::collections::HashMap;
+use std::io::Write;
 use std::process::{Command, Stdio};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -223,13 +224,16 @@ fn get_occupied_drives() -> std::collections::HashSet<String> {
 }
 
 /// Create a per-session rclone SFTP config entry.
+///
+/// The password is deliberately *not* written here: it goes to the mount
+/// process through the environment instead (see [`obscure_password`]), so the
+/// config file holds no secret and no plaintext ever reaches a command line.
 fn create_rclone_config(
     rclone_path: &str,
     config_name: &str,
     host: &str,
     port: u16,
     user: &str,
-    password: Option<&str>,
     key_path: Option<&str>,
 ) -> Result<(), String> {
     let mut cmd = Command::new(rclone_path);
@@ -248,16 +252,58 @@ fn create_rclone_config(
         cmd.arg("key_file").arg(&fixed);
     }
 
-    if let Some(pw) = password {
-        cmd.arg("pass").arg(pw);
-    }
-
     let output = cmd.output().map_err(|e| format!("Failed to run rclone config: {}", e))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!("rclone config failed: {}", stderr.trim()));
     }
     Ok(())
+}
+
+/// Obscure a password for rclone without ever putting it on a command line.
+///
+/// `rclone obscure -` reads the password from STDIN (first line only), so the
+/// plaintext never appears in *this* process's argv — where any local user could
+/// read it from the process list. The obscured result is then handed to the
+/// mount child through the `RCLONE_SFTP_PASS` environment variable, which keeps
+/// it out of that process's argv as well (an environment block is not exposed to
+/// other users the way a command line is).
+fn obscure_password(rclone_path: &str, password: &str) -> Result<String, String> {
+    let mut cmd = Command::new(rclone_path);
+    cmd.creation_flags(0x08000000);
+    cmd.args(["obscure", "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to run rclone obscure: {}", e))?;
+
+    {
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| "rclone obscure: no stdin".to_string())?;
+        stdin
+            .write_all(password.as_bytes())
+            .and_then(|_| stdin.write_all(b"\n"))
+            .map_err(|e| format!("Failed to write to rclone obscure: {}", e))?;
+        // `stdin` is dropped here, closing the pipe so rclone sees EOF and the
+        // first line is taken as the complete password.
+    }
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("rclone obscure failed: {}", e))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("rclone obscure failed: {}", stderr.trim()));
+    }
+    let obscured = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if obscured.is_empty() {
+        return Err("rclone obscure returned nothing".into());
+    }
+    Ok(obscured)
 }
 
 // Every step of this waits on a child process, so the body runs on a blocking
@@ -351,7 +397,6 @@ fn mount_blocking(
         &host,
         port,
         &user,
-        password_opt.as_ref().map(|s| s.as_str()),
         key_path_opt.as_deref(),
     ) {
         abort_mount(tab_id, &attempt, None);
@@ -367,6 +412,22 @@ fn mount_blocking(
         .arg("--no-check-certificate")
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
+
+    // Password auth: hand rclone the *obscured* password through the
+    // environment instead of the command line (see obscure_password). The
+    // config entry was created without a password, so this env var is what
+    // supplies it.
+    if let Some(pw) = password_opt.as_ref().map(|s| s.as_str()) {
+        match obscure_password(crate::get_rclone_path(), pw) {
+            Ok(obscured) => {
+                cmd.env("RCLONE_SFTP_PASS", obscured);
+            }
+            Err(e) => {
+                abort_mount(tab_id, &attempt, None);
+                return Err(e);
+            }
+        }
+    }
 
     let mut child = match cmd.spawn() {
         Ok(child) => child,
