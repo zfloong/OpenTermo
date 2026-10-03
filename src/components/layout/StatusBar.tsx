@@ -11,7 +11,15 @@ export default function StatusBar() {
 
   useEffect(() => {
     let active = true;
-    const poll = async () => { try { const s = await getSystemStats(); if (active) setLocalStats(s); } catch {} };
+    const poll = async () => {
+      try {
+        const s = await getSystemStats();
+        // Keep the previous object when nothing the footer shows moved, so a
+        // steady CPU/net reading stops re-rendering this component (and every
+        // child) twice a second.
+        if (active) setLocalStats((prev) => (prev && sameSnapshot(prev, s) ? prev : s));
+      } catch {}
+    };
     poll();
     const id = setInterval(poll, 2000);
     return () => { active = false; clearInterval(id); };
@@ -66,3 +74,18 @@ function percent(v: number) { return v.toFixed(1) + "%"; }
 function mib(used: number, total: number) { if (total === 0) return "\u2014"; return (used / 1024).toFixed(1) + "/" + (total / 1024).toFixed(1) + "G"; }
 function kibToGiB(usedKib: number, totalKib: number) { if (totalKib === 0) return "\u2014"; const ug = usedKib / 1024 / 1024; const tg = totalKib / 1024 / 1024; return ug.toFixed(1) + "/" + tg.toFixed(1) + "G"; }
 function formatBytes(bytes: number) { if (bytes < 1024) return bytes.toFixed(0) + "B/s"; if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + "K/s"; return (bytes / (1024 * 1024)).toFixed(1) + "M/s"; }
+
+/** Compares only the fields the footer renders (`disks` is never shown). */
+function sameSnapshot(a: SystemSnapshot, b: SystemSnapshot) {
+  return (
+    a.cpuPercent === b.cpuPercent &&
+    a.memPercent === b.memPercent &&
+    a.swapPercent === b.swapPercent &&
+    a.memUsedMib === b.memUsedMib &&
+    a.memTotalMib === b.memTotalMib &&
+    a.swapUsedMib === b.swapUsedMib &&
+    a.swapTotalMib === b.swapTotalMib &&
+    a.netRxPerSec === b.netRxPerSec &&
+    a.netTxPerSec === b.netTxPerSec
+  );
+}

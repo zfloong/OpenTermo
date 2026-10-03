@@ -10,6 +10,13 @@ interface TitleBarProps {
   onSettings: () => void;
 }
 
+/** True when both mount maps hold exactly the same tabId → drive pairs. */
+function sameMounts(a: Record<string, string>, b: Record<string, string>) {
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every((k) => a[k] === b[k]);
+}
+
 export default function TitleBar({ onSettings }: TitleBarProps) {
   const tabs = useSessionStore((s) => s.tabs);
   const activeTabId = useSessionStore((s) => s.activeTabId);
@@ -46,7 +53,9 @@ export default function TitleBar({ onSettings }: TitleBarProps) {
       const list = await rclone_list();
       const map: Record<string, string> = {};
       for (const m of list) map[m.tabId] = m.drive;
-      setMounts(map);
+      // Same pairs as before → keep the old object so the poll does not
+      // re-render the title bar every three seconds for nothing.
+      setMounts((prev) => (sameMounts(prev, map) ? prev : map));
     } catch {}
   }, []);
 
