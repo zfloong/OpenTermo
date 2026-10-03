@@ -510,7 +510,16 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
       container.removeEventListener("contextmenu", onContextMenu);
       resizeSub.dispose();
       window.removeEventListener(`terminal-data:${tabId}`, onData);
-      term.dispose();
+      // xterm disposes its core *before* its addon manager (`Terminal.dispose`
+      // walks its disposable list in registration order, and the core is
+      // registered first). The canvas addon's teardown callback then rebuilds a
+      // DOM renderer on an already-disposed core, where `_createRenderer()`
+      // yields undefined and `RenderService.setRenderer` throws a TypeError on
+      // `undefined.onRequestRedraw`. An exception thrown from an effect cleanup
+      // is not contained by React — it unmounts the whole root, so closing a tab
+      // wiped the entire UI down to the CSS wallpaper. The terminal is being
+      // discarded here, so the half-finished teardown is harmless: swallow it.
+      try { term.dispose(); } catch {}
       terminalRef.current = null;
       fitAddonRef.current = null;
       searchAddonRef.current = null;
