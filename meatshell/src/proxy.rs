@@ -14,6 +14,7 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use base64::Engine as _;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
@@ -105,12 +106,29 @@ pub fn describe(cfg: &ProxyConfig) -> String {
     format!("{}://{}:{}", scheme, cfg.host, cfg.port)
 }
 
+/// Upper bound for the whole proxy handshake (TCP connect + negotiation).
+///
+/// Without it a proxy that accepts the TCP connection but never finishes the
+/// handshake — or a blackholed SYN — hangs session startup until the OS-level
+/// connect timeout, which can be minutes. 15 s is far above any healthy proxy.
+const PROXY_CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+
 /// Open a TCP stream to `target_host:target_port` through the proxy.
 pub async fn connect(cfg: &ProxyConfig, target_host: &str, target_port: u16) -> Result<TcpStream> {
-    match cfg.kind {
-        ProxyKind::Socks5 => connect_socks5(cfg, target_host, target_port).await,
-        ProxyKind::Http => connect_http(cfg, target_host, target_port).await,
-    }
+    let handshake = async {
+        match cfg.kind {
+            ProxyKind::Socks5 => connect_socks5(cfg, target_host, target_port).await,
+            ProxyKind::Http => connect_http(cfg, target_host, target_port).await,
+        }
+    };
+    tokio::time::timeout(PROXY_CONNECT_TIMEOUT, handshake)
+        .await
+        .map_err(|_| {
+            anyhow!(
+                "proxy handshake timed out after {}s",
+                PROXY_CONNECT_TIMEOUT.as_secs()
+            )
+        })?
 }
 
 async fn connect_socks5(cfg: &ProxyConfig, host: &str, port: u16) -> Result<TcpStream> {
