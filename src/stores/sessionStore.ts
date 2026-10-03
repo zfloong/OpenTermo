@@ -32,6 +32,15 @@ interface RemoteStats {
   mem_total_kib: number;
 }
 
+/** Exact-equality check used to drop duplicate monitor samples. */
+function sameRemoteStats(a: RemoteStats, b: RemoteStats) {
+  return (
+    a.cpu_percent === b.cpu_percent &&
+    a.mem_used_kib === b.mem_used_kib &&
+    a.mem_total_kib === b.mem_total_kib
+  );
+}
+
 export interface ActiveTab {
   id: string;
   session: SessionConfig;
@@ -265,11 +274,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const unlistenConnected = await listen<boolean>(
       `terminal-connected:${tabId}`,
       () => {
-        set((s) => ({
-          tabs: s.tabs.map((t) =>
-            t.id === tabId ? { ...t, status: "connected", statusText: "已连接" } : t,
-          ),
-        }));
+        set((s) => {
+          const t = s.tabs.find((t) => t.id === tabId);
+          if (!t || (t.status === "connected" && t.statusText === "已连接")) return s;
+          const idx = s.tabs.indexOf(t);
+          const tabs = s.tabs.slice();
+          tabs[idx] = { ...t, status: "connected", statusText: "已连接" };
+          return { tabs };
+        });
       },
     );
 
@@ -296,11 +308,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const unlistenStatus = await listen<string>(
       `terminal-status:${tabId}`,
       (event) => {
-        set((s) => ({
-          tabs: s.tabs.map((t) =>
-            t.id === tabId ? { ...t, status: "connected", statusText: event.payload } : t,
-          ),
-        }));
+        set((s) => {
+          const t = s.tabs.find((t) => t.id === tabId);
+          if (!t || (t.status === "connected" && t.statusText === event.payload)) return s;
+          const idx = s.tabs.indexOf(t);
+          const tabs = s.tabs.slice();
+          tabs[idx] = { ...t, status: "connected", statusText: event.payload };
+          return { tabs };
+        });
       },
     );
 
@@ -308,11 +323,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const unlistenRemoteStats = await listen<RemoteStats>(
       `remote-stats:${tabId}`,
       (event) => {
-        set((s) => ({
-          tabs: s.tabs.map((t) =>
-            t.id === tabId ? { ...t, remoteStats: event.payload } : t,
-          ),
-        }));
+        // The remote samples every 2s. Returning the current state untouched
+        // when the numbers did not move makes zustand skip the notification
+        // entirely, so an idle session stops re-rendering every subscriber.
+        set((s) => {
+          const idx = s.tabs.findIndex((t) => t.id === tabId);
+          if (idx < 0) return s;
+          const prev = s.tabs[idx];
+          if (prev.remoteStats && sameRemoteStats(prev.remoteStats, event.payload)) {
+            return s;
+          }
+          const tabs = s.tabs.slice();
+          tabs[idx] = { ...prev, remoteStats: event.payload };
+          return { tabs };
+        });
       },
     );
 

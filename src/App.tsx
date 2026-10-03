@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useLayoutEffect } from "react";
+import { useEffect, useState, useCallback, useLayoutEffect, useMemo } from "react";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { applyTheme, applyBackgroundImage, DEFAULT_BACKGROUND, effectivePreset } from "@/lib/themeUtils";
 import TitleBar from "@/components/layout/TitleBar";
@@ -33,7 +33,12 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const activeTabId = useSessionStore((s) => s.activeTabId);
-  const tabs = useSessionStore((s) => s.tabs);
+  // Only the *set* of open tabs matters to this component. Subscribing to the
+  // array itself made every push that rewrote it — remote-stats lands every 2s —
+  // re-render this whole tree, including the sidebar's command panel. The id
+  // list is a string, so it stays referentially equal until a tab opens/closes.
+  const tabIds = useSessionStore((s) => s.tabs.map((t) => t.id).join("\u0000"));
+  const tabIdList = useMemo(() => (tabIds ? tabIds.split("\u0000") : []), [tabIds]);
   const sessions = useSessionStore((s) => s.sessions);
   const connectDialogOpen = useSessionStore((s) => s.connectDialogOpen);
   const connectDialogGroup = useSessionStore((s) => s.connectDialogGroup);
@@ -76,16 +81,16 @@ export default function App() {
 
       // Ctrl+PageUp / Ctrl+PageDown — 上一个 / 下一个标签页
       if (e.key !== "PageUp" && e.key !== "PageDown") return;
-      if (tabs.length < 2) return;
-      const idx = tabs.findIndex((t) => t.id === activeTabId);
+      if (tabIdList.length < 2) return;
+      const idx = tabIdList.indexOf(activeTabId ?? "");
       const delta = e.key === "PageDown" ? 1 : -1;
       const base = idx < 0 ? (delta > 0 ? -1 : 0) : idx;
       e.preventDefault();
-      setActiveTab(tabs[(base + delta + tabs.length) % tabs.length].id);
+      setActiveTab(tabIdList[(base + delta + tabIdList.length) % tabIdList.length]);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tabs, activeTabId, setActiveTab, disconnect]);
+  }, [tabIdList, activeTabId, setActiveTab, disconnect]);
 
   // Apply theme + overrides — JS is always the single source of truth.
   // Layout effect so the first paint already carries the theme tokens.
@@ -126,14 +131,14 @@ export default function App() {
         <Sidebar />
 
         <div id="terminal-area" className="flex-1 overflow-hidden relative">
-            {tabs.length > 0 ? (
-              tabs.map((tab) => (
+            {tabIdList.length > 0 ? (
+              tabIdList.map((id) => (
                 <div
-                  key={tab.id}
+                  key={id}
                   className="absolute inset-0"
-                  style={{ display: tab.id === activeTabId ? "block" : "none" }}
+                  style={{ display: id === activeTabId ? "block" : "none" }}
                 >
-                  <TerminalView tabId={tab.id} active={tab.id === activeTabId} />
+                  <TerminalView tabId={id} active={id === activeTabId} />
                 </div>
               ))
             ) : (
