@@ -8,7 +8,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use meatshell::command::{CommandEntry, CommandStore};
-use meatshell::config::{ConfigStore, Session as SessionConfig};
+use meatshell::config::{update_config, ConfigStore, Session as SessionConfig};
 use meatshell::system::{SystemSampler, SystemSnapshot};
 use parking_lot::Mutex;
 use tauri::{Manager, State};
@@ -29,16 +29,22 @@ pub fn list_sessions() -> Result<Vec<SessionConfig>, String> {
 
 #[tauri::command]
 pub fn save_session(session: SessionConfig) -> Result<(), String> {
-    let mut store = ConfigStore::load().map_err(|e| e.to_string())?;
-    store.upsert(session);
-    store.save().map_err(|e| e.to_string())
+    // Serialized with every other config write so a concurrent command cannot
+    // overwrite this change with a pre-change snapshot (see update_config).
+    update_config(|store| {
+        store.upsert(session);
+        Ok(())
+    })
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn delete_session(id: String) -> Result<(), String> {
-    let mut store = ConfigStore::load().map_err(|e| e.to_string())?;
-    store.remove(&id);
-    store.save().map_err(|e| e.to_string())
+    update_config(|store| {
+        store.remove(&id);
+        Ok(())
+    })
+    .map_err(|e| e.to_string())
 }
 
 // -- Quick-command snippets --------------------------------------------------

@@ -523,8 +523,19 @@ impl ConfigStore {
             }
         }
         let raw = serde_json::to_string_pretty(&disk)?;
-        // Write to a sibling temp file then rename — cheap atomicity.
-        let tmp = self.path.with_extension("json.tmp");
+        // Write to a *uniquely named* sibling temp file then rename — cheap
+        // atomicity. A fixed `sessions.json.tmp` let two concurrent saves
+        // interleave their bytes in the same file, after which the rename
+        // published a half-written JSON as the real config and the next load
+        // backed it up as `.broken`, wiping every saved session.
+        let file_name = self
+            .path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("sessions.json");
+        let tmp = self
+            .path
+            .with_file_name(format!("{file_name}.tmp.{}", Uuid::new_v4()));
         fs::write(&tmp, &raw)
             .with_context(|| format!("failed to write {}", tmp.display()))?;
         // Restrict to owner-only before publishing (#34): sessions.json holds
@@ -541,7 +552,27 @@ impl ConfigStore {
             .with_context(|| format!("failed to finalise {}", self.path.display()))?;
         Ok(())
     }
+}
 
+/// Serializes whole load-modify-save cycles on `sessions.json`.
+///
+/// Each command used to `load()` → mutate → `save()` on its own. Two commands
+/// overlapping that way would each persist a snapshot taken before the other's
+/// change, so one edit silently disappeared. Holding this across the *whole*
+/// cycle (not merely inside `save`) makes concurrent updates serialize.
+static CONFIG_WRITE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Apply `f` to a freshly loaded store and persist the result, all under the
+/// process-wide write lock so a concurrent command cannot lose this update.
+pub fn update_config<R>(f: impl FnOnce(&mut ConfigStore) -> Result<R>) -> Result<R> {
+    // A panic while `f` runs poisons the mutex; the on-disk file is still
+    // consistent (writes are atomic), so recover the lock instead of wedging
+    // every subsequent config command for the rest of the run.
+    let _guard = CONFIG_WRITE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let mut store = ConfigStore::load()?;
+    let out = f(&mut store)?;
+    store.save()?;
+    Ok(out)
 }
 
 // ── Data directory ────────────────────────────────────────────────────────
