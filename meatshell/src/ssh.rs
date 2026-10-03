@@ -451,6 +451,13 @@ async fn run_session(
 
     let config = Arc::new(client::Config {
         inactivity_timeout: Some(std::time::Duration::from_secs(60 * 10)),
+        // Send a keepalive every 30 s. Without it an idle session is torn down
+        // by `inactivity_timeout` after ten minutes with no traffic, even though
+        // the link is perfectly healthy (a monitoring/keepalive that the server
+        // answers is what tells live from dead). `keepalive_max` consecutive
+        // missed replies (3 × 30 s) still drop a genuinely dead connection.
+        keepalive_interval: Some(std::time::Duration::from_secs(30)),
+        keepalive_max: 3,
         // Offer the compatibility algorithm lists so old servers and network
         // gear still negotiate; see COMPAT_KEX / COMPAT_CIPHER above.
         preferred: russh::Preferred {
