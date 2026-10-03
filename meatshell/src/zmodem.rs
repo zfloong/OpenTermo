@@ -57,6 +57,13 @@ const CANFDX: u8 = 0x01;
 const CANOVIO: u8 = 0x02;
 const CANFC32: u8 = 0x20;
 
+// Hard limits for a received transfer. Real ZMODEM senders split data into
+// small subpackets (a few hundred bytes to a few KB), so these sit far above
+// anything legitimate and exist only to stop a broken or hostile sender from
+// consuming unbounded memory (subpacket) or disk (whole file).
+const MAX_SUBPACKET_BYTES: usize = 16 * 1024 * 1024;
+const MAX_FILE_BYTES: u64 = 8 * 1024 * 1024 * 1024;
+
 /// Receive one or more files via ZMODEM. `first` is the channel chunk that
 /// triggered detection (it contains the leading ZRQINIT).
 ///
@@ -124,6 +131,18 @@ pub async fn receive(
                 loop {
                     let (chunk, end) = rx.read_subpacket(true).await?;
                     if let Some(c) = cur.as_mut() {
+                        // Bound the transfer: a sender that declared a size must
+                        // not exceed it, and one that didn't (size 0) is capped
+                        // by the absolute limit. This is what keeps `sz` from
+                        // filling the disk without bound.
+                        let cap = if c.size > 0 {
+                            c.size.min(MAX_FILE_BYTES)
+                        } else {
+                            MAX_FILE_BYTES
+                        };
+                        if c.written + chunk.len() as u64 > cap {
+                            bail!("ZMODEM transfer exceeded its {} byte limit", cap);
+                        }
                         c.file.write_all(&chunk).await.context("write file")?;
                         c.written += chunk.len() as u64;
                         emit(events, &c.id, &c.name, c.written, c.size.max(c.written), 0, "");
@@ -345,6 +364,12 @@ impl<'a> Rx<'a> {
     async fn read_subpacket(&mut self, crc32: bool) -> Result<(Vec<u8>, u8)> {
         let mut data = Vec::new();
         loop {
+            // A subpacket only ends on a terminator byte; without a cap a sender
+            // that never terminates one would grow `data` (and the CRC clone of
+            // it) until memory runs out.
+            if data.len() > MAX_SUBPACKET_BYTES {
+                bail!("ZMODEM subpacket exceeded {} bytes", MAX_SUBPACKET_BYTES);
+            }
             let b = self.byte().await?;
             if b != ZDLE {
                 data.push(b);
