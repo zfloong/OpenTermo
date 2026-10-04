@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Plus, FolderOpen } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, Plus, FolderOpen } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -58,6 +58,7 @@ export default function ConnectDialog({
   const [keyPassphrase, setKeyPassphrase] = useState(() =>
     ""
   );
+  const [showPassword, setShowPassword] = useState(false);
   // EditSessionDialog handles editing separately
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -151,7 +152,7 @@ export default function ConnectDialog({
             <button
               onClick={handleCopyInfo}
               disabled={!form.host.trim()}
-              title="复制 主机 / 端口 / 用户名 / 密钥"
+              title={form.auth === "password" ? "复制 主机 / 端口 / 用户名 / 密码" : "复制 主机 / 端口 / 用户名 / 密钥"}
               className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[var(--border-subtle)] text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${copyBtnClass}`}
             >
               {copied ? <Check size={13} /> : <Copy size={13} />}
@@ -284,7 +285,17 @@ export default function ConnectDialog({
                 <>
                   <label className="flex flex-col gap-1.5">
                     <span className="text-xs font-medium text-[var(--text-secondary)]">密码</span>
-                    <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="········" className="h-8 text-sm" />
+                    <div className="relative">
+                      <Input type={showPassword ? "text" : "password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="········" className="h-8 text-sm pr-9" />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        title={showPassword ? "隐藏密码" : "显示密码"}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 flex items-center justify-center rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+                      >
+                        {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
                   </label>
                   <label className="flex flex-col gap-1.5">
                     <span className="text-xs font-medium text-[var(--text-secondary)]">代理</span>
