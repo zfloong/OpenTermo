@@ -19,7 +19,7 @@ use crate::ssh::{ClientHandler, EventSink};
 
 /// Emit a one-line notice into the terminal output stream.
 fn notice(events: &EventSink, msg: String) {
-    events.output(format!("\r\n[meatshell] {msg}\r\n"));
+    events.blocking_output(format!("\r\n[meatshell] {msg}\r\n"));
 }
 
 fn bind_target(bind_addr: &str, bind_port: u16) -> String {

@@ -190,7 +190,7 @@ export default function App() {
           sessions={sessions}
           defaultGroup={connectDialogGroup}
           onClose={closeConnect}
-          onConnect={(s) => connect(s.id, s)}
+          onConnect={(s) => connect(`tab-${s.id}-${Date.now()}`, s)}
           onSave={save}
         />
       )}

@@ -153,7 +153,7 @@ async fn run_serial(
                     let text = crate::ssh::decode_utf8_chunk(&mut pending_utf8, &buf[..n]);
                     // Output is lossy (dropped when the queue is full), so the
                     // send itself never reports a gone consumer; poll the sink.
-                    reader_events.output(text);
+                    reader_events.blocking_output(text);
                     if reader_events.is_closed() {
                         break;
                     }

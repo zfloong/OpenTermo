@@ -186,7 +186,7 @@ async fn run_telnet(
                         }
                         if !data.is_empty() {
                             let text = crate::ssh::decode_utf8_chunk(&mut pending_utf8, &data);
-                            events.output(text);
+                            events.output(text).await;
                         }
                     }
                     Err(e) => {

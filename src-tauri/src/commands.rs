@@ -633,10 +633,27 @@ pub fn set_background_image(app: tauri::AppHandle, path: String) -> Result<Strin
 #[tauri::command(async)]
 pub fn get_background_image(app: tauri::AppHandle) -> Result<Option<String>, String> {
     let dest = background_path(&app)?;
-    if !dest.exists() {
-        return Ok(None);
+    if dest.exists() {
+        return background_data_url(&dest).map(Some);
     }
-    background_data_url(&dest).map(Some)
+    // Fallback: the user's default wallpaper, encoded as a data URL so the
+    // webview can paint it without file-system access.
+    let fallback = std::path::Path::new(
+        r"C:\Users\65451\Desktop\SoftWare\AAA壁纸\猫和老鼠原图_副本.png",
+    );
+    if fallback.exists() {
+        let img = image::open(fallback).map_err(|e| format!("无法读取默认壁纸: {}", e))?;
+        let img = img.resize(2560, 1440, image::imageops::FilterType::Lanczos3).into_rgb8();
+        let mut buf = std::io::Cursor::new(Vec::new());
+        img.write_with_encoder(image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 85))
+            .map_err(|e| format!("无法编码默认壁纸: {}", e))?;
+        use base64::Engine;
+        return Ok(Some(format!(
+            "data:image/jpeg;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(buf.into_inner())
+        )));
+    }
+    Ok(None)
 }
 
 #[tauri::command]

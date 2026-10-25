@@ -396,10 +396,17 @@ pub struct EventSink {
 }
 
 impl EventSink {
-    /// Queue a chunk of terminal output, dropping it if the UI is too far
-    /// behind. Never blocks the caller.
-    pub fn output(&self, text: String) {
-        let _ = self.output.try_send(SessionEvent::Output(text));
+    /// Queue a chunk of terminal output with back-pressure.  When the UI
+    /// falls behind, this awaits until there is room instead of silently
+    /// dropping data — dropping can truncate ANSI escape sequences and
+    /// corrupt the terminal state.
+    pub async fn output(&self, text: String) {
+        let _ = self.output.send(SessionEvent::Output(text)).await;
+    }
+
+    /// Blocking variant for non-async contexts (threads, sync fns).
+    pub fn blocking_output(&self, text: String) {
+        let _ = self.output.blocking_send(SessionEvent::Output(text));
     }
 
     /// Deliver a control event reliably (never dropped). Synchronous and
@@ -767,13 +774,13 @@ async fn run_session(
                 events.output(format!(
                     "\r\n[meatshell] -R {bind}:{} → {}:{}\r\n",
                     f.bind_port, f.host, f.host_port
-                ));
+                )).await;
             }
             Err(e) => {
                 events.output(format!(
                     "\r\n[meatshell] -R {bind}:{} 请求失败 / request failed: {e}\r\n",
                     f.bind_port
-                ));
+                )).await;
             }
         }
     }
@@ -849,7 +856,7 @@ async fn run_session(
                                         if let Some(cwd) = extract_osc7_path(&text) {
                                             events.control(SessionEvent::CwdChanged(cwd));
                                         }
-                                        events.output(text);
+                                        events.output(text).await;
                                     }
                                 }
                                 Err(e) => {
@@ -858,7 +865,7 @@ async fn run_session(
                                     events.output(format!(
                                         "\r\n[meatshell] {}: {e}\r\n",
                                         t("ZMODEM 接收失败,已取消", "ZMODEM receive failed; cancelled")
-                                    ));
+                                    )).await;
                                 }
                             }
                             continue;
@@ -924,14 +931,14 @@ async fn run_session(
                             chunk
                         };
 
-                        events.output(text);
+                        events.output(text).await;
                     }
                     Some(ChannelMsg::ExtendedData { data, ext: _ }) => {
                         // Same decoder as stdout: the terminal interleaves both
                         // streams, so a character split across the two would be
                         // corrupted just like one split across two packets.
                         let text = decode_utf8_chunk(&mut pending_utf8, &data);
-                        events.output(text);
+                        events.output(text).await;
                     }
                     Some(ChannelMsg::ExitStatus { exit_status }) => {
                         events.control(SessionEvent::Status(
@@ -1245,7 +1252,7 @@ impl Handler for ClientHandler {
                 Err(e) => {
                     events.output(format!(
                         "\r\n[meatshell] -R {host}:{port} 连接失败 / connect failed: {e}\r\n"
-                    ));
+                    )).await;
                 }
             }
         });

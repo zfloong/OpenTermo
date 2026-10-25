@@ -148,16 +148,9 @@ pub fn run() {
     let is_closing = Arc::new(AtomicBool::new(false));
 
     tauri::Builder::default()
-        // Must be registered first: its setup hook runs before all others and
-        // turns a second launch away (the newcomer just focuses this window),
-        // so the startup sweep in our own setup below can only ever run on
-        // the single live instance.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
-        }))
+        // Multi-instance allowed: a second launch opens a new window instead of
+        // focusing the existing one. The single-instance plugin is removed so
+        // users can connect to the same host from separate windows.
         .plugin(tauri_plugin_dialog::init())
         .manage(SessionManager::new())
         .manage(Arc::new(parking_lot::Mutex::new(SystemSampler::new())))

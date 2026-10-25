@@ -154,11 +154,10 @@ export default function SessionLauncher() {
   }, [isOpen, loadSessions]);
 
   const handleConnect = useCallback((s: SessionConfig) => {
-    const existing = tabs.find((t) => t.session.id === s.id);
-    if (existing) setActiveTab(existing.id);
-    else connect(`tab-${s.id}-${Date.now()}`, s);
+    // Always create a new tab — allow multiple sessions to the same host.
+    connect(`tab-${s.id}-${Date.now()}`, s);
     closeToTerminal();
-  }, [tabs, setActiveTab, connect, closeToTerminal]);
+  }, [connect, closeToTerminal]);
 
   const connectQuick = useCallback((spec: QuickSpec) => {
     const s = quickSession(spec);

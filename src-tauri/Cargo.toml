@@ -8,7 +8,6 @@ image = "0.25"
 base64 = "0.22"
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
-tauri-plugin-single-instance = "2"
 meatshell = { path = "../meatshell" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 serde = { version = "1", features = ["derive"] }

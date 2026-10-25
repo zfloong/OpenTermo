@@ -3,6 +3,7 @@ import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 import { SearchAddon } from "xterm-addon-search";
 import { CanvasAddon } from "xterm-addon-canvas";
+import { Unicode11Addon } from "xterm-addon-unicode11";
 import "xterm/css/xterm.css";
 import { useSessionStore } from "@/stores/sessionStore";
 import { useSettingsStore, type PresetThemeId, type ThemeId } from "@/stores/settingsStore";
@@ -218,41 +219,33 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
       allowProposedApi: true,
     });
 
+    // Unicode 11 width table — emoji and modern CJK render at correct width
+    // without this, cursors misalign in mixed CJK/emoji output.
+    try {
+      const unicode11 = new Unicode11Addon();
+      term.loadAddon(unicode11);
+      term.unicode.activeVersion = "11";
+    } catch {}
+
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(container);
 
-    // Swap xterm's default DOM renderer for the Canvas2D one. The DOM renderer
-    // keeps thousands of real spans in sync, which is what makes scrolling and
-    // high-throughput output feel heavy; the canvas renderer draws the grid into
-    // layered canvases instead. It is the one renderer that honours
-    // `allowTransparency` (the text layer clearRects rather than filling the
-    // theme background), so the wallpaper still reads through the terminal —
-    // the WebGL addon cannot do that. Documented order is after `open()`.
-    // CanvasAddon.dispose() restores the DOM renderer, so deleting this block
-    // is a complete revert.
     const canvasAddon = new CanvasAddon();
     term.loadAddon(canvasAddon);
     canvasAddonRef.current = canvasAddon;
 
-    // Focus must be deferred — xterm textarea needs a tick to mount in DOM
+    // Subscribe to resize BEFORE the first fit() so the initial grid size
+    // is reported to the backend.
+    const resizeSub = term.onResize(({ cols, rows }) => {
+      if (cols > 0 && rows > 0) onResize(tabId, cols, rows).catch(() => {});
+    });
+
+    // Focus must be deferred — xterm textarea needs a tick to mount in DOM.
+    // Fit after fonts are ready so column width is measured correctly.
     requestAnimationFrame(() => {
       term.focus();
       try { fitAddon.fit(); } catch {}
-    });
-    fitAddon.fit();
-
-    // Report every grid change to the backend. `fit()` runs from several places
-    // (initial layout, font load, settings changes, container resize) and each
-    // one can change cols/rows. The remote PTY must track the *same* grid: if it
-    // keeps wrapping at an older width while we render a wider one, readline's
-    // cursor maths drift from the rendered cells, long lines land on the wrong
-    // column and the prompt looks frozen until a history recall redraws it.
-    const resizeSub = term.onResize(({ cols, rows }) => {
-      // Fire-and-forget, but swallowed on failure: fit() also runs while a tab
-      // is being torn down, and the backend then has no such session to resize.
-      // Without the catch that expected race surfaced as an unhandled rejection.
-      if (cols > 0 && rows > 0) onResize(tabId, cols, rows).catch(() => {});
     });
 
     document.fonts?.ready?.then(() => { try { fitAddon.fit(); } catch {} });
@@ -497,10 +490,21 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
     fitAddonRef.current = fitAddon;
 
     // ── Listen for output from the backend ────────────────────────────
+    let firstData = true;
     const onData = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail;
       if (detail) {
-        term.write(detail);
+        term.write(detail, () => {
+          // After the initial MOTD/banner lands, snap to the bottom so the
+          // shell prompt is visible.  We deliberately do NOT clear the
+          // screen: the MOTD may contain critical info (password expiry,
+          // reboot notices), and injecting `\r` can trigger commands on
+          // serial/network devices.
+          if (firstData) {
+            firstData = false;
+            term.scrollToBottom();
+          }
+        });
       }
     };
     window.addEventListener(`terminal-data:${tabId}`, onData);
@@ -580,6 +584,17 @@ export default function TerminalView({ tabId, active }: { tabId: string; active:
       terminalRef.current?.scrollToBottom();
     }
   }, [scrollTrigger]);
+
+  // ── Scroll to bottom on first activation only ──────────────
+  // Do NOT scroll on every tab switch — that would destroy the user's
+  // scroll position when they switch back to read history.
+  const hasActivated = useRef(false);
+  useEffect(() => {
+    if (active && !hasActivated.current) {
+      hasActivated.current = true;
+      requestAnimationFrame(() => terminalRef.current?.scrollToBottom());
+    }
+  }, [active]);
 
 
   // ── Resize terminal to fill container ───────────────────────
