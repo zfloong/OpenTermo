@@ -54,7 +54,8 @@ body {
 }
 
 /* Custom wallpaper — painted under every layer, so the translucent window and
-   panel tokens read as frost over it. */
+   panel tokens read as frost over it.  Starts at opacity 0 and fades in via
+   [data-wp="on"] to avoid a flash when the async background load resolves. */
 body::before {
   content: "";
   position: fixed;
@@ -65,6 +66,11 @@ body::before {
   background-position: center;
   background-repeat: no-repeat;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+[data-wp="on"] body::before {
+  opacity: 1;
 }
 
 /* Scrollbar */
